@@ -29,17 +29,3 @@ def psnr(img_batch, ref_batch, batched=False, factor=1.0):
         psnr = torch.stack(psnrs, dim=0).mean()
 
     return psnr.item()
-
-
-def system_startup(args=None, defs=None):
-    """Print useful system information."""
-    # Choose GPU device and print status information:
-    device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
-    setup = dict(device=device, dtype=torch.float)  # non_blocking=NON_BLOCKING
-    if args is not None:
-        print(args)
-    if defs is not None:
-        print(repr(defs))
-    if torch.cuda.is_available():
-        print(f'GPU : {torch.cuda.get_device_name(device=device)}')
-    return setup  # This is a dictionary just with the device.

@@ -14,8 +14,8 @@ DEFAULT_CONFIG = dict(boxed=True,
                       total_variation=1e-1,
                       init='randn',  # How you want to initialize an image
                       filter='none',
-                      lr_decay=True,
-                      scoring_choice='loss')
+                      lr_decay=True
+                      )
 # cifar10_mean = [0.4914672374725342, 0.4822617471218109, 0.4467701315879822]
 # cifar10_std = [0.24703224003314972, 0.24348513782024384, 0.26158785820007324]
 # cifar100_mean = [0.5071598291397095, 0.4866936206817627, 0.44120192527770996]
@@ -199,15 +199,16 @@ class UIAttack:
 
         try:
             for trial in range(self.config['restarts']):
-                # Run a trial passing in the batch of randomly initialized images x[trial],
-                # data is usually X_unlearn, the features of the forget set
-                # Labels is usually y_unlearn: The true labels of the forget set
                 x_trial, labels, history = self._run_trial(x[trial],
                                                            param_diff,
                                                            X_forget,
                                                            y_forget,
                                                            dryrun=dryrun)
-                scores[trial] = self._score_trial(x_trial, param_diff, labels)
+                # Score how well gradient of reconstructed x_trial images match param_diff.
+                scores[trial] = self._score_trial(x_trial,
+                                                  param_diff,
+                                                  labels)
+                # Update x[trial] with the checkpoint from this restart.
                 x[trial] = x_trial
                 history_list.append(history)
                 if tol is not None and scores[trial] <= tol:
@@ -220,7 +221,7 @@ class UIAttack:
 
         print('Choosing optimal result ...')
         scores = scores[torch.isfinite(scores)]
-        # Minimises the cost between the gradient and input gradient
+        # Get x with minimum cost between the gradient and param difff
         optimal_index = torch.argmin(scores)
         print(f'Optimal result score: {scores[optimal_index]:2.4f}')
         stats['opt'] = scores
@@ -305,3 +306,29 @@ class UIAttack:
             print(f'Recovery interrupted manually in iteration {iteration}!')
             pass
         return x_trial.detach(), labels, history
+
+    def _score_trial(self, x_trial, input_gradient, label):
+        """ Return a score for a reconstruction attempt x_trial.
+
+        Score reconstructed x_trial inputs using similarity between
+        gradient of x_trials w.r.t original model and the parameter difference
+        as a proxy for reconstruction quality.
+
+        Args:
+            x_trial (tensor): Reconstructed images over the trials.
+            input_gradient (list): Parameter difference between 2 models
+            label: x_trial labels
+
+        Returns:
+            The reconstruction costs for x_trial.
+        """
+        self.original_model.zero_grad()
+        x_trial.grad = None
+        loss = self.loss_fn(self.original_model(x_trial), label)
+        gradient = torch.autograd.grad(loss,
+                                       self.original_model.parameters(),
+                                       create_graph=False)
+
+        return self._reconstruction_costs([gradient],
+                                          input_gradient,
+                                          cost_fn=self.config['cost_fn'])
