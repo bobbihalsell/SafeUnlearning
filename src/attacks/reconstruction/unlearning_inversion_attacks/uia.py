@@ -1,5 +1,8 @@
 """ Method from https://arxiv.org/abs/2404.03233 by Hu et. al in a paper."""
 import torch
+from utils import total_variation
+from torchvision import transforms
+from tqdm import trange
 
 
 DEFAULT_CONFIG = dict(boxed=True,
@@ -13,11 +16,18 @@ DEFAULT_CONFIG = dict(boxed=True,
                       filter='none',
                       lr_decay=True,
                       scoring_choice='loss')
+# cifar10_mean = [0.4914672374725342, 0.4822617471218109, 0.4467701315879822]
+# cifar10_std = [0.24703224003314972, 0.24348513782024384, 0.26158785820007324]
+# cifar100_mean = [0.5071598291397095, 0.4866936206817627, 0.44120192527770996]
+# cifar100_std = [0.2673342823982239, 0.2564384639263153, 0.2761504650115967]
+# stl10_mean = [0.44671064615249634, 0.4398098886013031, 0.4066464304924011]
+# stl10_std = [0.26034098863601685, 0.2565772831439972, 0.2712673842906952]
 
 
 class UIAttack:
     """ Perform an Unlearning Inversion Attack given 2 models."""
-    def __init__(self, original_model, unlearned_model, config:dict):
+    def __init__(self, original_model, unlearned_model,
+                 config: dict, mean_std=(0.0, 1.0), num_images=1):
         if not isinstance(original_model, torch.nn.Module):
             raise TypeError("original_model must be an instance of torch.nn.Module")
         if not isinstance(unlearned_model, torch.nn.Module):
@@ -28,6 +38,13 @@ class UIAttack:
 
         self._validate_models()
         self.config = self._validate_config(config)
+
+        self.loss_fn = torch.nn.CrossEntropyLoss(reduction='mean')
+        self.mean_std = mean_std
+        self.num_images = num_images
+        # Dict of torch device used by the current system
+        self.setup = dict(device=next(self.original_model.parameters()).device,
+                          dtype=next(self.original_model.parameters()).dtype)
 
     def _validate_models(self):
         """Ensure both models have the same number and shape of parameters."""
@@ -45,14 +62,27 @@ class UIAttack:
                     self.unlearned_model.state_dict()[key].shape):
                 raise ValueError(f"Shape mismatch for parameter: {key}")
 
-    def _validate_config(self, config):  # Just to initialize missing keys to the default and that there are no extra fields provided by the user that the code cannot support.
+    def _validate_config(self, config):
         for key in DEFAULT_CONFIG.keys():
             if config.get(key) is None:
                 config[key] = DEFAULT_CONFIG[key]
         for key in config.keys():
-            if DEFAULT_CONFIG.get(key) is None:  # Quite a nice logic though for software robustness, worth noting and maybe taking awawy
+            if DEFAULT_CONFIG.get(key) is None:
                 raise ValueError(f'Deprecated key in config dict: {key}!')
         return config
+
+    def _init_images(self, img_shape):
+        if self.config['init'] == 'randn':
+            return torch.randn((self.config['restarts'],
+                                self.num_images,
+                                *img_shape), **self.setup)  # **self.setup tells the tensor to use GPU/CPU and a specific dtype
+
+        elif self.config['init'] == 'rand':
+            return (torch.rand((self.config['restarts'], self.num_images, *img_shape), **self.setup) - 0.5) * 2
+        elif self.config['init'] == 'zeros':
+            return torch.zeros((self.config['restarts'], self.num_images, *img_shape), **self.setup)
+        else:
+            raise ValueError()
 
     def get_parameter_difference(self):
         """ Get the gradient (parameter diff) between the 2 models."""
@@ -113,6 +143,7 @@ class UIAttack:
 
             # Accumulate final costs
             total_costs += costs
+        # Mean over all trial gradients
         return total_costs / len(gradients)
 
     def _gradient_closure(self, normalizer, optimizer,
@@ -140,9 +171,137 @@ class UIAttack:
 
         return closure
 
+    def reconstruct(self, X_forget, y_forget, img_shape=(3, 32, 32),
+                    dryrun=False, eval=True, tol=None):
+        """Reconstruct image."""
+        if eval:
+            self.original_model.eval()
+            self.unlearned_model.eval()
 
-def total_variation(x):
-    """Anisotropic TV."""
-    dx = torch.mean(torch.abs(x[:, :, :, :-1] - x[:, :, :, 1:]))
-    dy = torch.mean(torch.abs(x[:, :, :-1, :] - x[:, :, 1:, :]))
-    return dx + dy
+        param_diff = self.get_parameter_difference()
+
+        stats = {}
+        # Initialize tensor of randomly initialized images
+        x = self._init_images(img_shape)
+        history_list = []
+        scores = torch.zeros(self.config['restarts'])
+
+        if y_forget is None:  # Label reconstruction
+            self.reconstruct_label = True
+
+            def loss_fn(pred, y_forget):  # NLL loss
+                y_forget = torch.nn.functional.softmax(y_forget, dim=-1)
+                return torch.mean(torch.sum(- y_forget * torch.nn.functional.log_softmax(pred, dim=-1), 1))
+            self.loss_fn = loss_fn
+        else:
+            assert y_forget.shape[0] == self.num_images
+            self.reconstruct_label = False
+
+        try:
+            for trial in range(self.config['restarts']):
+                # Run a trial passing in the batch of randomly initialized images x[trial],
+                # data is usually X_unlearn, the features of the forget set
+                # Labels is usually y_unlearn: The true labels of the forget set
+                x_trial, labels, history = self._run_trial(x[trial],
+                                                           param_diff,
+                                                           X_forget,
+                                                           y_forget,
+                                                           dryrun=dryrun)
+                scores[trial] = self._score_trial(x_trial, param_diff, labels)
+                x[trial] = x_trial
+                history_list.append(history)
+                if tol is not None and scores[trial] <= tol:
+                    break
+                if dryrun:
+                    break
+        except KeyboardInterrupt:
+            print('Trial procedure manually interruped.')
+            pass
+
+        print('Choosing optimal result ...')
+        scores = scores[torch.isfinite(scores)]
+        # Minimises the cost between the gradient and input gradient
+        optimal_index = torch.argmin(scores)
+        print(f'Optimal result score: {scores[optimal_index]:2.4f}')
+        stats['opt'] = scores
+        x_optimal = x[optimal_index]
+
+        return x, stats, history_list, x_optimal
+
+    def _run_trial(self, x_trial, input_gradient, data, labels, dryrun=False):
+        x_trial.requires_grad = True  # So that x can be modified
+        history = []
+
+        if self.reconstruct_label:
+            output_test = self.original_model(x_trial)
+            labels = torch.randn(output_test.shape[1]).to(**self.setup).requires_grad_(True)
+
+            if self.config['optim'] == 'adam':
+                optimizer = torch.optim.Adam([x_trial, labels],
+                                             lr=self.config['lr'])
+            elif self.config['optim'] == 'adamw':
+                optimizer = torch.optim.AdamW([x_trial, labels],
+                                              lr=self.config['lr'])
+            elif self.config['optim'] == 'sgd':
+                optimizer = torch.optim.SGD([x_trial, labels],
+                                            lr=self.config['lr'],
+                                            momentum=0.9,
+                                            nesterov=True)
+            elif self.config['optim'] == 'LBFGS':
+                optimizer = torch.optim.LBFGS([x_trial,
+                                               labels])
+            else:
+                raise ValueError("Only 'adam', 'adamw', 'sgd' and 'LBFGS' optimizers supported.")
+        else:
+            if self.config['optim'] == 'adam':
+                optimizer = torch.optim.Adam([x_trial],
+                                             lr=self.config['lr'])
+            elif self.config['optim'] == 'adamw':
+                optimizer = torch.optim.AdamW([x_trial],
+                                              lr=self.config['lr'])
+            elif self.config['optim'] == 'sgd':
+                optimizer = torch.optim.SGD([x_trial],
+                                            lr=self.config['lr'],
+                                            momentum=0.9,
+                                            nesterov=True)
+            elif self.config['optim'] == 'LBFGS':
+                optimizer = torch.optim.LBFGS([x_trial])
+            else:
+                raise ValueError()
+
+        max_iterations = self.config['max_iterations']
+        dm, ds = self.mean_std
+        normalizer = transforms.Normalize(dm.tolist(), ds.tolist())
+        if self.config['lr_decay']:
+            scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
+                                                             milestones=[max_iterations // 2.667, max_iterations // 1.6,
+                                                                         max_iterations // 1.142], gamma=0.5)
+        try:
+            tqdm_range = trange(1, max_iterations + 1, desc='Loss', leave=True)
+            for iteration in tqdm_range:
+                # Project into image space
+                if self.config['boxed']:
+                    x_trial.data = torch.clamp(x_trial.data, 0, 1)
+                # Compute the gradient of x_trial w.r.t the original model
+                closure = self._gradient_closure(normalizer,
+                                                 optimizer,
+                                                 x_trial,
+                                                 input_gradient,
+                                                 labels)
+                # Compute loss, backpropagate and update x_trial.
+                rec_loss = optimizer.step(closure)
+                if self.config['lr_decay']:
+                    scheduler.step()
+
+                with torch.no_grad():
+                    if (iteration == max_iterations) or iteration % 100 == 0:
+                        history.append(x_trial.detach().cpu().clone())
+
+                tqdm_range.set_description(f'Loss: {rec_loss.item():2.4f}. MSE: {(x_trial.data - data).pow(2).mean().item()}')
+                tqdm_range.refresh()
+                if dryrun:
+                    break
+        except KeyboardInterrupt:
+            print(f'Recovery interrupted manually in iteration {iteration}!')
+            pass
+        return x_trial.detach(), labels, history
