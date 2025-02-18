@@ -1,6 +1,6 @@
 from torchvision import datasets, transforms
 import torch
-from unlearning.utils import remove_samples_by_indices
+from unlearning.utils import remove_samples_by_indices, remove_classes
 
 transform = transforms.Compose([
     transforms.ToTensor(),
@@ -35,3 +35,11 @@ def test_remove_samples_by_indices():
         assert forget_set[i][1] == cifar10_train[i][1]
         assert torch.equal(retain_set[i][0], cifar10_train[10+i][0])
         assert retain_set[i][1] == cifar10_train[10+i][1]
+
+
+def test_remove_classes():
+    retain_set, forget_set = remove_classes(cifar10_train, [1], 
+                                            return_forget=True, verbose=False)
+
+    assert all([forget_set[i][1] == 1 for i in range(len(forget_set))])
+    assert not any([retain_set[i][1] == 1 for i in range(len(retain_set))])
