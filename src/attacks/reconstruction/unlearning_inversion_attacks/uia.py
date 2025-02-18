@@ -1,6 +1,6 @@
 """ Method from https://arxiv.org/abs/2404.03233 by Hu et. al in a paper."""
 import torch
-from utils import total_variation
+from attacks.reconstruction.unlearning_inversion_attacks.utils import total_variation
 from torchvision import transforms
 from tqdm import trange
 
