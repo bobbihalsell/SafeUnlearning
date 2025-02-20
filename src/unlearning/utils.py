@@ -1,4 +1,14 @@
 from torch.utils.data import Subset
+import torch
+
+
+def _setup_device():
+    if torch.cuda.is_available():
+        return 'cuda'
+    elif torch.mps.is_available():
+        return 'mps'
+    else:
+        return 'cpu'
 
 
 def remove_samples_by_indices(dataset, forget_set_indices, 
@@ -36,7 +46,7 @@ def remove_classes(dataset, forget_labels,
 
     Args:
         dataset (torch.utils.data.Dataset): Usually a training dataset.
-        forget_set_indices (list[int]): A list containing the labels of the classes to remove.
+        forget_labels (list[int]): A list containing the labels of the classes to remove.
         return_forget (bool, optional): Whether to return the forget set.
         verbose (bool, optional): Whether to print dataset sizes.
 
