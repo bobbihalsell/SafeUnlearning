@@ -2,7 +2,17 @@ from torch.utils.data import Subset
 import torch
 
 
-def _setup_device():
+class UnsupportedModelError(Exception):
+    def __init__(self, message='Model type is not supported for this operation.'):
+        super().__init__(message)
+
+
+def setup_device():
+    """ Setup a torch device.
+
+    Returns:
+        str
+    """
     if torch.cuda.is_available():
         return 'cuda'
     elif torch.mps.is_available():
@@ -11,8 +21,10 @@ def _setup_device():
         return 'cpu'
 
 
-def remove_samples_by_indices(dataset, forget_set_indices, 
-                              return_forget=True, verbose=False):
+def remove_samples_by_indices(dataset: torch.utils.data.Dataset,
+                              forget_set_indices: list[int],
+                              return_forget: bool = True,
+                              verbose: bool = False):
     """ Remove the forget set from the dataset by indices.
 
     Args:
@@ -40,8 +52,10 @@ def remove_samples_by_indices(dataset, forget_set_indices,
     return (retain_set, forget_set) if return_forget else retain_set
 
 
-def remove_classes(dataset, forget_labels,
-                   return_forget=True, verbose=False):
+def remove_classes(dataset: torch.utils.data.Dataset,
+                   forget_labels: list[int],
+                   return_forget: bool = True, 
+                   verbose: bool = False):
     """ Remove certain labels from the dataset. These labels constitute the forget set.
 
     Args:
