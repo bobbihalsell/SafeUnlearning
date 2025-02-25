@@ -23,6 +23,10 @@ class GradientAscentUnlearner:
         Args:
             original_model: The original model to be unlearned.
             val_dataloader: The validation set dataloader (for evaluation)
+            retain_dataloader: The retain set dataloader
+            forget_dataloader: The forget set dataloader
+            score_fn: A callable to score the model at each epoch based on
+                      performance on the retain/forget set.
         """
         if not isinstance(original_model, nn.Module):
             raise UnsupportedModelError('original_model must be a Pytorch model.')

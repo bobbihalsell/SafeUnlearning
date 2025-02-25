@@ -1,6 +1,6 @@
 from torchvision import datasets, transforms
 import torch
-from src.unlearning.utils import remove_samples_by_indices, remove_classes
+from src.unlearning.preprocessing import remove_samples_by_indices, remove_classes
 
 transform = transforms.Compose([
     transforms.ToTensor(),

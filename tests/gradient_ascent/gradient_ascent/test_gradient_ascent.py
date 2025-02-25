@@ -3,7 +3,7 @@ from torchvision.models import resnet18
 from torchvision import datasets, transforms
 import torch.nn as nn
 from torch.utils.data import DataLoader, Subset
-from src.unlearning.utils import remove_classes
+from src.unlearning.preprocessing import remove_classes
 from src.unlearning.gradient_ascent import GradientAscentUnlearner
 from src.unlearning.eval import ClassificationEvaluator
 import os
@@ -50,11 +50,11 @@ def test_gradient_ascent_cifar10():
     forget_dataloader = DataLoader(forget_set, batch_size=64, shuffle=True)
     loss_fn = nn.CrossEntropyLoss()
     # Example where we perform gradient ascent unlearning
-    unlearner = GradientAscentUnlearner(original_model=model)
+    unlearner = GradientAscentUnlearner(original_model=model,
+                                        forget_dataloader=forget_dataloader)
 
     # Retrieve the unlearned model to save the model
-    unlearned_model = unlearner.unlearn(forget_dataloader=forget_dataloader,
-                                        loss_fn=loss_fn,
+    unlearned_model = unlearner.unlearn(loss_fn=loss_fn,
                                         num_epochs=5,
                                         lr=1e-4)
 
