@@ -3,9 +3,9 @@ from torchvision.models import resnet18
 from torchvision import datasets, transforms
 import torch.nn as nn
 from torch.utils.data import DataLoader, Subset
-from unlearning.utils import remove_classes
-from unlearning.gradient_ascent import GradientAscentUnlearner
-from unlearning.eval import ClassificationEvaluator
+from src.unlearning.utils import remove_classes
+from src.unlearning.gradient_ascent import GradientAscentUnlearner
+from src.unlearning.eval import ClassificationEvaluator
 import os
 
 
@@ -50,14 +50,13 @@ def test_gradient_ascent_cifar10():
     forget_dataloader = DataLoader(forget_set, batch_size=64, shuffle=True)
     loss_fn = nn.CrossEntropyLoss()
     # Example where we perform gradient ascent unlearning
-    unlearner = GradientAscentUnlearner(original_model=model,
-                                        unlearned_model=None)
+    unlearner = GradientAscentUnlearner(original_model=model)
 
     # Retrieve the unlearned model to save the model
-    unlearned_model = unlearner.loss_steps(forget_dataloader=forget_dataloader,
-                                           loss_fn=loss_fn,
-                                           num_epochs=5,
-                                           lr=1e-4)
+    unlearned_model = unlearner.unlearn(forget_dataloader=forget_dataloader,
+                                        loss_fn=loss_fn,
+                                        num_epochs=5,
+                                        lr=1e-4)
 
     # Filter the test data to compare original and unlearned performance on retain/forget set
     retain_test_set, forget_test_set = remove_classes(test_dataset,
