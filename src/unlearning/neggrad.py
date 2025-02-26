@@ -12,7 +12,10 @@ from src.unlearning.utils import (setup_device,
 
 
 class NegGrad:
-    """ Perform NegGrad unlearning on a model."""
+    """ Implements NegGrad and NegGrad+ unlearning.
+
+    As introduced in https://openreview.net/pdf?id=OveBaTtUAT
+    """
     def __init__(
         self,
         original_model: nn.Module,
@@ -42,7 +45,17 @@ class NegGrad:
     @available_if(_has_forget_dataloader)
     def unlearn(self, loss_fn, num_epochs, lr=1e-4, weight_decay=0, beta=0):
         """
-        Perform gradient ascent on model parameters using forget set.
+        Perform NegGrad unlearning.
+
+        Variations:
+            - NegGrad: Default when beta=0.
+            - NegGrad+: Activated when beta=0, self.retain_dataloader is valid.
+
+        NegGrad performs gradient ascent on the forget set.
+
+        NegGrad+ performs gradient descent on a retain set/forget set loss tradeoff.
+
+        For more details, see https://openreview.net/pdf?id=OveBaTtUAT
 
         Args:
             loss_fn (torch.nn loss function): Loss function that takes in logits.

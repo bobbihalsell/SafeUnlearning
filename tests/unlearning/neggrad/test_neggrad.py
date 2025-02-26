@@ -12,14 +12,6 @@ import os
 import pytest
 
 
-@pytest.fixture(scope='module')
-def model():
-    model_path = os.path.join(os.path.dirname(__file__), 'resnet18_ft_cifar10.pth')
-    model = load_model(model_path)
-    yield model  # Provide the model to the test
-    del model
-
-
 def load_model(filepath: str):
     weights = torch.load(filepath, weights_only=True)
     model = resnet18()
@@ -44,6 +36,14 @@ def load_cifar10_datasets():
     test_dataset = Subset(test_dataset, list(range(500)))
 
     return train_dataset, test_dataset
+
+
+@pytest.fixture(scope='module')
+def model():
+    model_path = os.path.join(os.path.dirname(__file__), 'resnet18_ft_cifar10.pth')
+    model = load_model(model_path)
+    yield model  # Provide the model to the test
+    del model
 
 
 @pytest.mark.integration
@@ -155,11 +155,8 @@ def test_catch_bad_model(model):
 
 
 @pytest.mark.unit
-def test_neggradplus_fails_no_retain():
+def test_neggradplus_fails_no_retain(model):
     """ Test NegGrad throws error if beta > 0 (user intends to perform NegGrad+) without the retain set."""
-    model_path = os.path.join(os.path.dirname(__file__), 'resnet18_ft_cifar10.pth')
-    print(model_path)
-    model = load_model(model_path)
     train_dataset, _ = load_cifar10_datasets()
 
     forget_dataloader = DataLoader(train_dataset, batch_size=64, shuffle=True)
@@ -174,3 +171,29 @@ def test_neggradplus_fails_no_retain():
                           beta=0.995)
 
     assert isinstance(exc_info.value, AttributeError)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("beta", [
+    None,
+    1.00001,
+    -1
+])
+def test_neggrad_fails_bad_beta(beta):
+    model_path = os.path.join(os.path.dirname(__file__), 'resnet18_ft_cifar10.pth')
+    print(model_path)
+    model = load_model(model_path)
+    train_dataset, _ = load_cifar10_datasets()
+
+    forget_dataloader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+    loss_fn = nn.CrossEntropyLoss()
+    unlearner = NegGrad(original_model=model,
+                        forget_dataloader=forget_dataloader)
+
+    with pytest.raises(ValueError) as exc_info:
+        unlearner.unlearn(loss_fn=loss_fn,
+                          num_epochs=5,
+                          lr=1e-4,
+                          beta=beta)
+
+        assert isinstance(exc_info, ValueError)
