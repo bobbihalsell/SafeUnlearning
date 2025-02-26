@@ -7,7 +7,6 @@ from src.unlearning.utils import (setup_device,
                                   UnsupportedModelError,
                                   available_if,
                                   _has_forget_dataloader,
-                                  _has_retain_and_forget_dataloader,
                                   _has_retain_dataloader)
 
 
@@ -53,7 +52,7 @@ class NegGrad:
 
         NegGrad performs gradient ascent on the forget set.
 
-        NegGrad+ performs gradient descent on a retain set/forget set loss tradeoff.
+        NegGrad+ performs gradient descent on retain/forget loss tradeoff.
 
         For more details, see https://openreview.net/pdf?id=OveBaTtUAT
 
@@ -62,7 +61,7 @@ class NegGrad:
             num_epochs (int): Number of passes over the forget set.
             lr: Learning rate (Default: 1e-4)
             weight_decay: Weight decay (Default: 0)
-            beta: Tradeoff parameter between retain and forget loss for NegGrad+. (Default: 0)
+            beta: Tradeoff between retain and forget loss for NegGrad+. (Default: 0)
 
         Returns:
             unlearned_model (nn.Module): The unlearned model.
@@ -110,8 +109,10 @@ class NegGrad:
                     retain_loss += loss_fn(retain_output, retain_labels)
                     num_retain_batches += 1
 
-                loss = beta * retain_loss/num_retain_batches - (1-beta) * forget_loss/num_forget_batches
+                loss = (beta * retain_loss/num_retain_batches -
+                        (1-beta) * forget_loss/num_forget_batches)
             else:
+                # Perform gradient ascent by taking the negative loss.
                 loss = -forget_loss/num_forget_batches
 
             # Perform whole-batch gradient descent on the loss.
