@@ -4,7 +4,7 @@ from torchvision import datasets, transforms
 import torch.nn as nn
 from torch.utils.data import DataLoader, Subset
 from src.unlearning.preprocessing import remove_classes
-from src.unlearning.neggrad import NegGrad
+from src.unlearning.neggrad import NegGrad, NegGradPlus
 from src.unlearning.eval import ClassificationEvaluator
 from src.unlearning.utils import UnsupportedModelError
 from sklearn.linear_model import LogisticRegression
@@ -64,9 +64,9 @@ def test_neggrad(model):
 
     # Retrieve the unlearned model to save the model
     unlearned_model = unlearner.unlearn(loss_fn=loss_fn,
-                                        num_epochs=5,
-                                        lr=1e-4,
-                                        beta=0)
+                                        num_epochs=3,
+                                        lr=1e-3,
+                                        weight_decay=0)
 
     # Filter the test data to compare original and unlearned performance on retain/forget set
     retain_test_set, forget_test_set = remove_classes(test_dataset,
@@ -106,16 +106,17 @@ def test_neggradplus(model):
     retain_dataloader = DataLoader(retain_set, batch_size=32, shuffle=True)
     forget_dataloader = DataLoader(forget_set, batch_size=32, shuffle=True)
     loss_fn = nn.CrossEntropyLoss()
-    unlearner = NegGrad(original_model=model,
-                        forget_dataloader=forget_dataloader,
-                        retain_dataloader=retain_dataloader)
+    unlearner = NegGradPlus(original_model=model,
+                            forget_dataloader=forget_dataloader,
+                            retain_dataloader=retain_dataloader)
 
     # Using similar hyperparameters as the NegGrad paper, more aggressive beta
     unlearned_model = unlearner.unlearn(loss_fn=loss_fn,
-                                        num_epochs=10,
-                                        lr=0.01,
+                                        num_epochs=2,
+                                        lr=0.005,
                                         weight_decay=0.1,
-                                        beta=0.9)
+                                        beta=0.99,
+                                        use_l2_penalty=True)
 
     # Filter the test data to compare original and unlearned performance on retain/forget set
     retain_test_set, forget_test_set = remove_classes(test_dataset,
@@ -135,7 +136,7 @@ def test_neggradplus(model):
 
     assert isinstance(results, dict)
     assert results['original_forget_acc'] > 0.7
-    assert results['unlearned_forget_acc'] < 0.3
+    assert results['unlearned_forget_acc'] < 0.2
     assert results['original_retain_acc'] > 0.8
     assert results['unlearned_retain_acc'] > 0.7
 

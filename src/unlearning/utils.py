@@ -22,6 +22,17 @@ def setup_device():
         return 'cpu'
 
 
+def l2_penalty(model, model_init, weight_decay):
+    l2_loss = 0
+    for (k, p), (k_init, p_init) in zip(
+        model.named_parameters(), model_init.named_parameters()
+    ):
+        if p.requires_grad:
+            l2_loss += (p - p_init).pow(2).sum()
+    l2_loss *= weight_decay / 2.0
+    return l2_loss
+
+
 def available_if(condition):
     """ Makes a method available based on the output of a callable condition."""
     def decorator(method):
