@@ -31,7 +31,10 @@ class NegGrad:
             val_dataloader: The validation set dataloader (for evaluation)
         """
         if not isinstance(original_model, nn.Module):
-            raise UnsupportedModelError('original_model must be a Pytorch model.')
+            raise UnsupportedModelError('original_model must be a nn.Module.')
+        if not isinstance(forget_dataloader, torch.utils.data.DataLoader):
+            raise TypeError("forget_dataloader must be a "
+                            "torch.utils.data.DataLoader.")
         self.device = setup_device()
         self.original_model = original_model.to(self.device)
         self.val_dataloader = val_dataloader
@@ -134,10 +137,16 @@ class NegGradPlus:
             original_model: The original model to be unlearned.
             forget_dataloader: The forget set dataloaderz
             retain_dataloader: The retain set dataloader
-            val_dataloader: The validation set dataloader (for evaluation)
+            val_dataloader: The validation set dataloader
         """
         if not isinstance(original_model, nn.Module):
-            raise UnsupportedModelError('original_model must be a Pytorch model.')
+            raise UnsupportedModelError('original_model must be a nn.Module.')
+        if not isinstance(forget_dataloader, torch.utils.data.DataLoader):
+            raise TypeError("forget_dataloader must be a "
+                            "torch.utils.data.DataLoader.")
+        if not isinstance(retain_dataloader, torch.utils.data.DataLoader):
+            raise TypeError("retain_dataloader must be a "
+                            "torch.utils.data.DataLoader.")
         self.device = setup_device()
         self.original_model = original_model.to(self.device)
         self.val_dataloader = val_dataloader

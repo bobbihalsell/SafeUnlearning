@@ -149,29 +149,27 @@ def test_neggradplus(model):
 ])
 def test_catch_bad_model(model):
     """ Test that unsupported models are appropriately handled."""
+    train_dataset, _ = load_cifar10_datasets()
+
+    forget_dataloader = DataLoader(train_dataset, batch_size=64, shuffle=True)
     with pytest.raises(UnsupportedModelError) as exc_info:
-        NegGrad(original_model=model)
+        NegGrad(original_model=model,
+                forget_dataloader=forget_dataloader)
 
     assert isinstance(exc_info.value, UnsupportedModelError)
 
 
 @pytest.mark.unit
-def test_neggradplus_fails_no_retain(model):
+def test_neggradplus_fails_bad_retain(model):
     """ Test NegGrad throws error if beta > 0 (user intends to perform NegGrad+) without the retain set."""
     train_dataset, _ = load_cifar10_datasets()
 
     forget_dataloader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-    loss_fn = nn.CrossEntropyLoss()
-    unlearner = NegGrad(original_model=model,
-                        forget_dataloader=forget_dataloader)
-
-    with pytest.raises(AttributeError) as exc_info:
-        unlearner.unlearn(loss_fn=loss_fn,
-                          num_epochs=5,
-                          lr=1e-4,
-                          beta=0.995)
-
-    assert isinstance(exc_info.value, AttributeError)
+    with pytest.raises(TypeError) as exc_info:
+        NegGradPlus(original_model=model,
+                    forget_dataloader=forget_dataloader,
+                    retain_dataloader=234)
+    assert isinstance(exc_info.value, TypeError)
 
 
 @pytest.mark.unit
@@ -180,16 +178,13 @@ def test_neggradplus_fails_no_retain(model):
     1.00001,
     -1
 ])
-def test_neggrad_fails_bad_beta(beta):
-    model_path = os.path.join(os.path.dirname(__file__), 'resnet18_ft_cifar10.pth')
-    print(model_path)
-    model = load_model(model_path)
+def test_neggradplus_fails_bad_beta(model, beta):
     train_dataset, _ = load_cifar10_datasets()
-
     forget_dataloader = DataLoader(train_dataset, batch_size=64, shuffle=True)
     loss_fn = nn.CrossEntropyLoss()
-    unlearner = NegGrad(original_model=model,
-                        forget_dataloader=forget_dataloader)
+    unlearner = NegGradPlus(original_model=model,
+                            forget_dataloader=forget_dataloader,
+                            retain_dataloader=forget_dataloader)
 
     with pytest.raises(ValueError) as exc_info:
         unlearner.unlearn(loss_fn=loss_fn,
@@ -197,4 +192,4 @@ def test_neggrad_fails_bad_beta(beta):
                           lr=1e-4,
                           beta=beta)
 
-        assert isinstance(exc_info, ValueError)
+    assert isinstance(exc_info.value, ValueError)
