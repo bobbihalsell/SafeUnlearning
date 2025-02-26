@@ -1,5 +1,6 @@
 import torch
 from functools import wraps
+from torch.utils.data import DataLoader
 
 
 class UnsupportedModelError(Exception):
@@ -38,5 +39,14 @@ def available_if(condition):
     return decorator
 
 
-def has_forget_dataloader(unlearner):
-    return unlearner.forget_dataloader is not None
+def _has_forget_dataloader(unlearner):
+    return isinstance(unlearner.forget_dataloader, DataLoader)
+
+
+def _has_retain_and_forget_dataloader(unlearner):
+    return (isinstance(unlearner.forget_dataloader, DataLoader) and
+            isinstance(unlearner.retain_dataloader, DataLoader))
+
+
+def _has_retain_dataloader(unlearner):
+    return isinstance(unlearner.retain_dataloader, DataLoader)
