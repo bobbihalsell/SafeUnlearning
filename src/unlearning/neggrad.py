@@ -1,3 +1,5 @@
+import os
+import timm
 import torch
 import torch.nn as nn
 import copy
@@ -18,24 +20,34 @@ class NegGrad:
     """
     def __init__(
         self,
-        original_model: nn.Module,
+        model_name: str,
+        model_ckpt_path: str,
         forget_dataloader: torch.utils.data.DataLoader,
         retain_dataloader: Optional[torch.utils.data.DataLoader] = None,
         val_dataloader: Optional[torch.utils.data.DataLoader] = None,
     ):
         """
         Args:
-            original_model: The original model to be unlearned.
+            model_name: The original model to be unlearned
+            model_ckpt_path: Path to original model weights
             forget_dataloader: The forget set dataloader
             retain_dataloader: The retain set dataloader
             val_dataloader: The validation set dataloader (for evaluation)
         """
-        if not isinstance(original_model, nn.Module):
-            raise UnsupportedModelError('original_model must be a nn.Module.')
+        if not timm.list_models(model_name):
+            raise UnsupportedModelError(f"Model {model_name} could not be found")
+        if not os.path.isfile(model_ckpt_path):
+            raise UnsupportedModelError(f"Model weights could not be found at {model_ckpt_path}")
         if not isinstance(forget_dataloader, torch.utils.data.DataLoader):
             raise TypeError("forget_dataloader must be a "
                             "torch.utils.data.DataLoader.")
         self.device = setup_device()
+        self.original_model = timm.create_model(
+            model_name,
+            pretrained=False,
+            checkpoint_path=model_ckpt_path,
+            num_classes=10, # Hardcoded number of classes for now
+        )
         self.original_model = original_model.to(self.device)
         self.val_dataloader = val_dataloader
         self.retain_dataloader = retain_dataloader
