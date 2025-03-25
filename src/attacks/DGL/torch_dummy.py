@@ -78,7 +78,7 @@ class TorchDummy:
             device = self.device
 
         dummy_label = torch.randn(self.label_shape, device=device, requires_grad=True)
-        dummy_label = torch.nn.functional.softmax(dummy_label, dim=-1).detach().requires_grad_(True)  # Normalize to sum to 1
+        # dummy_label = torch.nn.functional.softmax(dummy_label, dim=-1).detach().requires_grad_(True)  # Normalize to sum to 1
         return dummy_label
 
 
