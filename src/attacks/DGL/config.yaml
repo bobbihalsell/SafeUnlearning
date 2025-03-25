@@ -1,0 +1,7 @@
+params:
+  num_classes: 1000
+  model_old: ../../artifacts/models/mobilenet_80ep_imagenet.pth
+  model_new: ../../artifacts/unlearned/mobilenet_unlearned_gascent_1.pth
+  lr: 0.01
+  budget: 10
+  savepath: ../../artifacts/reconstructed/GGL/mobilenet_unlearned_gascent_1.png
