@@ -1,0 +1,11 @@
+unlearning:
+  seed: 42
+  model_name: mobilenet_v2
+  model_path: ../artifacts/models/mobilenet_80ep_imagenet.pth
+  dataset: imagenet
+  data_root: test_samples
+  save_path: ../artifacts/unlearned/mobilenet_unlearned_gascent_mobilenet_v2_42_1_1_01.pth
+  num_classes: 1000
+  batch_size: 1
+  epochs: 1
+  lr: 0.01
