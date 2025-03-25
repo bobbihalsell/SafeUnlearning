@@ -1,52 +1,35 @@
 import torch
+import torch.nn as nn
 from functools import wraps
 from torch.utils.data import DataLoader
-from typing import Dict, Tuple, Any
-import pathlib
+import os
 
 
-def save_checkpoint(
-    model: torch.nn.Module,
-    optimizer: torch.optim.Optimizer,
-    scheduler: torch.optim.lr_scheduler.LRScheduler,
-    epoch: int,
-    payload: Dict[str, Any],
-    filename: str = "checkpoint.pth",
-    save_dir: str = "checkpoints",
-) -> None:
-    """ Save a checkpoint during training."""
-    state = {
-        "epoch": epoch,
-        "state_dict": model.state_dict(),
-        "optimizer": optimizer.state_dict(),
-        "scheduler": scheduler.state_dict() if scheduler is not None else None,
-        "payload": payload,
-    }
-    save_dir = pathlib.Path(save_dir)
-    save_dir.mkdir(parents=True, exist_ok=True)
-    path = save_dir / filename
-    torch.save(state, path)
-    print(f"Checkpoint saved at {path}")
+def save_model(model: nn.Module,
+               unlearning_algorithm: str,
+               model_name: str,
+               seed: str,
+               model_type: str,
+               ):
+    """ Saves an entire model at a filepath specified by a convention.
 
+    artifacts/unlearn/{unlearning_algorithm}/{model_name}_{seed}_{model_type}.pt
 
-def load_checkpoint(
-    model: torch.nn.Module,
-    optimizer: torch.optim.Optimizer,
-    scheduler: torch.optim.lr_scheduler.LRScheduler,
-    filename: str = "checkpoint.pth",
-) -> Tuple[torch.nn.Module,
-           torch.optim.Optimizer,
-           torch.optim.lr_scheduler.LRScheduler,
-           int, 
-           Dict[str, Any]]:
-    """ Load a saved checkpoint."""
-    checkpoint = torch.load(filename)
-    model.load_state_dict(checkpoint["state_dict"])
-    optimizer.load_state_dict(checkpoint["optimizer"])
-    scheduler.load_state_dict(checkpoint["scheduler"])
-    epoch = checkpoint["epoch"]
-    payload = checkpoint["payload"]
-    return model, optimizer, scheduler, epoch, payload
+    Args:
+        model (nn.Module): The model to be saved.
+        unlearning_algorithm (str): The name of the unlearning algorithm
+        model_name (str): The model name (e.g. resnet18)
+        seed (int): The seed used during the experiment
+        model_type (str): The model is either 'original' or 'unlearned'.
+
+    Returns:
+        None
+    """
+    directory = f'src/artifacts/unlearn/{unlearning_algorithm}'
+    os.makedirs(directory, exist_ok=True)  # Ensure the directory exists
+    
+    filepath = os.path.join(directory, f'{model_name}_{seed}_{model_type}.pt')
+    torch.save(model, filepath)
 
 
 class UnsupportedModelError(Exception):

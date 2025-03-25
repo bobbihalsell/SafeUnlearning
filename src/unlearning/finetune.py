@@ -55,23 +55,5 @@ class FinetuneUnlearner:
                 retain_loss = loss_fn(retain_outputs, retain_y)
                 retain_loss.backward()
                 optimizer.step()
-            #     running_retain_loss += retain_loss.item()
-            # avg_retain_loss = running_retain_loss / len(retain_dataloader)
-            # self.retain_losses.append(avg_retain_loss)
 
         return unlearned_model
-
-            # if test_loader is not None:
-            #     self.finetuned_model.eval()
-            #     running_test_loss = 0.00
-            #     with torch.no_grad():
-            #         for test_X, test_y in test_loader:
-            #             test_X, test_y = test_X.to(self.device), test_y.to(self.device)
-            #             test_outputs = self.finetuned_model(test_X)
-            #             test_loss = self.criterion(test_outputs, test_y)
-            #             running_test_loss += test_loss.item()
-            #     avg_test_loss = running_test_loss / len(test_loader)
-            #     self.test_losses.append(avg_test_loss)
-            #     print(f"Epoch [{epoch+1}/{epochs}], Retain Loss: {avg_retain_loss:.4f}, {test_name} Loss: {avg_test_loss:.4f}")
-            # else:
-            #     print(f"Epoch [{epoch+1}/{epochs}], Retain Loss: {avg_retain_loss:.4f}")

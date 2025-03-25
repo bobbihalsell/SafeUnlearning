@@ -1,0 +1,18 @@
+model: 
+  name: resnet18
+  pretrained: false
+  num_classes: 10
+unlearner:
+  name: neggrad
+  cfg:
+    num_epochs: 5
+    lr: 1e-4
+    weight_decay: 0
+    use_l2_penalty: false
+dataset:
+  name: cifar10
+forget_method:
+  name: index
+  parameters: [1]
+seed: 42
+batch_size: 32

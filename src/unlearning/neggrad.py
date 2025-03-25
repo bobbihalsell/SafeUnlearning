@@ -1,15 +1,13 @@
-import os
-import timm
 import torch
 import torch.nn as nn
 import copy
 from typing import Optional
-from src.unlearning.utils import (setup_device,
-                                  UnsupportedModelError,
-                                  available_if,
-                                  _has_forget_dataloader,
-                                  _has_retain_and_forget_dataloader,
-                                  l2_penalty)
+from unlearning.utils import (setup_device,
+                              UnsupportedModelError,
+                              available_if,
+                              _has_forget_dataloader,
+                              _has_retain_and_forget_dataloader,
+                              l2_penalty)
 from itertools import cycle
 
 
@@ -20,46 +18,31 @@ class NegGrad:
     """
     def __init__(
         self,
-        model_name: str,
-        model_ckpt_path: str,
+        original_model: nn.Module,
         forget_dataloader: torch.utils.data.DataLoader,
         retain_dataloader: Optional[torch.utils.data.DataLoader] = None,
         val_dataloader: Optional[torch.utils.data.DataLoader] = None,
     ):
         """
         Args:
-            model_name: The original model to be unlearned
-            model_ckpt_path: Path to original model weights
+            original_model: The original model to be unlearned.
             forget_dataloader: The forget set dataloader
             retain_dataloader: The retain set dataloader
             val_dataloader: The validation set dataloader (for evaluation)
         """
-        if not timm.list_models(model_name):
-            raise UnsupportedModelError(f"Model {model_name} could not be found")
-        if not os.path.isfile(model_ckpt_path):
-            raise UnsupportedModelError(f"Model weights could not be found at {model_ckpt_path}")
+        if not isinstance(original_model, nn.Module):
+            raise UnsupportedModelError('original_model must be a nn.Module.')
         if not isinstance(forget_dataloader, torch.utils.data.DataLoader):
             raise TypeError("forget_dataloader must be a "
                             "torch.utils.data.DataLoader.")
         self.device = setup_device()
-        self.original_model = timm.create_model(
-            model_name,
-            pretrained=False,
-            checkpoint_path=model_ckpt_path,
-            num_classes=10, # Hardcoded number of classes for now
-        )
         self.original_model = original_model.to(self.device)
         self.val_dataloader = val_dataloader
         self.retain_dataloader = retain_dataloader
         self.forget_dataloader = forget_dataloader
 
     @available_if(_has_forget_dataloader)
-    def unlearn(self,
-                loss_fn: nn,
-                num_epochs: int,
-                lr=1e-4,
-                weight_decay=0,
-                use_l2_penalty=False):
+    def unlearn(self, **kwargs):
         """
         Perform NegGrad unlearning.
 
@@ -67,20 +50,33 @@ class NegGrad:
 
         For more details, see https://openreview.net/pdf?id=OveBaTtUAT
 
-        Args:
-            loss_fn (torch.nn loss function): Loss function that takes logits.
+        Keyword Args:
+            loss_fn (callable): Loss function that takes logits.
             num_epochs (int): Number of passes over the forget set.
-            lr: Learning rate
-            weight_decay: Weight decay
-            use_l2_penalty: Whether to add L2 penalty to the loss function.
+            lr (float, optional): Learning rate. Default is 1e-4.
+            weight_decay (float, optional): Weight decay. Default is 0.
+            use_l2_penalty (bool, optional): Whether to add L2 penalty to the loss function. Default is False.
 
         Returns:
             unlearned_model (nn.Module): The unlearned model.
         """
+        loss_fn = kwargs.get('loss_fn')
+        num_epochs = kwargs.get('num_epochs')
+        lr = kwargs.get('lr', 1e-4)
+        weight_decay = kwargs.get('weight_decay', 0)
+        use_l2_penalty = kwargs.get('use_l2_penalty', False)
+
+        # Checks that the arguments have been passed in correct format.
+        if not callable(loss_fn):
+            raise ValueError("loss_fn must be a callable loss function.")
         if not isinstance(num_epochs, int) or num_epochs <= 0:
             raise ValueError("num_epochs must be a positive integer.")
         if not isinstance(lr, (int, float)) or lr <= 0:
             raise ValueError("lr must be a positive number.")
+        if not isinstance(weight_decay, (int, float)) or weight_decay < 0:
+            raise ValueError("weight_decay must be a non-negative number.")
+        if not isinstance(use_l2_penalty, bool):
+            raise ValueError("use_l2_penalty must be a boolean.")
 
         unlearned_model = copy.deepcopy(self.original_model)
         unlearned_model.to(self.device)
