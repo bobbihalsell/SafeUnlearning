@@ -4,7 +4,7 @@ import timm
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from unlearning.utils import save_model
+from unlearning.utils import save_model, set_seed
 from unlearning.neggrad import NegGrad, NegGradPlus
 from unlearning.preprocessing import (
     remove_samples_by_indices,
@@ -28,16 +28,19 @@ class UnlearnApp:
                 print('.yaml file not found.')
 
         # Get data from the config
-        # TODO add validation for config file
-        model_config= config['model']
+        model_config = config['model']
         self.model_name = model_config['name']
         self.pretrained = model_config['pretrained']
         self.num_classes = model_config['num_classes']
+
+        self.seed = config.get('seed', DEFAULT_SEED)
+        set_seed(self.seed)
 
         self.unlearner_name = config['unlearner']['name']
         self.unlearn_params = config['unlearner']['cfg']
 
         self.dataset_name = config['dataset']['name']
+        self.val_ratio = config['dataset'].get('val_ratio', 0)
 
         self.forget_method = config['forget_method']['name']
         self.forget_params = config['forget_method']['parameters']
@@ -84,68 +87,77 @@ class UnlearnApp:
         save_model(original_model,
                    unlearning_algorithm=self.unlearner_name,
                    model_name=self.model_name,
-                   seed=DEFAULT_SEED,
+                   seed=self.seed,
                    model_type='original')
 
         return original_model
 
-    def initialize_unlearner(self,
-                             original_model: nn.Module,
-                             retain_dataloader: DataLoader,
-                             forget_dataloader: DataLoader):
+    def initialize_unlearner(self):
         """ Initialize the correct unlearner from user specification."""
         if self.unlearner_name == 'neggrad':
             unlearner = NegGrad(
-                original_model=original_model,
-                retain_dataloader=retain_dataloader,
-                forget_dataloader=forget_dataloader
+                loss_fn=nn.CrossEntropyLoss()
                 )
-        elif self.unlearner_name == 'neggradplus':
-            unlearner = NegGradPlus(
-                original_model=original_model,
-                retain_dataloader=retain_dataloader,
-                forget_dataloader=forget_dataloader
-                )
+        # TODO fix NegGradPlus to work with our new approach.
+        # elif self.unlearner_name == 'neggradplus':
+        #     unlearner = NegGradPlus(
+        #         loss_fn=nn.CrossEntropyLoss()
+        #         )
         else:
             raise ValueError(f'unlearner_name {self.unlearner_name}'
                              'not supported.')
 
         return unlearner
-    
+
     def initialize_dataset(self):
         """ Initialize the entire dataset based on dataset name."""
         if self.dataset_name == 'cifar10':
             train_dataset, test_dataset = load_cifar10_datasets()
-
         else:
             raise ValueError(f'{self.dataset_name} not supported.')
 
         return train_dataset, test_dataset
 
-
     def run(self):
+        """ Run the pipeline."""
         original_model = self.initialize_model()
 
         train_dataset, test_dataset = self.initialize_dataset()
 
-        retain_set, forget_set = self.retain_forget_split(dataset=train_dataset)
-        retain_dataloader = self.convert_to_dataloader(retain_set,
-                                                       batch_size=self.batch_size,
-                                                       shuffle=True)
-        forget_dataloader = self.convert_to_dataloader(forget_set,
-                                                       batch_size=self.batch_size,
-                                                       shuffle=True)
-
-        unlearner = self.initialize_unlearner(original_model=original_model,
-                                              retain_dataloader=retain_dataloader,
-                                              forget_dataloader=forget_dataloader)
+        retain_set, forget_set = self.retain_forget_split(
+            dataset=train_dataset
+            )
+        retain_dataloader = self.convert_to_dataloader(
+            retain_set,
+            batch_size=self.batch_size,
+            shuffle=True
+            )
+        forget_dataloader = self.convert_to_dataloader(
+            forget_set,
+            batch_size=self.batch_size,
+            shuffle=True
+            )
+        unlearner = self.initialize_unlearner()
         # Unlearn based on the dictionary of params
-        unlearned_model = unlearner.unlearn(**self.unlearn_params)
+        unlearned_model = unlearner.unlearn(
+            model=original_model,
+            retain_dataloader=retain_dataloader,
+            forget_dataloader=forget_dataloader,
+            **self.unlearn_params)
 
-        return unlearned_model
+        save_model(unlearned_model,
+                   unlearning_algorithm=self.unlearner_name,
+                   model_name=self.model_name,
+                   seed=self.seed,
+                   model_type='unlearned')
+
+        return None
 
 
 if __name__ == '__main__':
     app = UnlearnApp()
     app.run()
     # Run python src/unlearning/main.py --config_path src/experiments/unlearn_test.yaml
+
+    # TODO val_set support
+    # TODO decouple dataset loading from unlearn app

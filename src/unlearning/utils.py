@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 from functools import wraps
 from torch.utils.data import DataLoader
+import random
+import numpy as np
 import os
 
 
@@ -62,31 +64,41 @@ def l2_penalty(model, model_init, weight_decay):
     return l2_loss
 
 
-def available_if(condition):
-    """ Makes a method available based on the output of a callable condition."""
-    def decorator(method):
-        @wraps(method)
-        def inner(self, *args, **kwargs):
-            if not condition(self):
-                missing_cond = condition.__name__
-                raise AttributeError(
-                    f"Failed condition check: {missing_cond}. "
-                    f"{self.__class__.__name__} requires {missing_cond} to be "
-                    f"true to use {method.__name__}. Ensure that the "
-                    "corresponding attribute has been initialized.")
-            return method(self, *args, **kwargs)
-        return inner
-    return decorator
+def set_seed(seed: int = 42):
+    """Set the random seed for reproducibility."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # For multi-GPU setups
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False  # Ensure deterministic behavior
 
 
-def _has_forget_dataloader(unlearner):
-    return isinstance(unlearner.forget_dataloader, DataLoader)
+# def available_if(condition):
+#     """ Makes a method available based on the output of a callable condition."""
+#     def decorator(method):
+#         @wraps(method)
+#         def inner(self, *args, **kwargs):
+#             if not condition(self):
+#                 missing_cond = condition.__name__
+#                 raise AttributeError(
+#                     f"Failed condition check: {missing_cond}. "
+#                     f"{self.__class__.__name__} requires {missing_cond} to be "
+#                     f"true to use {method.__name__}. Ensure that the "
+#                     "corresponding attribute has been initialized.")
+#             return method(self, *args, **kwargs)
+#         return inner
+#     return decorator
 
 
-def _has_retain_and_forget_dataloader(unlearner):
-    return (isinstance(unlearner.forget_dataloader, DataLoader) and
-            isinstance(unlearner.retain_dataloader, DataLoader))
+# def _has_forget_dataloader(unlearner):
+#     return isinstance(unlearner.forget_dataloader, DataLoader)
 
 
-def _has_retain_dataloader(unlearner):
-    return isinstance(unlearner.retain_dataloader, DataLoader)
+# def _has_retain_and_forget_dataloader(unlearner):
+#     return (isinstance(unlearner.forget_dataloader, DataLoader) and
+#             isinstance(unlearner.retain_dataloader, DataLoader))
+
+
+# def _has_retain_dataloader(unlearner):
+#     return isinstance(unlearner.retain_dataloader, DataLoader)
