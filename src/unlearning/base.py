@@ -3,15 +3,15 @@ from torch.utils.data import DataLoader, TensorDataset
 from abc import abstractmethod
 import torch
 import torch.nn as nn
-from src.unlearning.utils import setup_device
+from unlearning.utils import setup_device
 
 
 class BaseUnlearner:
     """ Base class for all machine unlearning implementations."""
-    def __init__(self, 
-                device,
-                evaluate: bool = False
-                ):
+    def __init__(self,
+                 device,
+                 evaluate: bool = False
+                 ):
         """
         Initialize the BaseUnlearner.
         
@@ -67,7 +67,7 @@ class BaseUnlearner:
         """
         model = model.eval()
         # Initialize tensor to store batch losses
-        batch_losses = torch.zeros(len(self.val_dataloader))
+        batch_losses = torch.zeros(len(dataloader))
         # Evaluate model on all batches
         for batch_ndx, (inputs, targets) in enumerate(dataloader):
             inputs, targets = inputs.to(self.device), targets.to(self.device)

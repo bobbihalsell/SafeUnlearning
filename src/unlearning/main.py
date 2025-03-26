@@ -38,6 +38,8 @@ class UnlearnApp:
 
         self.unlearner_name = config['unlearner']['name']
         self.unlearn_params = config['unlearner']['cfg']
+        # Fix the loss function as CE Loss.
+        self.unlearn_params['loss_fn'] = nn.CrossEntropyLoss()
 
         self.dataset_name = config['dataset']['name']
         self.val_ratio = config['dataset'].get('val_ratio', 0)
@@ -96,12 +98,11 @@ class UnlearnApp:
         """ Initialize the correct unlearner from user specification."""
         if self.unlearner_name == 'neggrad':
             unlearner = NegGrad(
-                loss_fn=nn.CrossEntropyLoss()
+                evaluate=True
                 )
-        # TODO fix NegGradPlus to work with our new approach.
         elif self.unlearner_name == 'neggradplus':
             unlearner = NegGradPlus(
-                loss_fn=nn.CrossEntropyLoss()
+                evaluate=True
                 )
         else:
             raise ValueError(f'unlearner_name {self.unlearner_name}'
@@ -137,12 +138,15 @@ class UnlearnApp:
             batch_size=self.batch_size,
             shuffle=True
             )
+        data_dict = {
+            'retain': retain_dataloader,
+            'forget': forget_dataloader
+        }
         unlearner = self.initialize_unlearner()
         # Unlearn based on the dictionary of params
         unlearned_model = unlearner.unlearn(
             model=original_model,
-            retain_dataloader=retain_dataloader,
-            forget_dataloader=forget_dataloader,
+            data_dict=data_dict,
             **self.unlearn_params)
 
         save_model(unlearned_model,
@@ -157,7 +161,7 @@ class UnlearnApp:
 if __name__ == '__main__':
     app = UnlearnApp()
     app.run()
-    # Run python src/unlearning/main.py --config_path src/experiments/unlearn_test.yaml
+    # Run python src/unlearning/main.py --config_path src/experiments/test_neggrad.yaml
 
     # TODO val_set support
     # TODO decouple dataset loading from unlearn app
