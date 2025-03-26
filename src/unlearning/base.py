@@ -1,5 +1,4 @@
-from typing import Union, Tuple, List
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
 from abc import abstractmethod
 import torch
 import torch.nn as nn
@@ -14,7 +13,7 @@ class BaseUnlearner:
                  ):
         """
         Initialize the BaseUnlearner.
-        
+
         Args:
             device: Computing device (GPU/CPU) to use for computations.
                    If None, will be automatically determined.
@@ -33,16 +32,16 @@ class BaseUnlearner:
     ) -> nn.Module:
         """
         Unlearns specific data from a model while retaining performance on other data.
-        
+
         This is an abstract method that must be implemented by all subclasses
         with their specific unlearning strategy.
-        
+
         Args:
             model: The model to perform unlearning on.
             retain_loader: DataLoader containing data the model should continue to perform well on.
             forget_loader: DataLoader containing data the model should "forget".
             val_loader: DataLoader containing validation data to evaluate performance.
-            
+
         Returns:
             The unlearned model.
         """
@@ -56,18 +55,18 @@ class BaseUnlearner:
                   ) -> torch.Tensor:
         """
         Compute the evaluation loss of a model on a given dataset.
-        
+
         Args:
             model: The model to evaluate.
             dataloader: DataLoader containing evaluation data.
             loss_fn: Loss function to compute model performance.
-            
+
         Returns:
             torch.Tensor: Tensor containing loss values for each batch in the dataloader.
         """
         model = model.eval()
         # Initialize tensor to store batch losses
-        batch_losses = torch.zeros(len(dataloader))
+        batch_losses = torch.zeros(len(dataloader), device=self.device)
         # Evaluate model on all batches
         for batch_ndx, (inputs, targets) in enumerate(dataloader):
             inputs, targets = inputs.to(self.device), targets.to(self.device)
@@ -76,20 +75,20 @@ class BaseUnlearner:
             # Store loss value
             batch_losses[batch_ndx] = loss.detach().item()
         return batch_losses
-            
+
     def valid_args(self, **kwargs):
         """
         Validate and extract common unlearning hyperparameters from kwargs.
-        
+
         Extracts and validates learning parameters that are common across
         different unlearning methods.
-        
+
         Args:
             **kwargs: Arbitrary keyword arguments containing hyperparameters.
-            
+
         Returns:
             tuple: A tuple containing (loss_fn, num_epochs, lr, weight_decay, use_l2_penalty).
-            
+
         Raises:
             ValueError: If any of the parameters fails validation checks.
         """
@@ -110,5 +109,5 @@ class BaseUnlearner:
             raise ValueError("weight_decay must be a non-negative number.")
         if not isinstance(use_l2_penalty, bool):
             raise ValueError("use_l2_penalty must be a boolean.")
-        
+
         return loss_fn, num_epochs, lr, weight_decay, use_l2_penalty

@@ -144,7 +144,7 @@ class UnlearnApp:
         }
         unlearner = self.initialize_unlearner()
         # Unlearn based on the dictionary of params
-        unlearned_model = unlearner.unlearn(
+        unlearned_model, losses = unlearner.unlearn(
             model=original_model,
             data_dict=data_dict,
             **self.unlearn_params)
@@ -153,7 +153,8 @@ class UnlearnApp:
                    unlearning_algorithm=self.unlearner_name,
                    model_name=self.model_name,
                    seed=self.seed,
-                   model_type='unlearned')
+                   model_type='unlearned',
+                   payload=losses)
 
         return None
 

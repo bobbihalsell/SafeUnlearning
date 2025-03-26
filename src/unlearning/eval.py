@@ -4,7 +4,7 @@ from src.unlearning.utils import setup_device, UnsupportedModelError
 
 class ClassificationEvaluator:
     """An evaluator that returns accuracy for multiple models on various datasets."""
-    
+
     def __init__(self, **models):
         """Initialize the evaluator with any number of models."""
         self.device = setup_device()
@@ -27,7 +27,7 @@ class ClassificationEvaluator:
         """
         total, correct = 0, 0
         model.eval()
-        
+
         with torch.no_grad():
             for inputs, labels in dataloader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
@@ -35,7 +35,7 @@ class ClassificationEvaluator:
                 _, predictions = outputs.max(1)
                 correct += (predictions == labels).sum().item()
                 total += labels.size(0)
-        
+
         return correct / total if total > 0 else 0.0
 
     def compare_accuracy(self, verbose=False, **dataloaders):
@@ -59,7 +59,7 @@ class ClassificationEvaluator:
             for dataset_name, dataloader in dataloaders.items():
                 acc = self.get_model_accuracy(model, dataloader)
                 results[f'{model_name}_{dataset_name}_acc'] = acc
-                
+
                 if verbose:
                     print(f'{model_name} accuracy on {dataset_name}: {acc:.4f}')
 

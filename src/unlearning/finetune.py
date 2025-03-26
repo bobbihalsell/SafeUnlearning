@@ -59,7 +59,7 @@ class FinetuneUnlearner(BaseUnlearner):
                 tracked losses for each dataset type.
             Otherwise:
                 The unlearned model.
-                
+  
         Raises:
             ValueError: If 'retain' data is not in data_dict.
         """
@@ -72,7 +72,7 @@ class FinetuneUnlearner(BaseUnlearner):
         # Ensure required data is available
         if 'retain' not in data_dict.keys():
             raise ValueError("'retain' data must be in data_dict.")
-        
+
         # Initialize loss tracking if evaluation is enabled
         if self.evaluate:
             losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
@@ -80,7 +80,7 @@ class FinetuneUnlearner(BaseUnlearner):
         optimizer = torch.optim.SGD(params=model.parameters(),
                                     lr=lr,
                                     weight_decay=weight_decay)
-        
+
         eval_only_data = [data for data in data_dict.keys() if data != 'retain']
 
         # Main training loop
@@ -107,7 +107,7 @@ class FinetuneUnlearner(BaseUnlearner):
 
                 retain_loss.backward()
                 optimizer.step()
-            
+
             if self.evaluate:
                 # Calculate and store average retain loss for this epoch
                 losses['retain_losses'].append(total_retain_loss/len(data_dict['retain']))

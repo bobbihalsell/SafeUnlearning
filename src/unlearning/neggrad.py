@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import copy
-from typing import Optional
 from unlearning.utils import l2_penalty
 from itertools import cycle
 from base import BaseUnlearner
@@ -12,13 +11,13 @@ from torch.utils.data import DataLoader
 class NegGrad(BaseUnlearner):
     """
     Implements NegGrad unlearning as introduced in https://openreview.net/pdf?id=OveBaTtUAT
-    
+
     NegGrad performs gradient ascent on the forget set to make the model "forget" 
     specific samples. This approach maximizes the loss on data that should be 
     forgotten, effectively reducing the model's ability to make accurate predictions
     on that data.
     """
-    
+
     def __init__(
         self,
         device: Optional[torch.device] = None,
@@ -26,13 +25,13 @@ class NegGrad(BaseUnlearner):
     ):
         """
         Initialize the NegGrad unlearning object.
-        
+
         Args:
             device: Computing device (CPU/GPU) to use for computations.
                    If None, will be automatically determined.
             evaluate: Whether to track and return evaluation metrics during unlearning.
         """
-        super().__init__(device, evaluate)
+        super(NegGrad, self).__init__(device, evaluate)
 
     def unlearn(self,
                 model: nn.Module,
@@ -60,7 +59,7 @@ class NegGrad(BaseUnlearner):
                 tracked losses for each dataset type.
             Otherwise:
                 The unlearned model.
-                
+
         Raises:
             ValueError: If 'forget' data is not in data_dict.
         """
@@ -73,23 +72,21 @@ class NegGrad(BaseUnlearner):
 
         if 'forget' not in data_dict.keys():
             raise ValueError("'forget' data must be in data_dict.")
-        
-        # Initialize loss tracking if evaluation is enabled
-        if self.evaluate:
-        # Initialize loss tracking
-            losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
 
-        optimizer = torch.optim.SGD(params=model.parameters(),
+        # Initialize loss tracking
+        losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
+
+        optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
                                     lr=lr,
                                     weight_decay=weight_decay)
-        
+
         eval_only_data = [data for data in data_dict.keys() if data != 'forget']
 
         # Main training loop
         for _ in range(num_epochs):
             total_forget_loss = 0
             for forget_inputs, forget_labels in data_dict['forget']:
-                model.train()
+                unlearned_model.train()
                 optimizer.zero_grad()
 
                 forget_inputs = forget_inputs.to(self.device)
@@ -119,9 +116,9 @@ class NegGrad(BaseUnlearner):
                 for data_type in eval_only_data:
                     loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
                     losses[f"{data_type}_losses"].append(loader_loss.item())
-        if self.evaluate:
-            return unlearned_model, losses
-        return unlearned_model
+
+        return unlearned_model, losses
+
 
 class NegGradPlus(BaseUnlearner):
     """
@@ -145,7 +142,7 @@ class NegGradPlus(BaseUnlearner):
                    If None, will be automatically determined.
             evaluate: Whether to track and return evaluation metrics during unlearning.
         """
-        super().__init__(device, evaluate)
+        super(NegGradPlus, self).__init__(device, evaluate)
 
     def _calculate_loss(
         self, 
@@ -158,7 +155,7 @@ class NegGradPlus(BaseUnlearner):
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Calculate the composite loss based on retain and forget data.
-        
+
         Args:
             beta: Weight balancing factor between retain and forget loss
             criterion: Loss function
@@ -166,29 +163,29 @@ class NegGradPlus(BaseUnlearner):
             retain_targets: Ground truth for retain data
             forget_outputs: Model outputs for forget data
             forget_targets: Ground truth for forget data
-            
+
         Returns:
             Tuple containing (total_loss, retain_loss, forget_loss)
         """
         # Calculate individual losses
         forget_loss = criterion(forget_outputs, forget_targets)
-        
+
         # For standard NegGrad (no retain data)
         if retain_outputs is None or retain_targets is None:
             return -forget_loss, None, forget_loss
-        
+
         # For NegGrad+ (with retain data)
         retain_loss = criterion(retain_outputs, retain_targets)
-        
+
         # Normalize by number of samples if applicable
         Nr = len(retain_outputs)
         Nf = len(forget_outputs)
-        
+
         # Calculate composite loss with beta weighting
         total_loss = beta * retain_loss / Nr - (1 - beta) * forget_loss / Nf
 
         return total_loss, retain_loss, forget_loss
-    
+
     def unlearn(self,
                 model: nn.Module,
                 data_dict: Dict[str, DataLoader],
@@ -219,7 +216,7 @@ class NegGradPlus(BaseUnlearner):
                 tracked losses for each dataset type.
             Otherwise:
                 The unlearned model.
-                
+
         Raises:
             ValueError: If either 'forget' or 'retain' data is missing from data_dict,
                        or if beta is 0 or 1 (which would make this equivalent to simpler methods).
@@ -241,11 +238,10 @@ class NegGradPlus(BaseUnlearner):
             raise ValueError("Please use FinetuneUnlearner if you wish to "
                              "perform gradient descent on only the retain set")
 
-        # Initialize loss tracking if evaluation is enabled
-        if self.evaluate:
-            losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
+        # Initialize loss tracking
+        losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
 
-        optimizer = torch.optim.SGD(params=model.parameters(),
+        optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
                                     lr=lr,
                                     weight_decay=weight_decay)
 
@@ -306,6 +302,4 @@ class NegGradPlus(BaseUnlearner):
                     loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
                     losses[f"{data_type}_losses"].append(loader_loss.item())
 
-        if self.evaluate:
-            return unlearned_model, losses
-        return unlearned_model
+        return unlearned_model, losses

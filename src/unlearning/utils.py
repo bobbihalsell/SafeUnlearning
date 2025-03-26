@@ -12,8 +12,9 @@ def save_model(model: nn.Module,
                model_name: str,
                seed: str,
                model_type: str,
+               payload: dict = None
                ):
-    """ Saves an entire model at a filepath specified by a convention.
+    """ Saves an entire model and training info at a filepath specified by a convention.
 
     artifacts/unlearn/{unlearning_algorithm}/{model_name}_{seed}_{model_type}.pt
 
@@ -23,6 +24,7 @@ def save_model(model: nn.Module,
         model_name (str): The model name (e.g. resnet18)
         seed (int): The seed used during the experiment
         model_type (str): The model is either 'original' or 'unlearned'.
+        payload (dict, optional): Additional information (e.g., losses, metrics).
 
     Returns:
         None
@@ -31,7 +33,12 @@ def save_model(model: nn.Module,
     os.makedirs(directory, exist_ok=True)  # Ensure the directory exists
     
     filepath = os.path.join(directory, f'{model_name}_{seed}_{model_type}.pt')
-    torch.save(model, filepath)
+    # Save model and optional payload
+    save_data = {'model': model}
+    if payload:
+        save_data.update(payload)  # Merge payload into save_data
+
+    torch.save(save_data, filepath)
 
 
 class UnsupportedModelError(Exception):

@@ -10,7 +10,7 @@ unlearner:
     weight_decay: 0
     use_l2_penalty: true
     evaluate: true
-    beta: 0.7
+    beta: 0.4
 dataset:
   name: cifar10
   val_ratio: 0.0
