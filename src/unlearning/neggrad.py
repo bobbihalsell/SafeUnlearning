@@ -8,7 +8,7 @@ from src.unlearning.utils import (setup_device,
                                   UnsupportedModelError,
                                   available_if,
                                   _has_forget_dataloader,
-                                  _has_retain_and_forget_dataloader,
+                                  _has_retain_dataloader,
                                   l2_penalty)
 from itertools import cycle
 from base import BaseUnlearner
@@ -81,7 +81,6 @@ class NegGrad(BaseUnlearner):
         weight_decay = kwargs.get('weight_decay', 0)
         loss_fn = kwargs.get('loss_fn')
         use_l2_penalty = kwargs.get('use_l2_penalty', False)
-        evaluate = kwargs.get('evaluate', False)
         data_types = kwargs.get('evaluate', ['forget'])
 
         # Checks that the arguments have been passed in correct format
@@ -103,7 +102,7 @@ class NegGrad(BaseUnlearner):
         optimizer = torch.optim.SGD(params=self.unlearned_model.parameters(),
                                     lr=lr,
                                     weight_decay=weight_decay)
-
+        data_types.remove('forget')
         for _ in range(num_epochs):
             for forget_inputs, forget_labels in self.forget_loader:
                 self.unlearned_model.train()
@@ -128,14 +127,12 @@ class NegGrad(BaseUnlearner):
                 loss.backward()
                 optimizer.step()
 
-            if evaluate:
-                current_losses = {}
-                if self.save_steps:
-                    self.unlearned_model.eval()
-                    for data_type in data_types:
-                        loader = getattr(self, f"{data_type}_loader")
-                        loader_loss = self._evaluate(self.unlearned_model, loader, self.loss_fn).mean()
-                        getattr(self, f"{loader}_losses").append(loader_loss.item())
+            if self.save_steps:
+                self.unlearned_model.eval()
+                for data_type in data_types:
+                    loader = getattr(self, f"{data_type}_loader")
+                    loader_loss = self._evaluate(self.unlearned_model, loader, self.loss_fn).mean()
+                    getattr(self, f"{loader}_losses").append(loader_loss.item())
 
         return self.unlearned_model
 
@@ -204,9 +201,9 @@ class NegGradPlus:
         # Calculate individual losses
         forget_loss = criterion(forget_outputs, forget_targets)
         
-        # For standard NegGrad (no retain data)
-        if retain_outputs is None or retain_targets is None:
-            return -forget_loss, None, forget_loss
+        # # For standard NegGrad (no retain data)
+        # if retain_outputs is None or retain_targets is None:
+        #     return -forget_loss, None, forget_loss
         
         # For NegGrad+ (with retain data)
         retain_loss = criterion(retain_outputs, retain_targets)
@@ -221,14 +218,10 @@ class NegGradPlus:
         return total_loss, retain_loss, forget_loss
     
 
-    @available_if(_has_retain_and_forget_dataloader)
+    @available_if(_has_retain_dataloader and _has_forget_dataloader)
     def unlearn(self,
-                loss_fn: nn,
-                num_epochs: int,
-                lr=1e-4,
-                weight_decay=0,
-                beta=0.995,
-                use_l2_penalty=True):
+                beta: float,
+                **kwargs):
         """
         Perform NegGrad+ unlearning.
 
@@ -247,54 +240,85 @@ class NegGradPlus:
         Returns:
             unlearned_model (nn.Module): The unlearned model.
         """
+
+        num_epochs = kwargs.get('num_epochs')
+        lr = kwargs.get('lr', 1e-4)
+        weight_decay = kwargs.get('weight_decay', 0)
+        loss_fn = kwargs.get('loss_fn')
+        use_l2_penalty = kwargs.get('use_l2_penalty', False)
+        data_types = kwargs.get('evaluate', ['forget'])
+
+        # Checks that the arguments have been passed in correct format
+        if not callable(loss_fn):
+            raise ValueError("loss_fn must be a callable loss function.")
         if not isinstance(num_epochs, int) or num_epochs <= 0:
             raise ValueError("num_epochs must be a positive integer.")
         if not isinstance(lr, (int, float)) or lr <= 0:
             raise ValueError("lr must be a positive number.")
         if not isinstance(beta, (int, float)) or beta < 0 or beta > 1:
             raise ValueError("Beta must be in (0,1).")
+        if not isinstance(weight_decay, (int, float)) or weight_decay < 0:
+            raise ValueError("weight_decay must be a non-negative number.")
+        if not isinstance(data_types, List):
+            raise ValueError("data_types must be a list of strings.")
+        if 'forget' not in data_types and 'retain' not in data_types:
+            raise ValueError("forget and retain must be in data_types.")
         if beta == 0:
             raise ValueError("Please use NegGrad if you wish to perform "
                              "gradient ascent on only the forget set.")
         if beta == 1:
             raise ValueError("Please use FinetuneUnlearner if you wish to "
                              "perform gradient descent on only the retain set")
-
-        unlearned_model = copy.deepcopy(self.original_model)
-        unlearned_model.to(self.device)
-        optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
+        
+        optimizer = torch.optim.SGD(params=self.unlearned_model.parameters(),
                                     lr=lr,
                                     weight_decay=weight_decay)
-
+        
+        data_types.remove(['forget', 'retain'])
         for _ in range(num_epochs):
             for retain_batch, forget_batch in zip(self.retain_dataloader,
                                                   cycle(self.forget_dataloader)
                                                   ):
-                unlearned_model.train()
+                self.unlearned_model.train()
                 optimizer.zero_grad()
                 forget_batch = [
                     tensor.to(self.device) for tensor in forget_batch
                 ]
                 # Compute the forget set and retain set loss. Cycle forget set.
                 forget_inputs, forget_labels = forget_batch
-                forget_output = unlearned_model(forget_inputs)
-                forget_loss = loss_fn(forget_output, forget_labels)
+                forget_output = self.unlearned_model(forget_inputs)
 
                 retain_batch = [
                     tensor.to(self.device) for tensor in retain_batch
                 ]
                 retain_inputs, retain_labels = retain_batch
-                retain_output = unlearned_model(retain_inputs)
-                retain_loss = loss_fn(retain_output, retain_labels)
+                retain_output = self.unlearned_model(retain_inputs)
 
                 # Compute loss based on tradeoff
-                loss = beta * retain_loss - (1-beta) * forget_loss
+                loss, retain_loss, forget_loss = self._calculate_loss(
+                    beta=beta,
+                    criterion=loss_fn,
+                    retain_outputs=retain_output,
+                    retain_targets=retain_labels,
+                    forget_outputs=forget_output,
+                    forget_targets=forget_labels
+                )
+                if self.save_steps:
+                    self.forget_losses.append(forget_loss.item())
+                    self.retain_losses.append(retain_loss.item())
                 if use_l2_penalty:
-                    l2_loss = l2_penalty(model=unlearned_model,
+                    l2_loss = l2_penalty(model=self.unlearned_model,
                                          model_init=self.original_model,
                                          weight_decay=weight_decay)
                     loss += l2_loss
                 loss.backward()
                 optimizer.step()
 
-        return unlearned_model
+            if self.save_steps:
+                self.unlearned_model.eval()
+                for data_type in data_types:
+                    loader = getattr(self, f"{data_type}_loader")
+                    loader_loss = self._evaluate(self.unlearned_model, loader, self.loss_fn).mean()
+                    getattr(self, f"{loader}_losses").append(loader_loss.item())
+
+        return self.unlearned_model
