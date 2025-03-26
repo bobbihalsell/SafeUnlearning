@@ -115,8 +115,9 @@ class NegGrad(BaseUnlearner):
                 for data_type in eval_only_data:
                     loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
                     losses[f"{data_type}_losses"].append(loader_loss.item())
-
-        return unlearned_model, losses
+        if self.evaluate:
+            return unlearned_model, losses
+        return unlearned_model
 
 class NegGradPlus:
     """ Implements NegGrad+ unlearning.
@@ -281,4 +282,6 @@ class NegGradPlus:
                     loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
                     losses[f"{data_type}_losses"].append(loader_loss.item())
 
-        return unlearned_model, losses
+        if self.evaluate:
+            return unlearned_model, losses
+        return unlearned_model

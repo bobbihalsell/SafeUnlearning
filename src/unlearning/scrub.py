@@ -158,4 +158,6 @@ class SCRUB(BaseUnlearner):
                     loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
                     losses[f"{data_type}_losses"].append(loader_loss.item())
 
-        return unlearned_model, losses
+        if self.evaluate:
+            return unlearned_model, losses
+        return unlearned_model

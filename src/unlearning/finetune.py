@@ -32,7 +32,7 @@ class FinetuneUnlearner(BaseUnlearner):
         Args:
             original_model (nn.Module): The base model to perform fine-tune unlearning on.
         """
-        super().__init__(device, save_steps)
+        super().__init__(device, evaluate)
 
     def unlearn(self,
                 model: nn.Module,
@@ -81,7 +81,6 @@ class FinetuneUnlearner(BaseUnlearner):
         for _ in range(num_epochs):
             total_retain_loss = 0
             for retain_inputs, retain_labels in data_dict['retain']:
-                batch_size = retain_inputs.size(0)
 
                 model.train()
                 optimizer.zero_grad()
@@ -91,7 +90,7 @@ class FinetuneUnlearner(BaseUnlearner):
 
                 retain_output = unlearned_model(retain_inputs)
                 retain_loss = loss_fn(retain_output, retain_labels)
-                total_retain_loss += retain_loss.item()/batch_size
+                total_retain_loss += retain_loss.item()
 
                 if use_l2_penalty:
                     l2_loss = l2_penalty(model=unlearned_model,
@@ -110,4 +109,6 @@ class FinetuneUnlearner(BaseUnlearner):
                     loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
                     losses[f"{data_type}_losses"].append(loader_loss.item())
 
-        return unlearned_model, losses
+        if self.evaluate:
+            return unlearned_model, losses
+        return unlearned_model
