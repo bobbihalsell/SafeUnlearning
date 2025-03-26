@@ -125,7 +125,7 @@ class NegGrad:
                       f'val forget loss: {forget_val_loss}, '
                       f'val retain loss: {retain_val_loss}')
 
-        return model
+        return unlearned_model
 
     def _evaluate(self,
                   model: nn.Module,
