@@ -8,7 +8,7 @@ unlearner:
     num_epochs: 3
     lr: 0.005
     weight_decay: 0
-    use_l2_penalty: false
+    use_l2_penalty: true
     evaluate: true
 dataset:
   name: cifar10

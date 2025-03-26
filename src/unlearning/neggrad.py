@@ -80,26 +80,27 @@ class NegGrad:
             raise ValueError("use_l2_penalty must be a boolean.")
 
         model.to(self.device)
+        unlearned_model = copy.deepcopy(model)
 
-        optimizer = torch.optim.SGD(params=model.parameters(),
+        optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
                                     lr=lr,
                                     weight_decay=weight_decay)
 
         for i in range(num_epochs):
             for forget_inputs, forget_labels in forget_dataloader:
-                model.train()
+                unlearned_model.train()
                 optimizer.zero_grad()
 
                 forget_inputs = forget_inputs.to(self.device)
                 forget_labels = forget_labels.to(self.device)
 
-                forget_output = model(forget_inputs)
+                forget_output = unlearned_model(forget_inputs)
                 forget_loss = self.loss_fn(forget_output, forget_labels)
                 # Negative loss to perform gradient ascent
                 loss = -forget_loss
 
                 if use_l2_penalty:
-                    l2_loss = l2_penalty(model=model,
+                    l2_loss = l2_penalty(model=unlearned_model,
                                          model_init=model,
                                          weight_decay=weight_decay)
                     loss += l2_loss
@@ -110,17 +111,17 @@ class NegGrad:
             if evaluate:
                 # Evaluate the model's performance on retain and forget sets
                 forget_loss = self._evaluate(
-                    model=model,
+                    model=unlearned_model,
                     val_dataloader=forget_dataloader,
                 )
                 retain_loss = self._evaluate(
-                    model=model,
+                    model=unlearned_model,
                     val_dataloader=retain_dataloader
                 )
                 forget_val_loss = None
                 retain_val_loss = None
                 print(f'Epoch {i+1} forget loss: {forget_loss}, '
-                      f'retain loss: {retain_loss} ,'
+                      f'retain loss: {retain_loss}, '
                       f'val forget loss: {forget_val_loss}, '
                       f'val retain loss: {retain_val_loss}')
 
@@ -154,40 +155,22 @@ class NegGradPlus:
     """
     def __init__(
         self,
-        original_model: nn.Module,
-        retain_dataloader: torch.utils.data.DataLoader,
-        forget_dataloader: torch.utils.data.DataLoader,
-        val_dataloader: Optional[torch.utils.data.DataLoader] = None,
+        loss_fn: torch.nn.functional,
     ):
         """
         Args:
-            original_model: The original model to be unlearned.
-            forget_dataloader: The forget set dataloaderz
-            retain_dataloader: The retain set dataloader
-            val_dataloader: The validation set dataloader
+            loss_fn: The loss function.
         """
-        if not isinstance(original_model, nn.Module):
-            raise UnsupportedModelError('original_model must be a nn.Module.')
-        if not isinstance(forget_dataloader, torch.utils.data.DataLoader):
-            raise TypeError("forget_dataloader must be a "
-                            "torch.utils.data.DataLoader.")
-        if not isinstance(retain_dataloader, torch.utils.data.DataLoader):
-            raise TypeError("retain_dataloader must be a "
-                            "torch.utils.data.DataLoader.")
         self.device = setup_device()
-        self.original_model = original_model.to(self.device)
-        self.val_dataloader = val_dataloader
-        self.retain_dataloader = retain_dataloader
-        self.forget_dataloader = forget_dataloader
+        self.loss_fn = loss_fn
 
-    # @available_if(_has_retain_and_forget_dataloader)
     def unlearn(self,
-                loss_fn: nn,
-                num_epochs: int,
-                lr=1e-4,
-                weight_decay=0,
-                beta=0.995,
-                use_l2_penalty=True):
+                model: nn.Module,
+                retain_dataloader: torch.utils.data.DataLoader,
+                forget_dataloader: torch.utils.data.DataLoader,
+                retain_val_dataloader: Optional[torch.utils.data.DataLoader] = None,
+                forget_val_dataloader: Optional[torch.utils.data.DataLoader] = None,
+                **kwargs):
         """
         Perform NegGrad+ unlearning.
 
@@ -206,6 +189,21 @@ class NegGradPlus:
         Returns:
             unlearned_model (nn.Module): The unlearned model.
         """
+        num_epochs = kwargs.get('num_epochs')
+        lr = kwargs.get('lr', 1e-4)
+        weight_decay = kwargs.get('weight_decay', 0)
+        use_l2_penalty = kwargs.get('use_l2_penalty', False)
+        beta = kwargs.get('beta', 0.95)
+        evaluate = kwargs.get('evaluate', False)
+
+        if not isinstance(model, nn.Module):
+            raise UnsupportedModelError('model must be a nn.Module.')
+        if not isinstance(forget_dataloader, torch.utils.data.DataLoader):
+            raise TypeError("forget_dataloader must be a "
+                            "torch.utils.data.DataLoader.")
+        if not isinstance(retain_dataloader, torch.utils.data.DataLoader):
+            raise TypeError("retain_dataloader must be a "
+                            "torch.utils.data.DataLoader.")
         if not isinstance(num_epochs, int) or num_epochs <= 0:
             raise ValueError("num_epochs must be a positive integer.")
         if not isinstance(lr, (int, float)) or lr <= 0:
@@ -219,15 +217,16 @@ class NegGradPlus:
             raise ValueError("Please use FinetuneUnlearner if you wish to "
                              "perform gradient descent on only the retain set")
 
-        unlearned_model = copy.deepcopy(self.original_model)
-        unlearned_model.to(self.device)
+        model.to(self.device)
+        unlearned_model = copy.deepcopy(model)
+
         optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
                                     lr=lr,
                                     weight_decay=weight_decay)
 
         for _ in range(num_epochs):
-            for retain_batch, forget_batch in zip(self.retain_dataloader,
-                                                  cycle(self.forget_dataloader)
+            for retain_batch, forget_batch in zip(retain_dataloader,
+                                                  cycle(forget_dataloader)
                                                   ):
                 unlearned_model.train()
                 optimizer.zero_grad()
@@ -237,20 +236,20 @@ class NegGradPlus:
                 # Compute the forget set and retain set loss. Cycle forget set.
                 forget_inputs, forget_labels = forget_batch
                 forget_output = unlearned_model(forget_inputs)
-                forget_loss = loss_fn(forget_output, forget_labels)
+                forget_loss = self.loss_fn(forget_output, forget_labels)
 
                 retain_batch = [
                     tensor.to(self.device) for tensor in retain_batch
                 ]
                 retain_inputs, retain_labels = retain_batch
                 retain_output = unlearned_model(retain_inputs)
-                retain_loss = loss_fn(retain_output, retain_labels)
+                retain_loss = self.loss_fn(retain_output, retain_labels)
 
                 # Compute loss based on tradeoff
                 loss = beta * retain_loss - (1-beta) * forget_loss
                 if use_l2_penalty:
                     l2_loss = l2_penalty(model=unlearned_model,
-                                         model_init=self.original_model,
+                                         model_init=model,
                                          weight_decay=weight_decay)
                     loss += l2_loss
                 loss.backward()
