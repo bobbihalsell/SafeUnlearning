@@ -4,9 +4,7 @@ import torch
 import torch.nn as nn
 import copy
 from typing import Optional
-from src.unlearning.utils import (setup_device,
-                                  UnsupportedModelError,
-                                  available_if,
+from src.unlearning.utils import (available_if,
                                   _has_forget_dataloader,
                                   _has_retain_dataloader,
                                   l2_penalty)
@@ -14,16 +12,18 @@ from itertools import cycle
 from base import BaseUnlearner
 
 
-from typing import Optional, Union, Tuple, List, Dict, Any
-from torch.utils.data import DataLoader, TensorDataset
+from typing import Optional, Tuple, Dict
+from torch.utils.data import DataLoader
 
 
 class NegGrad(BaseUnlearner):
     """
     Implements NegGrad unlearning as introduced in https://openreview.net/pdf?id=OveBaTtUAT
     
-    This implementation performs gradient ascent on forget data to make the model
-    "forget" specific samples while preserving performance on retained data.
+    NegGrad performs gradient ascent on the forget set to make the model "forget" 
+    specific samples. This approach maximizes the loss on data that should be 
+    forgotten, effectively reducing the model's ability to make accurate predictions
+    on that data.
     """
     
     def __init__(
@@ -35,46 +35,53 @@ class NegGrad(BaseUnlearner):
         Initialize the NegGrad unlearning object.
         
         Args:
-            model: Original model to be unlearned
-            forget_data: Data to be "forgotten" (tuple of tensors or DataLoader)
-            retain_data: Data to be retained (tuple of tensors or DataLoader)
-            test_data: Data for testing/evaluation (tuple of tensors or DataLoader)
-            device: Computing device (CPU/GPU)
+            device: Computing device (CPU/GPU) to use for computations.
+                   If None, will be automatically determined.
+            evaluate: Whether to track and return evaluation metrics during unlearning.
         """
-        super.__init__(device, evaluate)
+        super().__init__(device, evaluate)
 
-    @available_if(_has_forget_dataloader)
     def unlearn(self,
                 model: nn.Module,
                 data_dict: Dict[str, DataLoader],
                 **kwargs):
         """
         Perform NegGrad unlearning.
-
         NegGrad performs gradient ascent on the forget set.
-
         For more details, see https://openreview.net/pdf?id=OveBaTtUAT
 
         Args:
-            loss_fn (torch.nn loss function): Loss function that takes logits.
-            num_epochs (int): Number of passes over the forget set.
-            lr: Learning rate
-            weight_decay: Weight decay
-            use_l2_penalty: Whether to add L2 penalty to the loss function.
+            model: The original model to perform unlearning on.
+            data_dict: Dictionary containing dataloaders for different datasets.
+                       Must include a 'forget' key with corresponding DataLoader.
+            **kwargs: Additional arguments including:
+                - loss_fn: Loss function for training (will be negated) and evaluation.
+                - num_epochs: Number of training epochs (default: 1).
+                - lr: Learning rate (default: 1e-2).
+                - weight_decay: Weight decay parameter (default: 0).
+                - use_l2_penalty: Whether to add L2 regularization penalty (default: False).
 
         Returns:
-            unlearned_model (nn.Module): The unlearned model.
+            If self.evaluate is True:
+                Tuple of (unlearned_model, losses_dict) where losses_dict contains
+                tracked losses for each dataset type.
+            Otherwise:
+                The unlearned model.
+                
+        Raises:
+            ValueError: If 'forget' data is not in data_dict.
         """
 
         model.to(self.device)
         unlearned_model = copy.deepcopy(model)
 
-        # Check if generic unlearning args are valid
+        # Validate and extract common hyperparameters
         loss_fn, num_epochs, lr, weight_decay, use_l2_penalty = self.valid_args(kwargs)
 
         if 'forget' not in data_dict.keys():
             raise ValueError("'forget' data must be in data_dict.")
         
+        # Initialize loss tracking if evaluation is enabled
         if self.evaluate:
         # Initialize loss tracking
             losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
@@ -85,6 +92,7 @@ class NegGrad(BaseUnlearner):
         
         eval_only_data = [data for data in data_dict.keys() if data != 'forget']
 
+        # Main training loop
         for _ in range(num_epochs):
             total_forget_loss = 0
             for forget_inputs, forget_labels in data_dict['forget']:
@@ -99,6 +107,7 @@ class NegGrad(BaseUnlearner):
                 # Negative loss to perform gradient ascent
                 loss = -forget_loss
 
+                # Add L2 penalty if requested
                 if use_l2_penalty:
                     l2_loss = l2_penalty(model=unlearned_model,
                                          model_init=model,
@@ -110,7 +119,9 @@ class NegGrad(BaseUnlearner):
                 total_forget_loss += forget_loss.item()
 
             if self.evaluate:
+                # Calculate average forget loss for this epoch
                 losses['forget_losses'].append(total_forget_loss/len(data_dict['forget']))
+                # Evaluate model on other datasets
                 unlearned_model.eval()
                 for data_type in eval_only_data:
                     loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
@@ -120,26 +131,28 @@ class NegGrad(BaseUnlearner):
         return unlearned_model
 
 class NegGradPlus:
-    """ Implements NegGrad+ unlearning.
-
-    Loss function is constructed based on the tradeoff between
-    retain/forget performance.
-
-    As introduced in https://openreview.net/pdf?id=OveBaTtUAT
     """
+    Implements NegGrad+ unlearning as introduced in https://openreview.net/pdf?id=OveBaTtUAT
+    
+    NegGrad+ extends NegGrad by incorporating a trade-off between retaining performance
+    on keep data while forgetting the forget data. It balances gradient descent on retain
+    data with gradient ascent on forget data, controlled by a beta parameter.
+    """
+
     def __init__(
         self,
         device: Optional[torch.device] = None,
         evaluate: bool = False,
     ):
         """
+        Initialize the NegGrad+ unlearning object.
+        
         Args:
-            original_model: The original model to be unlearned.
-            forget_dataloader: The forget set dataloaderz
-            retain_dataloader: The retain set dataloader
-            val_dataloader: The validation set dataloader
+            device: Computing device (CPU/GPU) to use for computations.
+                   If None, will be automatically determined.
+            evaluate: Whether to track and return evaluation metrics during unlearning.
         """
-        super.__init__(device, evaluate)
+        super().__init__(device, evaluate)
 
     def _calculate_loss(
         self, 
@@ -183,37 +196,49 @@ class NegGradPlus:
 
         return total_loss, retain_loss, forget_loss
     
-
-    @available_if(_has_retain_dataloader and _has_forget_dataloader)
     def unlearn(self,
                 model: nn.Module,
                 data_dict: Dict[str, DataLoader],
                 beta: float,
                 **kwargs):
         """
-        Perform NegGrad+ unlearning.
+        Perform NegGrad+ unlearning with balanced retain/forget optimization.
 
-        NegGrad+ performs gradient descent on retain/forget loss tradeoff.
-
-        For more details, see https://openreview.net/pdf?id=OveBaTtUAT
+        NegGrad+ balances minimizing loss on retain data while maximizing loss
+        on forget data, controlled by the beta parameter.
 
         Args:
-            loss_fn (torch.nn loss function): Loss function that takes logits.
-            num_epochs (int): Number of passes over the forget set.
-            lr: Learning rate (Default: 1e-4)
-            weight_decay: Weight decay (Default: 0)
-            beta: Tradeoff between retain and forget loss for NegGrad+.
-            use_l2_penalty: Whether to add L2 penalty to the loss function.
+            model: The original model to perform unlearning on.
+            data_dict: Dictionary containing dataloaders for different datasets.
+                       Must include both 'forget' and 'retain' keys.
+            beta: Tradeoff parameter between retain and forget objectives (0-1).
+                  beta=0 is pure forgetting, beta=1 is pure retention. 
+                  PLEASE USE NegGrad FOR BETA = 0, FinetuneUnlearner FOR BETA = 1.
+            **kwargs: Additional arguments including:
+                - loss_fn: Loss function to use for training.
+                - num_epochs: Number of training epochs (default: 1).
+                - lr: Learning rate (default: 1e-2).
+                - weight_decay: Weight decay parameter (default: 0).
+                - use_l2_penalty: Whether to add L2 regularization penalty (default: False).
 
         Returns:
-            unlearned_model (nn.Module): The unlearned model.
+            If self.evaluate is True:
+                Tuple of (unlearned_model, losses_dict) where losses_dict contains
+                tracked losses for each dataset type.
+            Otherwise:
+                The unlearned model.
+                
+        Raises:
+            ValueError: If either 'forget' or 'retain' data is missing from data_dict,
+                       or if beta is 0 or 1 (which would make this equivalent to simpler methods).
         """
         model.to(self.device)
         unlearned_model = copy.deepcopy(model)
 
-        # Check if generic unlearning args are valid
+        # Validate and extract common hyperparameters
         loss_fn, num_epochs, lr, weight_decay, use_l2_penalty = self.valid_args(kwargs)
 
+        # Ensure required data is available
         if 'forget' not in data_dict.keys() or 'retain' not in data_dict.keys():
             raise ValueError("'forget' and 'retain' data must be in data_dict.")
         
@@ -224,8 +249,8 @@ class NegGradPlus:
             raise ValueError("Please use FinetuneUnlearner if you wish to "
                              "perform gradient descent on only the retain set")
 
+        # Initialize loss tracking if evaluation is enabled
         if self.evaluate:
-        # Initialize loss tracking
             losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
         
         optimizer = torch.optim.SGD(params=model.parameters(),
@@ -234,6 +259,7 @@ class NegGradPlus:
         
         eval_only_data = [data for data in data_dict.keys() if data not in ['forget', 'retain']]
 
+        # Main training loop
         for _ in range(num_epochs):
             total_forget_loss, total_retain_loss = 0, 0
             for retain_batch, forget_batch in zip( data_dict['retain'],
@@ -241,6 +267,7 @@ class NegGradPlus:
                                                   ):
                 unlearned_model.train()
                 optimizer.zero_grad()
+                # Process forget batch
                 forget_batch = [
                     tensor.to(self.device) for tensor in forget_batch
                 ]
@@ -248,6 +275,7 @@ class NegGradPlus:
                 forget_inputs, forget_labels = forget_batch
                 forget_output = unlearned_model(forget_inputs)
 
+                # Process retain batch
                 retain_batch = [
                     tensor.to(self.device) for tensor in retain_batch
                 ]
@@ -263,7 +291,7 @@ class NegGradPlus:
                     forget_outputs=forget_output,
                     forget_targets=forget_labels
                 )
-                
+                # Add L2 penalty if requested
                 if use_l2_penalty:
                     l2_loss = l2_penalty(model=unlearned_model,
                                          model_init=model,
@@ -271,12 +299,16 @@ class NegGradPlus:
                     loss += l2_loss
                 loss.backward()
                 optimizer.step()
+                # Track losses
                 total_forget_loss += forget_loss.item()
                 total_retain_loss += retain_loss.item()
 
+            # Track metrics if evaluation is enabled
             if self.evaluate:
+                # Calculate average losses for this epoch
                 losses['forget_losses'].append(total_forget_loss/len(data_dict['forget']))
                 losses['retain_losses'].append(total_retain_loss/len(data_dict['retain']))
+                # Evaluate model on other datasets
                 unlearned_model.eval()
                 for data_type in eval_only_data:
                     loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()

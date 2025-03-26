@@ -1,26 +1,25 @@
-import deepcopy
-import importlib
-import pathlib
-import typing as typ
-from typing import Optional, Union, Tuple, List, Dict, Any
+from typing import Union, Tuple, List
 from torch.utils.data import DataLoader, TensorDataset
 from abc import abstractmethod
-
 import torch
 import torch.nn as nn
-from torch import Tensor
-from torch.optim import Optimizer
-from torch.optim.lr_scheduler import LRScheduler
-from torch.utils.data import DataLoader, Dataset
-from src.unlearning.utils import setup_device, UnsupportedModelError
+from src.unlearning.utils import setup_device
 
 
 class BaseUnlearner:
-    """ Base class for all """
+    """ Base class for all machine unlearning implementations."""
     def __init__(self, 
                 device,
                 evaluate: bool = False
                 ):
+        """
+        Initialize the BaseUnlearner.
+        
+        Args:
+            device: Computing device (GPU/CPU) to use for computations.
+                   If None, will be automatically determined.
+            evaluate: Whether to track and return evaluation metrics during unlearning.
+        """
         self.device = device if device is not None else setup_device()        
         self.evaluate = evaluate
 
@@ -33,64 +32,70 @@ class BaseUnlearner:
         val_loader: DataLoader,
     ) -> nn.Module:
         """
-        Unlearns the model on the forget_loader and then retrains it on the retain_loader.
-        :param model: The model to unlearn.
-        :param retain_loader: The data to retain.
-        :param forget_loader: The data to forget.
-        :param val_loader: The data to validate on.
-        :return: The unlearned model.
-        """
-        # Unlearn 
-        # Save Model
-
-    def _process_data(
-        self, 
-        *data: Union[Tuple[torch.Tensor, torch.Tensor], DataLoader],
-        batch_sizes: List[int],
-    ) -> None:
-        """
-        Process and validate input data formats.
+        Unlearns specific data from a model while retaining performance on other data.
+        
+        This is an abstract method that must be implemented by all subclasses
+        with their specific unlearning strategy.
         
         Args:
-            forget_data: Data to be "forgotten" (tuple of tensors or DataLoader)
-            retain_data: Data to be retained (tuple of tensors or DataLoader)
-            test_data: Data for testing/evaluation (tuple of tensors or DataLoader)
+            model: The model to perform unlearning on.
+            retain_loader: DataLoader containing data the model should continue to perform well on.
+            forget_loader: DataLoader containing data the model should "forget".
+            val_loader: DataLoader containing validation data to evaluate performance.
+            
+        Returns:
+            The unlearned model.
         """
-        for i, data_type in enumerate(data):
-            if isinstance(data_type, tuple) and len(data) == 2:
-                X, y = data
-                data = DataLoader(
-                    TensorDataset(X.to(self.device), y.to(self.device)),
-                    batch_size=batch_sizes[i],
-                    shuffle=True
-                )
-                setattr(self, f"has_{data_type}_dataloader", True)
-            elif isinstance(data, DataLoader):
-                data = data
-                setattr(self, f"has_{data_type}_dataloader", False)
-            else:
-                raise TypeError(f"data must be a tuple of (X, y) tensors or a DataLoader")
-            setattr(self, f"{data_type}_loader", data)
+        # This method must be implemented by subclasses
+        pass
 
     def _evaluate(self,
                   model: nn.Module,
                   dataloader: torch.utils.data.DataLoader,
                   loss_fn: nn.Module,
                   ) -> torch.Tensor:
-        """ Compute the validation loss of a model."""
+        """
+        Compute the evaluation loss of a model on a given dataset.
+        
+        Args:
+            model: The model to evaluate.
+            dataloader: DataLoader containing evaluation data.
+            loss_fn: Loss function to compute model performance.
+            
+        Returns:
+            torch.Tensor: Tensor containing loss values for each batch in the dataloader.
+        """
         model = model.eval()
+        # Initialize tensor to store batch losses
         batch_losses = torch.zeros(len(self.val_dataloader))
+        # Evaluate model on all batches
         for batch_ndx, (inputs, targets) in enumerate(dataloader):
             inputs, targets = inputs.to(self.device), targets.to(self.device)
             outputs = model(inputs)
             loss = loss_fn(outputs, targets)
+            # Store loss value
             batch_losses[batch_ndx] = loss.detach().item()
         return batch_losses
             
     def valid_args(self, **kwargs):
-        """ Validate input arguments."""
+        """
+        Validate and extract common unlearning hyperparameters from kwargs.
+        
+        Extracts and validates learning parameters that are common across
+        different unlearning methods.
+        
+        Args:
+            **kwargs: Arbitrary keyword arguments containing hyperparameters.
+            
+        Returns:
+            tuple: A tuple containing (loss_fn, num_epochs, lr, weight_decay, use_l2_penalty).
+            
+        Raises:
+            ValueError: If any of the parameters fails validation checks.
+        """
+        # Extract parameters with default values
         num_epochs = kwargs.get('num_epochs', 1)
-        lr = kwargs.get('lr', 1e-4)
+        lr = kwargs.get('lr', 1e-2)
         weight_decay = kwargs.get('weight_decay', 0)
         loss_fn = kwargs.get('loss_fn')
         use_l2_penalty = kwargs.get('use_l2_penalty', False)
