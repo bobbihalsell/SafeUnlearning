@@ -179,12 +179,19 @@ class NegGradPlus:
         For more details, see https://openreview.net/pdf?id=OveBaTtUAT
 
         Args:
-            loss_fn (torch.nn loss function): Loss function that takes logits.
+            model (nn.Module): The model to perform unlearning on.
+            retain_dataloader (DataLoader): The retain set DataLoader
+            forget_dataloader (DataLoader): The forget set DataLoader
+            retain_val_dataloader (DataLoader): The validation retain set DataLoader
+            forget_val_dataloader (DataLoader): The validation forget set DataLoader
+
+        Keyword Args:
+            loss_fn (callable): Loss function that takes logits.
             num_epochs (int): Number of passes over the forget set.
-            lr: Learning rate (Default: 1e-4)
-            weight_decay: Weight decay (Default: 0)
-            beta: Tradeoff between retain and forget loss for NegGrad+.
-            use_l2_penalty: Whether to add L2 penalty to the loss function.
+            lr (float, optional): Learning rate. Default is 1e-4.
+            weight_decay (float, optional): Weight decay. Default is 0.
+            use_l2_penalty (bool, optional): Whether to add L2 penalty to the loss function. Default is False.
+            evaluate (bool, optional): Whether to check performance on validation set. Default is False. 
 
         Returns:
             unlearned_model (nn.Module): The unlearned model.
@@ -224,7 +231,7 @@ class NegGradPlus:
                                     lr=lr,
                                     weight_decay=weight_decay)
 
-        for _ in range(num_epochs):
+        for i in range(num_epochs):
             for retain_batch, forget_batch in zip(retain_dataloader,
                                                   cycle(forget_dataloader)
                                                   ):
@@ -255,4 +262,38 @@ class NegGradPlus:
                 loss.backward()
                 optimizer.step()
 
+            if evaluate:
+                # Evaluate the model's performance on retain and forget sets
+                forget_loss = self._evaluate(
+                    model=unlearned_model,
+                    val_dataloader=forget_dataloader,
+                )
+                retain_loss = self._evaluate(
+                    model=unlearned_model,
+                    val_dataloader=retain_dataloader
+                )
+                forget_val_loss = None
+                retain_val_loss = None
+                print(f'Epoch {i+1} forget loss: {forget_loss}, '
+                        f'retain loss: {retain_loss}, '
+                        f'val forget loss: {forget_val_loss}, '
+                        f'val retain loss: {retain_val_loss}')
+
         return unlearned_model
+
+    def _evaluate(self,
+                  model: nn.Module,
+                  val_dataloader: torch.utils.data.DataLoader) -> float:
+        """ Measure the average validation loss of the model on a val dataloader."""
+        model = model.eval()
+        total_loss = 0.0
+        num_batches = len(val_dataloader)
+
+        with torch.no_grad():
+            for inputs, targets in val_dataloader:
+                inputs, targets = inputs.to(self.device), targets.to(self.device)
+                outputs = model(inputs)
+                loss = self.loss_fn(outputs, targets)
+                total_loss += loss.item()
+
+        return total_loss / num_batches if num_batches > 0 else float("nan")

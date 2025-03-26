@@ -99,13 +99,13 @@ class UnlearnApp:
                 loss_fn=nn.CrossEntropyLoss()
                 )
         # TODO fix NegGradPlus to work with our new approach.
-        # elif self.unlearner_name == 'neggradplus':
-        #     unlearner = NegGradPlus(
-        #         loss_fn=nn.CrossEntropyLoss()
-        #         )
+        elif self.unlearner_name == 'neggradplus':
+            unlearner = NegGradPlus(
+                loss_fn=nn.CrossEntropyLoss()
+                )
         else:
             raise ValueError(f'unlearner_name {self.unlearner_name}'
-                             'not supported.')
+                             ' not supported.')
 
         return unlearner
 
