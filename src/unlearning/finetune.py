@@ -1,13 +1,21 @@
+import os
+import timm
 import torch
-import torch.nn.functional as F
-import torch.optim as optim
-from torch import nn
-from typing import Optional, Tuple, List, Dict
-from torch.utils.data import DataLoader
-from src.unlearning.utils import setup_device, UnsupportedModelError
+import torch.nn as nn
 import copy
-import deepcopy
+from typing import Optional
+from src.unlearning.utils import (setup_device,
+                                  UnsupportedModelError,
+                                  available_if,
+                                  _has_forget_dataloader,
+                                  _has_retain_dataloader,
+                                  l2_penalty)
+from itertools import cycle
 from base import BaseUnlearner
+
+
+from typing import Optional, Union, Tuple, List, Dict, Any
+from torch.utils.data import DataLoader, TensorDataset
 
 class FinetuneUnlearner(BaseUnlearner):
     """
@@ -15,39 +23,21 @@ class FinetuneUnlearner(BaseUnlearner):
     Supports both single-batch and mini-batch fine-tuning.
     """
     def __init__(self, 
-                model: nn.Module,
                 device,
-                save_path: str = None,
-                save_steps: bool = False,
-                **kwargs):
+                evaluate: bool = False,
+                ):
         """
         Initialize the Finetune class.
 
         Args:
             original_model (nn.Module): The base model to perform fine-tune unlearning on.
         """
-        super().__init__(model, device, save_path, save_steps, **kwargs)
+        super().__init__(device, save_steps)
 
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass through the fine-tuned model.
-
-        Args:
-            x (torch.Tensor): Input tensor.
-        Returns:
-            torch.Tensor: Model predictions.
-        """
-        return self.finetuned_model(x)
-
-
-    def unlearn(self, 
-                retain_data: DataLoader, 
-                criterion: nn.Module,
-                optimizer: torch.optim.Optimizer,
-                epochs: int, 
-                test_data_dict: Dict[str, DataLoader] = None
-                ):
+    def unlearn(self,
+                model: nn.Module,
+                data_dict: Dict[str, DataLoader],
+                **kwargs):
         """
         Fine-tune the model using provided retain data and optionally evaluate on test datasets.
 
@@ -69,62 +59,55 @@ class FinetuneUnlearner(BaseUnlearner):
         Returns:
             None
         """
+        model.to(self.device)
+        unlearned_model = copy.deepcopy(model)
 
-        # Initialize loss storage
-        if self.save_steps:
-            self.retain_losses = []
-            self.save_steps = []
-            if test_data_dict is not None:
-                for name in test_data_dict:
-                    setattr(self, f"{name}_losses", [])
+        # Check if generic unlearning args are valid
+        loss_fn, num_epochs, lr, weight_decay, use_l2_penalty = self.valid_args(kwargs)
 
-        for epoch in range(epochs):
-            self.unlearned_model.train()
-            running_retain_loss = 0.0
+        if 'retain' not in data_dict.keys():
+            raise ValueError("'retain' data must be in data_dict.")
+        
+        if self.evaluate:
+        # Initialize loss tracking
+            losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
 
-            # Training loop with mini-batches
-            for retain_X, retain_y in retain_data:
-                retain_X, retain_y = retain_X.to(self.device), retain_y.to(self.device)
+        optimizer = torch.optim.SGD(params=model.parameters(),
+                                    lr=lr,
+                                    weight_decay=weight_decay)
+        
+        eval_only_data = [data for data in data_dict.keys() if data != 'retain']
+
+        for _ in range(num_epochs):
+            total_retain_loss = 0
+            for retain_inputs, retain_labels in data_dict['retain']:
+                batch_size = retain_inputs.size(0)
+
+                model.train()
                 optimizer.zero_grad()
-                retain_outputs = self.unlearned_model(retain_X)
-                retain_loss = criterion(retain_outputs, retain_y)
+
+                retain_inputs = retain_inputs.to(self.device)
+                retain_labels = retain_labels.to(self.device)
+
+                retain_output = unlearned_model(retain_inputs)
+                retain_loss = loss_fn(retain_output, retain_labels)
+                total_retain_loss += retain_loss.item()/batch_size
+
+                if use_l2_penalty:
+                    l2_loss = l2_penalty(model=unlearned_model,
+                                         model_init=model,
+                                         weight_decay=weight_decay)
+                    retain_loss += l2_loss
+
                 retain_loss.backward()
                 optimizer.step()
-                running_retain_loss += retain_loss.item()
             
-            avg_retain_loss = running_retain_loss / len(retain_data)
-            self.retain_losses.append(avg_retain_loss)
 
-            # Evaluate on test datasets if provided
-            if test_data_dict is not None:
-                self.unlearned_model.eval()
-                test_losses = {}  # Dictionary to store test losses for printing
-                with torch.no_grad():
-                    for name, loader in test_data_dict.items():
-                        running_test_loss = 0.0
-                        for X, y in loader:
-                            X, y = X.to(self.device), y.to(self.device)
-                            out = self.unlearned_model(X)
-                            loss = criterion(out, y)
-                            running_test_loss += loss.item()
-                        
-                        avg_loss = running_test_loss / len(loader)
-                        getattr(self, f"{name}_losses").append(avg_loss)
-                        test_losses[name] = avg_loss
-                # Print epoch loss
-                loss_str = f"Epoch [{epoch+1}/{epochs}], Retain Loss: {avg_retain_loss:.4f}"
-                if test_losses:
-                    test_loss_str = ", ".join([f"{name} Loss: {loss:.4f}" for name, loss in test_losses.items()])
-                    loss_str += f", {test_loss_str}"
-                    print(loss_str)
-                else:
-                    print(f"Epoch [{epoch+1}/{epochs}], Retain Loss: {avg_retain_loss:.4f}")
+            if self.evaluate:
+                losses['retain_losses'].append(total_retain_loss/len(data_dict['retain']))
+                unlearned_model.eval()
+                for data_type in eval_only_data:
+                    loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
+                    losses[f"{data_type}_losses"].append(loader_loss.item())
 
-    def reset(self):
-        """Reset the fine-tuned model to its initial state."""
-        self.unlearned_model = copy.deepcopy(self.model).to(self.device)
-    
-    def get_model(self) -> nn.Module:
-        """Return the fine-tuned model."""
-        return self.unlearned_model
-    
+        return unlearned_model, losses

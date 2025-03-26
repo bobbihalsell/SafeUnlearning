@@ -18,21 +18,11 @@ from src.unlearning.utils import setup_device, UnsupportedModelError
 class BaseUnlearner:
     """ Base class for all """
     def __init__(self, 
-                model: nn.Module,
                 device,
-                save_path: str = None,
-                save_steps: bool = False,
-                **kwargs):
-        if not isinstance(model, nn.Module):
-            raise UnsupportedModelError('original_model must be a Pytorch model.')
-        self.original_model = model.deepcopy()
-        self.unlearned_model = model.deepcopy()
+                evaluate: bool = False
+                ):
         self.device = device if device is not None else setup_device()        
-        self.save_path = save_path
-        self.save_steps = save_steps
-        # for key, value in kwargs.items():
-        #     setattr(self, key, value)
-
+        self.evaluate = evaluate
 
     @abstractmethod
     def unlearn(
@@ -74,10 +64,10 @@ class BaseUnlearner:
                     batch_size=batch_sizes[i],
                     shuffle=True
                 )
-                setattr(self, f"has_{data_type}_tensor", True)
+                setattr(self, f"has_{data_type}_dataloader", True)
             elif isinstance(data, DataLoader):
                 data = data
-                setattr(self, f"has_{data_type}_tensor", False)
+                setattr(self, f"has_{data_type}_dataloader", False)
             else:
                 raise TypeError(f"data must be a tuple of (X, y) tensors or a DataLoader")
             setattr(self, f"{data_type}_loader", data)
@@ -85,7 +75,8 @@ class BaseUnlearner:
     def _evaluate(self,
                   model: nn.Module,
                   dataloader: torch.utils.data.DataLoader,
-                  loss_fn: nn.Module) -> torch.Tensor:
+                  loss_fn: nn.Module,
+                  ) -> torch.Tensor:
         """ Compute the validation loss of a model."""
         model = model.eval()
         batch_losses = torch.zeros(len(self.val_dataloader))
@@ -96,3 +87,23 @@ class BaseUnlearner:
             batch_losses[batch_ndx] = loss.detach().item()
         return batch_losses
             
+    def valid_args(self, **kwargs):
+        """ Validate input arguments."""
+        num_epochs = kwargs.get('num_epochs', 1)
+        lr = kwargs.get('lr', 1e-4)
+        weight_decay = kwargs.get('weight_decay', 0)
+        loss_fn = kwargs.get('loss_fn')
+        use_l2_penalty = kwargs.get('use_l2_penalty', False)
+
+        if not callable(loss_fn):
+            raise ValueError("loss_fn must be a callable loss function.")
+        if not isinstance(num_epochs, int) or num_epochs <= 0:
+            raise ValueError("num_epochs must be a positive integer.")
+        if not isinstance(lr, (int, float)) or lr <= 0:
+            raise ValueError("lr must be a positive number.")
+        if not isinstance(weight_decay, (int, float)) or weight_decay < 0:
+            raise ValueError("weight_decay must be a non-negative number.")
+        if not isinstance(use_l2_penalty, bool):
+            raise ValueError("use_l2_penalty must be a boolean.")
+        
+        return loss_fn, num_epochs, lr, weight_decay, use_l2_penalty
