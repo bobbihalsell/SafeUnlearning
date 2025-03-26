@@ -1,59 +1,122 @@
-import torch.nn.functional as F
-import torch.optim as optim
-from torch import nn
-from typing import Optional, Tuple, List
-from torch.utils.data import DataLoader
-from src.unlearning.utils import setup_device, UnsupportedModelError
+import os
+import timm
+import torch
+import torch.nn as nn
 import copy
+from src.unlearning.utils import (l2_penalty)
+from itertools import cycle
+from base import BaseUnlearner
+from typing import Dict
+from torch.utils.data import DataLoader
 
-
-class FinetuneUnlearner:
+class FinetuneUnlearner(BaseUnlearner):
     """
-    A class for fine-tuning a given PyTorch model using a subset of data.
-    Supports both single-batch and mini-batch fine-tuning.
+    A class for machine unlearning through fine-tuning on retain data only.
+    
+    This method creates a copy of the original model and fine-tunes it
+    using only the retain dataset, effectively causing the model to "forget"
+    the forget dataset by not reinforcing those patterns during retraining.
+    
+    This method is computationally efficient but may not provide strong forgetting
+    guarantees for models that have already memorized the forget data.
     """
-    def __init__(self, original_model: nn.Module):
+    def __init__(self, 
+                device,
+                evaluate: bool = False,
+                ):
         """
-        Initialize the Finetune class.
+        Initialize the FinetuneUnlearner class.
 
         Args:
-            original_model (nn.Module): The base model to perform fine-tune unlearning on.
+            device: Computing device (CPU/GPU) to use for computations.
+                   If None, will be automatically determined.
+            evaluate: Whether to track and return evaluation metrics during unlearning.
         """
-        if not isinstance(original_model, nn.Module):
-            raise UnsupportedModelError('original_model must be a Pytorch model.')
-        self.device = setup_device()
-        self.original_model = original_model.to(self.device)
+        super().__init__(device, evaluate)
 
-    def unlearn(self, retain_dataloader: DataLoader,
-                loss_fn: nn.Module, optimizer: Optional[optim.Optimizer],
-                num_epochs: int = 200):
+    def unlearn(self,
+                model: nn.Module,
+                data_dict: Dict[str, DataLoader],
+                **kwargs):
         """
-        Fine-tune the model using mini-batch data loaders.
+        Unlearn by fine-tuning the model on retain data only.
 
         Args:
-            retain_loader (DataLoader): DataLoader for training data.
-            test_loader (DataLoader, optional): DataLoader for test data. Defaults to None.
-            test_name (str, optional): Name of the test dataset. Defaults to 'Test'.
-            criterion (nn.Module, optional): Loss function. Defaults to None.
-            optimizer (optim.Optimizer, optional): Optimizer. Defaults to None.
-            epochs (int, optional): Number of fine-tuning epochs. Defaults to 200.
+            model: The original model to perform unlearning on.
+            data_dict: Dictionary of dataloaders, must include a 'retain' key with
+                      the data to retain. Other keys (e.g., 'forget', 'test') will
+                      be used for evaluation if self.evaluate is True.
+            **kwargs: Additional arguments including:
+                - loss_fn: Loss function to use for training.
+                - num_epochs: Number of training epochs (default: 1).
+                - lr: Learning rate (default: 1e-2).
+                - weight_decay: Weight decay parameter (default: 0).
+                - use_l2_penalty: Whether to add L2 regularization (default: False).
+
+        Returns:
+            If self.evaluate is True:
+                Tuple of (unlearned_model, losses_dict) where losses_dict contains
+                tracked losses for each dataset type.
+            Otherwise:
+                The unlearned model.
+                
+        Raises:
+            ValueError: If 'retain' data is not in data_dict.
         """
-        unlearned_model = copy.deepcopy(self.original_model)
-        unlearned_model.to(self.device)
-        unlearned_model.train()
+        model.to(self.device)
+        unlearned_model = copy.deepcopy(model)
 
-        if optimizer is None or loss_fn is None:
-            raise ValueError("Both optimizer and criterion must be provided.")
+        # Validate and extract common hyperparameters
+        loss_fn, num_epochs, lr, weight_decay, use_l2_penalty = self.valid_args(kwargs)
 
+        # Ensure required data is available
+        if 'retain' not in data_dict.keys():
+            raise ValueError("'retain' data must be in data_dict.")
+        
+        # Initialize loss tracking if evaluation is enabled
+        if self.evaluate:
+            losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
+
+        optimizer = torch.optim.SGD(params=model.parameters(),
+                                    lr=lr,
+                                    weight_decay=weight_decay)
+        
+        eval_only_data = [data for data in data_dict.keys() if data != 'retain']
+
+        # Main training loop
         for _ in range(num_epochs):
-            unlearned_model.train()
-            # running_retain_loss = 0.0
-            for retain_X, retain_y in retain_dataloader:
-                retain_X, retain_y = retain_X.to(self.device), retain_y.to(self.device)
+            total_retain_loss = 0
+            for retain_inputs, retain_labels in data_dict['retain']:
+
+                model.train()
                 optimizer.zero_grad()
-                retain_outputs = unlearned_model(retain_X)
-                retain_loss = loss_fn(retain_outputs, retain_y)
+
+                retain_inputs = retain_inputs.to(self.device)
+                retain_labels = retain_labels.to(self.device)
+
+                retain_output = unlearned_model(retain_inputs)
+                retain_loss = loss_fn(retain_output, retain_labels)
+                total_retain_loss += retain_loss.item()
+
+                # Add L2 penalty if requested to maintain similarity to original model
+                if use_l2_penalty:
+                    l2_loss = l2_penalty(model=unlearned_model,
+                                         model_init=model,
+                                         weight_decay=weight_decay)
+                    retain_loss += l2_loss
+
                 retain_loss.backward()
                 optimizer.step()
+            
+            if self.evaluate:
+                # Calculate and store average retain loss for this epoch
+                losses['retain_losses'].append(total_retain_loss/len(data_dict['retain']))
+                unlearned_model.eval()
+                # Evaluate on other datasets
+                for data_type in eval_only_data:
+                    loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
+                    losses[f"{data_type}_losses"].append(loader_loss.item())
 
+        if self.evaluate:
+            return unlearned_model, losses
         return unlearned_model
