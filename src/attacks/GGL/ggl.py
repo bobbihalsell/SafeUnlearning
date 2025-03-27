@@ -56,27 +56,18 @@ def calculate_grads(num_classes=1000, dim=1280, lr=0.01, unlearned_model_path=".
     model_old = models.resnet18(pretrained=True)
     model_new = models.resnet18(pretrained=True)
 
-    # Modify the classifier to match the checkpoint
-    #model_old.classifier[1] = torch.nn.Linear(dim, num_classes)
-    #model_new.classifier[1] = torch.nn.Linear(dim, num_classes)
-
     # Move models to the selected device
     model_old = model_old.to(device)
     model_new = model_new.to(device)
 
-    # Print model architecture 
-    print(model_old)
-
-    # Load correct MobileNetV2 checkpoints
-    #model_old.load_state_dict(torch.load(model_old_path, map_location=device)['model_state_dict'])
-    #model_new.load_state_dict(torch.load("/vol/bitbucket/oap24/sandbox-machine-unlearning/src/sandbox/unlearning/SCRUB/mobilenet_unlearned_gascent.pth", map_location=device))
+    # Load unlearned model
     model_new.load_state_dict(torch.load(unlearned_model_path, map_location=device))
 
     # Extract model parameters before and after unlearning
     param_old = [p.clone().detach() for p in model_old.parameters()]
     param_new = [p.clone().detach() for p in model_new.parameters()]
 
-    # Compute gradients 
+    # Compute approximate gradients 
     gt_grads = [(new - old) / lr for old, new in zip(param_old, param_new)]
 
     return gt_grads, model_new, model_old
