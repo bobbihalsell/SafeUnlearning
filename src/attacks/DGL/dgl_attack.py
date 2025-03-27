@@ -2,10 +2,13 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 import yaml 
-import timm
-import detectors
+
+from torchvision.models import resnet18
+
 
 import torch
+import matplotlib.pyplot as plt
+import torch.nn.functional as F
 import torch.nn as nn
 
 
@@ -29,31 +32,27 @@ class DGL:
             original_params: The original model parameters before unlearning.
             unlearned_params: The unlearned model parameters.
             """
-            # if not isinstance(original_model, nn.Module):
-            #     raise TypeError('original_model must be a nn.Module.')
 
-            # if not isinstance(original_weights, dict):
-            #     raise TypeError("original_weights must be a dictionary.")
-            # if not isinstance(unlearned_weights, dict):
-            #     raise TypeError("unlearned_weights must be a dictionary.")
-            
-            self.original_model = timm.create_model("resnet34_cifar10", pretrained=True) #TODO: hardcoded for now
+            ## MY RESNET
+            self.original_model = resnet18(weights=None)
+            self.original_model.fc = nn.Linear(512, 10)  
             self.original_model.load_state_dict(torch.load(original_weights))
 
-            self.unlearned_model = timm.create_model("resnet34_cifar10", pretrained=True) #TODO: hardcoded for now
+            self.unlearned_model = resnet18(weights=None)
+            self.unlearned_model.fc = nn.Linear(512, 10)  
             self.unlearned_model.load_state_dict(torch.load(unlearned_weights))
 
-            
             self.device = setup_device()  #TODO: this is a copy from unlearning utils
             self.original_model = self.original_model.to(self.device)
             self.unlearned_model = self.unlearned_model.to(self.device)
-
     
     def _gradient_difference(
               self,
               grad_lr = 1e-4):
-        
-        return [(new - old) / grad_lr for old, new in zip(self.original_model.parameters(), self.unlearned_model.parameters())]
+              param_old = [p.clone().detach() for p in self.original_model.parameters()]
+              param_new = [p.clone().detach() for p in self.unlearned_model.parameters()]
+              return [(new.detach() - old.detach()) / grad_lr for old, new in zip(param_old, param_new)]
+
     
     def attack(
             self,
@@ -67,19 +66,21 @@ class DGL:
         self.rec_criterion = rec_criterion
         
         self.dummy_image = self.dummy_data.generate_dummy_input(self.device)
+
         with torch.no_grad():
             self.dummy_image.clamp_(0, 1)  # In-place clamp without breaking gradients
 
         self.dummy_label = self.dummy_data.generate_dummy_label(self.device)
 
-        optimizer = torch.optim.AdamW([self.dummy_image, self.dummy_label], lr=rec_lr) # AdamW works the best
-
+        optimizer = torch.optim.AdamW([self.dummy_image, self.dummy_label], lr=rec_lr)
         diff_grads = self._gradient_difference(grad_lr)
-        diff_grads = [g.detach() for g in diff_grads]
+
+        self.original_model.eval()
 
         pbar = tqdm(range(rec_epochs),
                     total=rec_epochs)
-    
+
+
         for _ in pbar:
             def closure():
                 optimizer.zero_grad()
@@ -100,12 +101,12 @@ class DGL:
 
 
                 for dummy_g, origin_g in zip(dummy_dy_dx, diff_grads):
-                    dummy_g = dummy_g / (dummy_g.norm() + 1e-6)  # Normalize dummy gradients
-                    origin_g = origin_g / (origin_g.norm() + 1e-6)  # Normalize ground truth gradients
-        
+                    dummy_g = dummy_g / (dummy_g.norm() + 1e-4)  # Normalize dummy gradients
+                    origin_g = origin_g / (origin_g.norm() + 1e-4)  # Normalize ground truth gradients
                     grad_diff += ((dummy_g - origin_g)**2).sum()
-                    cos_sim_loss -= (dummy_g * origin_g).sum()  # Compute the dot product between each pair of gradients (dummy vs. ground truth)
-                    pnorm_dummy += (dummy_g ** 2).sum() # Compute the L2 norm (magnitude) of both gradient vectors:
+
+
+                    pnorm_dummy += (dummy_g ** 2).sum() # Compute the L2 norm of both gradient vectors:
                     pnorm_gt += (origin_g ** 2).sum()
 
                 denominator = (pnorm_dummy.sqrt() * pnorm_gt.sqrt()).clamp(min=1e-6) 
@@ -117,7 +118,7 @@ class DGL:
                 tv_reg = torch.sum(torch.abs(self.dummy_image[:, :, :-1] - self.dummy_image[:, :, 1:])) + \
                 torch.sum(torch.abs(self.dummy_image[:, :-1, :] - self.dummy_image[:, 1:, :]))
                 total_loss = grad_diff  + 0.0001 * tv_reg  + 0.0001 * cos_sim_loss 
-
+                total_loss = grad_diff 
                 total_loss.backward(retain_graph=True)
 
                 return total_loss 
@@ -137,7 +138,7 @@ class DGL:
         # save the dummy label
         self.dummy_data.append_label(rec_dummy_label)
 
-        return dummy_data, rec_dummy_label
+        return dummy_data, rec_dummy_label, loss
 
 
 
@@ -146,42 +147,67 @@ if __name__=="__main__":
         config = yaml.safe_load(file)
 
     # Access parameters
-    params = config["params"]
-    num_classes = params["num_classes"]
-    original_weights_path = params["original_weights_path"]
-    unlearned_weights_path = params["unlearned_weights_path"]
-    rec_batch_size = params["rec_batch_size"]
-    rec_epochs = params["rec_epochs"]
-    rec_lr = params["rec_lr"]
-    grad_lr = params["grad_lr"]
-    image_shape = params["image_shape"]
-    normalise = params["normalise"]
-    image_mean = params["image_mean"]
-    image_std = params["image_std"]
+    # params = config["params"]
+    # exp_name = params["exp_name"]
+    # num_classes = params["num_classes"]
+    # original_weights_path = params["original_weights_path"]
+    # unlearned_weights_path = params["unlearned_weights_path"]
+    # rec_batch_size = params["rec_batch_size"]
+    # rec_experiments = params["rec_experiments"]
+    # rec_epochs = params["rec_epochs"]
+    # rec_lr = params["rec_lr"]
+    # grad_lr = params["grad_lr"]
+    # image_shape = params["image_shape"]
+    # normalise = params["normalise"]
+    # image_mean = params["image_mean"]
+    # image_std = params["image_std"]
+
+    # save_path = params["savepath"]
+
+    # print(params)
+
+    for params in config["experiments"]:
+        exp_name = params["exp_name"]
+        num_classes = params["num_classes"]
+        original_weights_path = params["original_weights_path"]
+        unlearned_weights_path = params["unlearned_weights_path"]
+        rec_batch_size = params["rec_batch_size"]
+        rec_experiments = params["rec_experiments"]
+        rec_epochs = params["rec_epochs"]
+        rec_lr = params["rec_lr"]
+        grad_lr = params["grad_lr"]
+        image_shape = params["image_shape"]
+        normalise = params["normalise"]
+        image_mean = params["image_mean"]
+        image_std = params["image_std"]
+        save_path = params["savepath"]
+
+        print(f"Running experiment: {exp_name}")
+        print(params)
+
+        dgl = DGL(original_weights_path, unlearned_weights_path)
+
+        dummy = TorchDummyImage(
+        image_shape=image_shape,
+        batch_size=rec_batch_size,
+        n_classes=num_classes,
+        normalize=normalise,
+        dm=image_mean,
+        ds=image_std,
+        device='cuda') #TODO remove this
+        
+        rec_criterion = nn.CrossEntropyLoss()  #TODO
+        losses = []
+        for i in range(rec_experiments):
+            _, _, loss = dgl.attack(dummy, rec_criterion, rec_epochs, rec_lr, grad_lr)
+            losses.append(float(loss.detach()))
 
 
-    save_path = params["savepath"]
+        images = []
+        images += dummy.history
+        max_images = rec_experiments * rec_batch_size
+        imgs = ImageSaver(save_path, max_images= max_images, num_cols=rec_batch_size) 
 
-    print(params)
-
-    dgl = DGL(original_weights_path, unlearned_weights_path)
-
-    dummy = TorchDummyImage(
-    image_shape=image_shape,
-    batch_size=rec_batch_size,
-    n_classes=num_classes,
-    normalize=normalise,
-    dm=image_mean,
-    ds=image_std,
-    device='cuda') #TODO remove this
-    
-    rec_criterion = nn.CrossEntropyLoss()  #TODO
-    dgl.attack(dummy, rec_criterion, rec_epochs, rec_lr, grad_lr)
-
-    images = []
-    images += dummy.history
-    imgs = ImageSaver(save_path, max_images=rec_batch_size)
-
-    imgs.save(images)
+        imgs.save(images, exp_name, losses)
 
 

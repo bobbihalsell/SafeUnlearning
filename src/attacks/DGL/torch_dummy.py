@@ -71,14 +71,18 @@ class TorchDummy:
         """ Generate dummy data with shape (bs, ...) """
         if device is None:
             device = self.device
-        return torch.randn(self.input_shape, device=device, requires_grad=True)
+        
+        dummy_image = torch.randn(self.input_shape, device=device, requires_grad=True) 
+        dummy_image.data.mul_(0.5).add_(0.5)
+
+        return dummy_image
 
     def generate_dummy_label(self, device=None):
         if device is None:
             device = self.device
 
         dummy_label = torch.randn(self.label_shape, device=device, requires_grad=True)
-        # dummy_label = torch.nn.functional.softmax(dummy_label, dim=-1).detach().requires_grad_(True)  # Normalize to sum to 1
+        dummy_label = torch.nn.functional.softmax(dummy_label, dim=-1).detach().requires_grad_(True)  # Normalize to sum to 1
         return dummy_label
 
 
