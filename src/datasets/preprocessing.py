@@ -105,39 +105,6 @@ def remove_classes(dataset: torch.utils.data.Dataset,
     return (retain_set, forget_set) if return_forget else retain_set
 
 
-def get_loaders(num_workers=4, pin_memory=True, **datasets):
-    """
-    Create DataLoaders for multiple datasets with arbitrary names.
-
-    Args:
-        num_workers (int): Number of workers for data loading.
-        pin_memory (bool): Use pinned memory for faster GPU transfer.
-        **datasets: Datasets in the form `name=(dataset, batch_size, shuffle)`.
-        
-    Returns:
-        dict: A dictionary mapping dataset names to DataLoaders.
-
-    Example:
-        loaders = get_loaders(
-                    forget=(forget_dataset, 32, True),   # Batch size = 32, shuffle
-                    retain=(retain_dataset, 64, True),   # Batch size = 64, shuffle
-                    test1=(test_dataset1, 128, False)    # Batch size = 128, no shuffle
-        return {
-            'forget': DataLoader(forget_dataset, batch_size=32, shuffle=True),
-            'retain': DataLoader(retain_dataset, batch_size=64, shuffle=True),
-            'test1': DataLoader(test_dataset1, batch_size=128, shuffle=False)
-        }
-)
-    """
-    loader_args = {'num_workers': num_workers, 'pin_memory': pin_memory}
-    
-    loaders = {}
-    for name, (dataset, batch_size, shuffle) in datasets.items():
-        loaders[name] = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, **loader_args)
-    
-    return loaders
-
-
 def save_loaders(path, **loaders):
     """
     Save multiple datasets and DataLoader configurations to a specified path.
@@ -212,8 +179,15 @@ def load_loaders(datapath, num_workers=None):
     return loaders
 
 
-def get_all_loaders(train_path, test_path, save_path=None, method='instances', 
-                   batch_sizes=None, shuffle_settings=None, **kwargs):
+def get_all_loaders(train_data, 
+                    test_data, 
+                    save_path=None, 
+                    method='instances', 
+                    val_ratio=0.0, 
+                    batch_sizes=None, 
+                    shuffle_settings=None, 
+                    random_seed=42,
+                    **kwargs):
     """
     Complete pipeline to load data, create forget/retain splits, and save loaders.
     
@@ -249,36 +223,51 @@ def get_all_loaders(train_path, test_path, save_path=None, method='instances',
     return_forget = kwargs.get('return_forget', True)
     verbose = kwargs.get('verbose', False)
     num_workers = kwargs.get('num_workers', 4)
-    
-    # Load data
-    if verbose:
-        print(f"Loading data from {train_path} and {test_path}")
+
+    # Create validation split from training data before any unlearning to keep validation independent
+    if val_ratio > 0:
+        if verbose:
+            print(f"Creating validation set with {val_ratio*100:.1f}% of training data")
         
-    with open(train_path, 'rb') as f:
-        train_data = pickle.load(f)
-    
-    with open(test_path, 'rb') as f:
-        test_data = pickle.load(f)
+        train_size = len(train_data)
+        indices = list(range(train_size))
+        
+        # Set seed for reproducible splits
+        torch.manual_seed(random_seed)
+        np.random.seed(random_seed)
+        np.random.shuffle(indices)
+        
+        val_size = int(val_ratio * train_size)
+        val_indices = indices[:val_size]
+        train_indices = indices[val_size:]
+        
+        # Create subsets
+        val_dataset = Subset(train_data, val_indices)
+        train_data_subset = Subset(train_data, train_indices)
+    else:
+        val_dataset = None
+        train_data_subset = train_data
+
 
     # Create forget/retain splits based on specified method
-    if method == 'instances':
+    if method == 'index':
         forget_set_indices = kwargs.get('forget_set_indices', [0])
         if verbose:
             print(f"Removing {len(forget_set_indices)} instances by indices")
-        retain_dataset = remove_samples_by_indices(train_data, forget_set_indices, return_forget, verbose)
+        retain_dataset = remove_samples_by_indices(train_data_subset, forget_set_indices, return_forget, verbose)
         
     elif method == 'class_instances':
         forget_labels = kwargs.get('forget_labels', [0])
         num_to_forget = kwargs.get('num_to_forget', 1)
         if verbose:
             print(f"Removing {num_to_forget} instances from each of classes {forget_labels}")
-        retain_dataset = remove_samples_by_class(train_data, forget_labels, num_to_forget, return_forget, verbose)
+        retain_dataset = remove_samples_by_class(train_data_subset, forget_labels, num_to_forget, return_forget, verbose)
         
     elif method == 'class':
         forget_labels = kwargs.get('forget_labels', [0])
         if verbose:
             print(f"Removing all instances of classes {forget_labels}")
-        retain_dataset = remove_classes(train_data, forget_labels, return_forget, verbose)
+        retain_dataset = remove_classes(train_data_subset, forget_labels, return_forget, verbose)
         
     else:
         raise ValueError(f"Unknown method: {method}. Choose from 'instances', 'class_instances', or 'class'.")
@@ -293,23 +282,36 @@ def get_all_loaders(train_path, test_path, save_path=None, method='instances',
     loader_configs = {
         'forget': (forget_dataset, batch_sizes['forget'], shuffle_settings['forget']),
         'retain': (retain_dataset, batch_sizes['retain'], shuffle_settings['retain']),
-        'train': (train_data, batch_sizes['train'], shuffle_settings['train']),
+        'train': (train_data_subset, batch_sizes['train'], shuffle_settings['train']),
         'test': (test_data, batch_sizes['test'], shuffle_settings['test'])
     }
-    
-    # # Create DataLoaders
-    # if verbose:
-    #     print("Creating DataLoaders with configurations:")
-    #     for name, (_, bs, shuffle) in loader_configs.items():
-    #         print(f"  {name}: batch_size={bs}, shuffle={shuffle}")
+
+    # Add validation loader if validation set exists
+    if val_dataset is not None:
+        loader_configs['val'] = (val_dataset, 
+                               batch_sizes.get('val', default_batch_sizes['val']), 
+                               shuffle_settings.get('val', default_shuffle['val']))
+
+    loaders = {}
+    for name, (dataset, bs, shuffle) in loader_configs.items():
+        loaders[name] = DataLoader(
+            dataset,
+            batch_size=bs,
+            shuffle=shuffle,
+            num_workers=num_workers,
+            pin_memory=True
+        )
             
-    loaders = get_loaders(**loader_configs, num_workers=num_workers)
-    forget_loader, retain_loader, train_loader, test_loader = loaders
-    
     # Save loaders if path is provided
     if save_path:
         if verbose:
             print(f"Saving loaders to {save_path}")
-        save_loaders(path=save_path, forget = forget_loader, retain = retain_loader, train = train_loader, test = test_loader)
-    
-    return forget_loader, retain_loader, train_loader, test_loader
+        save_loaders(path=save_path, **loaders)
+
+    return  (
+                loaders['forget'], 
+                loaders['retain'], 
+                loaders['train'], 
+                loaders.get('val'),  # May be None if val_ratio=0
+                loaders['test']
+            )

@@ -1,0 +1,67 @@
+model: 
+  name: resnet18  # or resnet34 or resnet50 or CNN or AllCNN
+  save_name: resnet18_neggrad  # Name of the model to save
+  pretrained: false
+  num_classes: 10 
+  # The following are the parameters for the CNN model, ignore if you wish to use ResNet
+  cnn_cfg:
+    in_channels: 3
+    filters: [64, 128, 256, 512]
+    dropout_rate: 0.3  # For CNN
+    dropout_rates: [0.1, 0.1, 0.1]  # For AllCNN
+    use_batch_norm: true
+    downsample_every: 2
+  train_cfg:
+    epochs: 5
+    loss_fn: cross_entropy
+    lr: 1e-4
+    weight_decay: 0
+    optimizer: sgd
+    momentum: 0.9
+unlearner:
+  name: neggrad  # Options: neggrad, neggradplus, scrub, euk, cfk, finetune
+  evaluate: true
+  cfg:
+    # Common parameters for all unlearners
+    num_epochs: 5
+    lr: 1e-4
+    weight_decay: 0
+    use_l2_penalty: false
+    loss_fn: cross_entropy
+    epochs: 5 # Ignored for scrub
+    # Specific parameters for some unlearners (will be ignored for others)
+    beta: 0.5  # For neggradplus  beta = 0: forget only, beta = 1: retain only
+    min_epochs: 2  # For scrub  retain aligning steps
+    max_epochs: 5  # For scrub  forget away steps
+    alpha: 0.5  # For scrub  retain loss; gamma: cross-entropy weight
+    gamma: 0.5  # For scrub  retain loss; alpha: KL divergence weight
+    k: 3  # For euk/cfk
+    method: CFk  # For kunlearn (CFk or EUk)
+    reinit_method: randn  # For euk (randn or zero or xaiver)
+dataset:
+  name: cifar10  # Options: cifar10, cifar5, cifar100
+  val_ratio: 0.0
+  save_data: false
+  save_loaders: false
+  save_dir: data/ 
+  cfg:
+    batch_sizes:
+      retain: 64
+      forget: 64
+      train: 128
+      test: 128
+    shuffle_settings:
+      retain: true
+      forget: true
+      train: true
+      test: false
+    num_workers: 4
+forget_method:
+  name: instances  # Options: instances (select indices), class_instances (random N from class(es)), class (remove entire class(es))
+  parameters:
+    # Specify only the relevant parameters for your chosen method
+    forget_set_indices: [0, 1, 2]  # For 'instances' method
+    forget_labels: [1]  # For 'class' and 'class_instances' method
+    num_to_forget: 20  # For 'class_instances' method (with forget_labels)
+seed: 42
+output_dir: output/

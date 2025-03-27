@@ -10,9 +10,19 @@ from unlearning.preprocessing import (
     remove_samples_by_indices,
     remove_classes
 )
-from datasets.load_datasets import load_cifar10_datasets
-DEFAULT_SEED = 42
+import os
+from datasets.preprocessing import get_all_loaders, save_loaders, load_loaders
+from unlearning.finetune import Finetune
+from unlearning.scrub import SCRUB
+from unlearning.euk import EUk, CFk
+from unlearning.neggrad import NegGrad, NegGradPlus
+import resnets
+from models.cnns import AllCNN, CNN
+import datetime
 
+
+
+DEFAULT_SEED = 42
 
 class UnlearnApp:
     def __init__(self):
@@ -28,142 +38,452 @@ class UnlearnApp:
                 print('.yaml file not found.')
 
         # Get data from the config
-        model_config = config['model']
+        # TODO add validation for config file
+        self.device = setup_device()
+        self.seed = config.get('seed', DEFAULT_SEED)
+
+        model_config= config['model']
         self.model_name = model_config['name']
+        self.model_save_name = model_config['save_name']
         self.pretrained = model_config['pretrained']
         self.num_classes = model_config['num_classes']
+        self.train_cfg = model_config['train_cfg']
 
-        self.seed = config.get('seed', DEFAULT_SEED)
-        set_seed(self.seed)
+        if 'cnn' in self.model_name.lower():
+            self.model_params = model_config['cnn_cfg']
 
+        # Process unlearner-specific parameters
         self.unlearner_name = config['unlearner']['name']
+        self.evaluate = config['unlearner']['evaluate']
         self.unlearn_params = config['unlearner']['cfg']
-        # Fix the loss function as CE Loss.
-        self.unlearn_params['loss_fn'] = nn.CrossEntropyLoss()
 
+        # Process dataset parameters
         self.dataset_name = config['dataset']['name']
-        self.val_ratio = config['dataset'].get('val_ratio', 0)
+        self.val_ratio = config['dataset']['val_ratio'] 
+        self.save_data = config['dataset']['save_data']
+        self.save_loaders = config['dataset']['loaders']
+        self.save_dir = config['dataset']['save_dir']
+        self.dataset_cfg = config['dataset']['cfg']
 
+        # Process forget method parameters
         self.forget_method = config['forget_method']['name']
         self.forget_params = config['forget_method']['parameters']
-        self.batch_size = config['batch_size']
 
-    def retain_forget_split(self, dataset: torch.utils.data.Dataset):
-        """ Perform dataset splits based on user configuration."""
-        if self.forget_method == 'index':
-            retain_set, forget_set = remove_samples_by_indices(
-                dataset=dataset,
-                forget_set_indices=self.forget_params,
-                return_forget=True
-            )
-        elif self.forget_method == 'label':
-            retain_set, forget_set = remove_classes(
-                dataset=dataset,
-                forget_labels=self.forget_params,
-                return_forget=True
-            )
-        else:
-            raise ValueError(f'{self.forget_method} not supported.')
+        # Output directory
+        self.output_dir = config.get('output_dir', 'output/')
+        os.makedirs(self.output_dir, exist_ok=True)
 
-        return retain_set, forget_set
 
-    def convert_to_dataloader(self,
-                              dataset: torch.utils.data.Dataset,
-                              batch_size: int,
-                              shuffle: bool
-                              ):
-        """ Convert a Dataset into a DataLoader."""
-        dataloader = DataLoader(dataset,
-                                batch_size=batch_size,
-                                shuffle=shuffle,
-                                num_workers=4)  # TODO adaptively set num_workers based on user hardware
-
-        return dataloader
+    def _extract_unlearner_params(self):
+        """
+        Extract and process parameters specific to each unlearner type.
+        Raises exception if required parameters are missing.
+        """
+        # common parameters for unlearners
+        required_params = ['epochs', 'lr', 'weight_decay', 'use_l2_penalty', 'loss_fn']
+        
+        missing_params = []
+        for param in required_params:
+            if param not in self.unlearn_params:
+                if self.unlearner_name == 'scrub' and param == 'epochs':
+                    continue
+                missing_params.append(param)
+        
+        if missing_params:
+            raise ValueError(f"Missing required parameters for unlearning: {', '.join(missing_params)}")
+        
+        # Add specific parameters based on unlearner type
+        if self.unlearner_name == 'neggradplus':
+            try:
+                self.unlearn_params['beta']
+            except KeyError:
+                raise ValueError("Missing required parameter 'beta' for NegGradPlus unlearner")
+                
+        elif self.unlearner_name == 'scrub':
+            # Check for required SCRUB-specific parameters
+            required_scrub_params = ['min_epochs', 'max_epochs', 'alpha', 'gamma']
+            missing_scrub_params = []
+            for param in required_scrub_params:
+                if param not in self.unlearn_params:
+                    missing_scrub_params.append(param)
+            if missing_scrub_params:
+                raise ValueError(f"Missing required parameters for SCRUB unlearner: {', '.join(missing_scrub_params)}")
+                
+        elif self.unlearner_name in ['euk', 'cfk']:
+            # Check for k parameter
+            try:
+                self.unlearn_params['k']
+            except KeyError:
+                raise ValueError(f"Missing required parameter 'k' for {self.unlearner_name.upper()} unlearner")
+            if self.unlearner_name == 'euk':
+                # Check for EUk-specific parameters
+                if 'reinit_method' not in self.unlearn_params:
+                    raise ValueError("Missing required parameter 'reinit_method' for EUk unlearner")
 
     def initialize_model(self):
-        """ Initialize the model based on model name from user configuration."""
+        """Initialize the model based on model name from user configuration."""
         # TODO replace this algorithm with model_init.py from Jebastin
-        original_model = timm.create_model(model_name=self.model_name,
-                                           pretrained=self.pretrained,
-                                           num_classes=self.num_classes)
-        save_model(original_model,
-                   unlearning_algorithm=self.unlearner_name,
-                   model_name=self.model_name,
-                   seed=self.seed,
-                   model_type='original')
-
-        return original_model
-
-    def initialize_unlearner(self):
-        """ Initialize the correct unlearner from user specification."""
-        if self.unlearner_name == 'neggrad':
-            unlearner = NegGrad(
-                evaluate=True
+        if 'CNN' in self.model_name:
+            # Create CNN or AllCNN model
+            if self.model_name == 'CNN':
+                model = CNN(
+                    in_channels=self.model_params.get('in_channels', 3),
+                    filters=self.model_params.get('filters', [64, 64, 128, 128, 256, 256]),
+                    num_classes=self.num_classes,
+                    dropout_rate=self.model_params.get('dropout_rate', 0.3),
+                    use_batch_norm=self.model_params.get('use_batch_norm', True),
+                    downsample_every=self.model_params.get('downsample_every', 3)
                 )
-        elif self.unlearner_name == 'neggradplus':
-            unlearner = NegGradPlus(
-                evaluate=True
+            elif self.model_name == 'AllCNN':
+                model = AllCNN(
+                    filters=self.model_params.get('filters', [32, 32, 64, 64, 128]),
+                    num_classes=self.num_classes,
+                    dropout_rates=self.model_params.get('dropout_rates', [0.1, 0.1, 0.1]),
+                    use_batchnorm=self.model_params.get('use_batch_norm', True),
+                    downsample_every=self.model_params.get('downsample_every', 2)
                 )
         else:
+            # Use timm or custom resnet implementations
+            if 'resnet' in self.model_name.lower():
+                # Check for custom ResNet implementations
+                if self.model_name == 'resnet18':
+                    model = get_resnet18(num_classes=self.num_classes)
+                elif self.model_name == 'resnet34':
+                    model = get_resnet34(num_classes=self.num_classes)
+                elif self.model_name == 'resnet50':
+                    model = get_resnet50(num_classes=self.num_classes)
+                else:
+                    # Fall back to timm for other ResNet variants
+                    model = timm.create_model(
+                        model_name=self.model_name,
+                        pretrained=self.pretrained,
+                        num_classes=self.num_classes
+                    )
+            else:
+                # Use timm for other model architectures
+                model = timm.create_model(
+                    model_name=self.model_name,
+                    pretrained=self.pretrained,
+                    num_classes=self.num_classes
+                )
+        
+        return model
+    
+
+    def initialize_unlearner(self,
+                             original_model: nn.Module,
+                             retain_dataloader: DataLoader,
+                             forget_dataloader: DataLoader):
+        """ Initialize the correct unlearner from user specification."""
+        if self.unlearner_name == 'finetune':
+            unlearner = Finetune(self.device,
+                                 self.evaluate
+                                )
+        if self.unlearner_name == 'neggrad':
+            unlearner = NegGrad(self.device,
+                                 self.evaluate
+                                )
+        if self.unlearner_name == 'neggradplus':
+            unlearner = NegGradPlus(self.device,
+                                 self.evaluate
+                                )
+        if self.unlearner_name == 'scrub':
+            unlearner = SCRUB(self.device,
+                                 self.evaluate
+                                )
+        if self.unlearner_name == 'euk':
+            k = self.unlearn_params[k]
+            unlearner = EUk(k,
+                            self.device,
+                            self.evaluate
+                            )
+        if self.unlearner_name == 'cfk':
+            k = self.unlearn_params[k]
+            unlearner = CFk(k,
+                            self.device,
+                            self.evaluate
+                            )
+        else:
             raise ValueError(f'unlearner_name {self.unlearner_name}'
-                             ' not supported.')
-
+                             'not supported.')
+        self.unlearner = unlearner
         return unlearner
-
+    
     def initialize_dataset(self):
         """ Initialize the entire dataset based on dataset name."""
         if self.dataset_name == 'cifar10':
-            train_dataset, test_dataset = load_cifar10_datasets()
+            train_dataset, test_dataset = datasets.load_datasets.load_cifar10_datasets()
+        elif self.dataset_name == 'cifar5':
+            train_dataset, test_dataset = datasets.load_datasets.load_cifar5_datasets()
+        elif self.dataset_name == 'cifar100':
+            train_dataset, test_dataset = datasets.load_datasets.load_cifar100_datasets
         else:
             raise ValueError(f'{self.dataset_name} not supported.')
-
         return train_dataset, test_dataset
+    
+    def save_loaders_to_disk(self, loaders_dict):
+        """Save all dataloaders to disk."""
+        if not self.save_loaders:
+            return
+        
+        loaders_dir = os.path.join(self.output_dir, 'loaders')
+        os.makedirs(loaders_dir, exist_ok=True)
+        
+        save_loaders(path=loaders_dir, **loaders_dict)
+        print(f"Saved loaders to {loaders_dir}")
+
+
+    def load_loaders_from_disk(self):
+        """Load dataloaders from disk if available."""
+        loaders_dir = os.path.join(self.output_dir, 'loaders')
+        if not os.path.exists(loaders_dir):
+            return None
+        
+        try:
+            loaders = load_loaders(loaders_dir)
+            print(f"Loaded loaders from {loaders_dir}")
+            return loaders
+        except Exception as e:
+            print(f"Error loading loaders: {e}")
+            return None
+    
+    
+    def train_model(self, model, train_loader, val_loader=None):
+        """Train the model using provided train_loader and validation loader."""
+        print(f"Training {self.model_name} model...")
+        
+        # Extract training parameters
+        epochs = self.train_cfg['epochs']
+        learning_rate = self.train_cfg['lr']
+        weight_decay = self.train_cfg['weight_decay']
+        loss_name = self.train_cfg['loss_fn'].lower()
+        optimizer_name = self.train_cfg['optimizer'].lower()
+        momentum = self.train_cfg['momentum']
+        
+        # Setup loss function
+        if loss_name == 'crossentropy':
+            criterion = nn.CrossEntropyLoss()
+        elif loss_name == 'nll':
+            criterion = nn.NLLLoss()
+        elif loss_name == 'mse':
+            criterion = nn.MSELoss()
+        
+        # Setup optimizer
+        if optimizer_name == 'adam':
+            optimizer = torch.optim.Adam(
+                model.parameters(), 
+                lr=learning_rate, 
+                weight_decay=weight_decay,
+                momentum=momentum
+            )
+        elif optimizer_name == 'sgd':
+            optimizer = torch.optim.SGD(
+                model.parameters(), 
+                lr=learning_rate, 
+                momentum=momentum, 
+                weight_decay=weight_decay
+            )
+        
+        # Move model to device
+        model = model.to(self.device)
+        model.train()
+        
+        # Training loop
+        for epoch in range(epochs):
+            running_loss = 0.0
+            correct = 0
+            total = 0
+            
+            for inputs, labels in train_loader:
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
+                
+                # Zero the parameter gradients
+                optimizer.zero_grad()
+                
+                # Forward pass
+                outputs = model(inputs)
+                loss = criterion(outputs, labels)
+                
+                # Backward pass and optimize
+                loss.backward()
+                optimizer.step()
+                
+                # Statistics
+                running_loss += loss.item()
+                _, predicted = outputs.max(1)
+                total += labels.size(0)
+                correct += predicted.eq(labels).sum().item()
+            
+            # Print epoch statistics
+            train_loss = running_loss / len(train_loader)
+            train_acc = 100. * correct / total
+            print(f'Epoch [{epoch+1}/{epochs}] - Loss: {train_loss:.4f}, Acc: {train_acc:.2f}%')
+            
+            # Validate if validation loader is provided
+            if val_loader:
+                val_loss, val_acc = self.evaluate_model(model, val_loader, criterion)
+                print(f'Validation - Loss: {val_loss:.4f}, Acc: {val_acc:.2f}%')
+        
+        return model
+
+    def evaluate_model(self, model, test_loader, criterion=None):
+        """Evaluate the model on the test set."""
+        if criterion is None:
+            criterion = nn.CrossEntropyLoss()
+            
+        model.eval()
+        model = model.to(self.device)
+        
+        test_loss = 0
+        correct = 0
+        total = 0
+        
+        with torch.no_grad():
+            for inputs, targets in test_loader:
+                inputs, targets = inputs.to(self.device), targets.to(self.device)
+                outputs = model(inputs)
+                loss = criterion(outputs, targets)
+                
+                test_loss += loss.item()
+                _, predicted = outputs.max(1)
+                total += targets.size(0)
+                correct += predicted.eq(targets).sum().item()
+        
+        test_loss = test_loss / len(test_loader)
+        accuracy = 100. * correct / total
+        
+        return test_loss, accuracy
+    
+
+    def save_model_to_disk(self, model, model_type='trained'):
+        """Save model to disk."""
+        model_dir = os.path.join(self.output_dir, 'models')
+        os.makedirs(model_dir, exist_ok=True)
+        
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        model_path = os.path.join(
+            model_dir, 
+            f"{self.model_name}_{model_type}_{self.unlearner_name}_{timestamp}.pth"
+        )
+        torch.save({
+            'model_state_dict': model.state_dict(),
+            'model_name': self.model_name,
+            'model_type': model_type,
+            'unlearner': self.unlearner_name,
+            'timestamp': timestamp,
+            'num_classes': self.num_classes
+        }, model_path)
+        
+        print(f"Saved {model_type} model to {model_path}")
+        return model_path
+
+
+    def load_model_from_disk(self, model_path):
+        """Load model from disk."""
+        if not os.path.exists(model_path):
+            print(f"Model file {model_path} not found.")
+            return None
+        try:
+            checkpoint = torch.load(model_path, map_location=self.device)
+            # Initialize appropriate model architecture
+            model = self.initialize_model()
+            # Load state dict
+            model.load_state_dict(checkpoint['model_state_dict'])
+            model = model.to(self.device)
+            print(f"Loaded {checkpoint['model_type']} model from {model_path}")
+            return model
+        except Exception as e:
+            print(f"Error loading model: {e}")
+            return None
+
 
     def run(self):
-        """ Run the pipeline."""
-        original_model = self.initialize_model()
-
+        # Step 1: Initialize and prepare datasets
         train_dataset, test_dataset = self.initialize_dataset()
 
-        retain_set, forget_set = self.retain_forget_split(
-            dataset=train_dataset
-            )
-        retain_dataloader = self.convert_to_dataloader(
-            retain_set,
-            batch_size=self.batch_size,
-            shuffle=True
-            )
-        forget_dataloader = self.convert_to_dataloader(
-            forget_set,
-            batch_size=self.batch_size,
-            shuffle=True
-            )
-        data_dict = {
-            'retain': retain_dataloader,
-            'forget': forget_dataloader
-        }
+        # Step 2: Check if loaders are already saved and should be loaded
+        data_dict = None
+        if self.save_loaders:
+            data_dict = self.load_loaders_from_disk()
+
+        # If loaders weren't loaded, create them
+        if data_dict is None:
+            # Extract loader configurations
+            batch_sizes = self.dataset_cfg['batch_sizes']
+            shuffle_settings = self.dataset_cfg['shuffle_settings']
+
+            # Create dataloaders
+            if self.val_ratio>0:
+                forget_loader, retain_loader, train_loader, val_loader, test_loader = get_all_loaders(
+                    train_dataset, 
+                    test_dataset, 
+                    method=self.forget_method, 
+                    batch_sizes=batch_sizes,
+                    shuffle_settings=shuffle_settings,
+                    val_ratio=self.val_ratio,
+                    **self.forget_params
+                )
+                data_dict = {
+                    'forget': forget_loader,
+                    'retain': retain_loader,
+                    'train': train_loader,
+                    'val': val_loader,
+                    'test': test_loader
+                }
+            else:
+                forget_loader, retain_loader, train_loader, test_loader = get_all_loaders(
+                    train_dataset, 
+                    test_dataset, 
+                    method=self.forget_method, 
+                    batch_sizes=batch_sizes,
+                    shuffle_settings=shuffle_settings,
+                    **self.forget_params
+                )
+                data_dict = {
+                    'forget': forget_loader,
+                    'retain': retain_loader,
+                    'train': train_loader,
+                    'test': test_loader
+                }
+
+            # Save loaders if configured to do so
+            if self.save_loaders:
+                self.save_loaders_to_disk(data_dict)
+
+        # Step 3: Initialize or load a pre-trained model
+        model_path = os.path.join(self.output_dir, 'models', f"{self.model_save_name}.pth")
+        if os.path.exists(model_path) and self.pretrained:
+            # Load pre-trained model
+            original_model = self.load_model_from_disk(model_path)
+        else:
+            # Initialize new model
+            original_model = self.initialize_model()
+
+            # Train the model if it's newly initialized
+            if not self.pretrained:
+                original_model = self.train_model(
+                    original_model, 
+                    data_dict['train'], 
+                    data_dict['test']
+                )
+                # Save the trained model
+                self.save_model_to_disk(original_model, model_type='trained')
+
+            # Step 4: Evaluate the original model before unlearning TODO: Add evaluation
+
         unlearner = self.initialize_unlearner()
-        # Unlearn based on the dictionary of params
-        unlearned_model, losses = unlearner.unlearn(
-            model=original_model,
-            data_dict=data_dict,
-            **self.unlearn_params)
+        unlearned_model = unlearner.unlearn(original_model, data_dict)
 
-        save_model(unlearned_model,
-                   unlearning_algorithm=self.unlearner_name,
-                   model_name=self.model_name,
-                   seed=self.seed,
-                   model_type='unlearned',
-                   payload=losses)
+        # Step 6: Evaluate the model after unlearning TODO: Add evaluation
 
-        return None
+        # Step 7: Save the unlearned model
+        self.save_model_to_disk(unlearned_model, model_type='unlearned')
+
+        return unlearned_model
+    
 
 
 if __name__ == '__main__':
     app = UnlearnApp()
     app.run()
-    # Run python src/unlearning/main.py --config_path src/experiments/test_neggrad.yaml
-
-    # TODO val_set support
-    # TODO decouple dataset loading from unlearn app
-    # TODO ImageNet dataset support
+    # Run python src/unlearning/main.py --config_path src/experiments/unlearn_test.yaml
