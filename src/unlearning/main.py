@@ -333,7 +333,7 @@ class UnlearnApp:
             print(f"Post-unlearning Validation Accuracy: {val_accuracy:.2f}%\n")
 
         return unlearned_model
-    
+
 
 if __name__ == '__main__':
     app = UnlearnApp()
