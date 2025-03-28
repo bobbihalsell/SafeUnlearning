@@ -5,18 +5,56 @@ from unlearning.utils import setup_device
 
 class Trainer:
     """ Train a model on a dataset from randomly initialized weights."""
-    def __init__(self):
+    def __init__(self, model: nn.Module):
         self.device = setup_device()
+        if not isinstance(model, nn.Module):
+            raise TypeError('Provided model must be a nn.Module.')
+        self.model = model
+        self.model.to(self.device)
 
-    def train_model(self, model, epochs, criterion, 
-                    optimizer, train_loader, val_loader=None):
-        """Train the model using provided train_loader and validation loader."""
-        # Move model to device
-        model = model.to(self.device)
-        model.train()
+    def initialize_training_params(self, train_cfg):
+        """Extract training parameters and initialize optimizer.
 
+        Args:
+            train_cfg (dict): A dictionary provided from the YAML file.
+
+        Returns:
+            epochs (int): Number of training epochs.
+            criterion (nn.Module): Loss function.
+            optimizer (torch.optim.Optimizer): Initialized optimizer.
+        """
+        self.epochs = train_cfg.get('epochs')
+        # Loss function
+        criterion = train_cfg.get('loss_fn')
+        if criterion == 'cross_entropy':
+            self.criterion = nn.CrossEntropyLoss()
+        else:
+            raise ValueError('Unsupported loss function. Only cross_entropy is supported.')
+        # Optimizer selection
+        optimizer_type = train_cfg.get('optimizer')
+        if optimizer_type == 'sgd':
+            valid_sgd_keys = {'lr', 'momentum', 'weight_decay', 'dampening', 'nesterov'}
+            sgd_params = {k: v for k, v in train_cfg.items() if k in valid_sgd_keys}
+
+            self.optimizer = torch.optim.SGD(self.model.parameters(), **sgd_params)
+
+        elif optimizer_type == 'adam':
+            valid_adam_keys = {'lr', 'betas', 'eps', 'weight_decay', 'amsgrad'}
+            adam_params = {k: v for k, v in train_cfg.items() if k in valid_adam_keys}
+
+            self.optimizer = torch.optim.Adam(self.model.parameters(), **adam_params)
+
+        else:
+            raise ValueError(f"Unsupported optimizer '{optimizer_type}'. Only 'sgd' and 'adam' are supported.")
+
+    def train_model(self, train_cfg, train_loader, val_loader=None):
+        """Train the model using training configurations and data loaders."""
+        # Always initialize the training parameters first
+        self.initialize_training_params(train_cfg)
+        
+        self.model.train()
         # Training loop
-        for epoch in range(epochs):
+        for epoch in range(self.epochs):
             running_loss = 0.0
             correct = 0
             total = 0
@@ -24,13 +62,13 @@ class Trainer:
             for inputs, labels in train_loader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
                 # Zero the parameter gradients
-                optimizer.zero_grad()
+                self.optimizer.zero_grad()
                 # Forward pass
-                outputs = model(inputs)
-                loss = criterion(outputs, labels)
+                outputs = self.model(inputs)
+                loss = self.criterion(outputs, labels)
                 # Backward pass and optimize
                 loss.backward()
-                optimizer.step()
+                self.optimizer.step()
                 # Statistics
                 running_loss += loss.item()
                 _, predicted = outputs.max(1)
@@ -39,37 +77,34 @@ class Trainer:
             # Print epoch statistics
             train_loss = running_loss / len(train_loader)
             train_acc = 100. * correct / total
-            print(f'Epoch [{epoch+1}/{epochs}] - Loss: {train_loss:.4f}, Acc: {train_acc:.2f}%')
+            print(f'Epoch [{epoch+1}/{self.epochs}] - Loss: {train_loss:.4f}, Acc: {train_acc:.2f}%')
 
             # Validate if validation loader is provided
             if val_loader:
-                val_loss, val_acc = self.evaluate_model(model, val_loader, criterion)
+                val_loss, val_acc = self.evaluate_model(self.model, val_loader, self.criterion)
                 print(f'Validation - Loss: {val_loss:.4f}, Acc: {val_acc:.2f}%')
-                model.train()
+                self.model.train()
 
-        return model
+        return self.model
 
-    def evaluate_model(self, model, test_loader, criterion=None):
+    def evaluate_model(self, test_loader):
         """Evaluate the model on the test set."""
-        if criterion is None:
-            criterion = nn.CrossEntropyLoss()
-        model.eval()
-        model = model.to(self.device)
+        self.model.eval()
         test_loss = 0
         correct = 0
         total = 0
         with torch.no_grad():
             for inputs, targets in test_loader:
                 inputs, targets = inputs.to(self.device), targets.to(self.device)
-                outputs = model(inputs)
-                loss = criterion(outputs, targets)
-  
+                outputs = self.model(inputs)
+                loss = self.criterion(outputs, targets)
+
                 test_loss += loss.item()
                 _, predicted = outputs.max(1)
                 total += targets.size(0)
                 correct += predicted.eq(targets).sum().item()
 
-        test_loss = test_loss / len(test_loader)
+        test_loss /= len(test_loader)
         accuracy = 100. * correct / total
 
         return test_loss, accuracy

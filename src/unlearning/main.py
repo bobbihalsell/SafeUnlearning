@@ -40,7 +40,8 @@ class UnlearnApp:
         self.model_save_name = model_config['save_name']
         self.pretrained = model_config['pretrained']
         self.num_classes = model_config['num_classes']
-        self.train_cfg = model_config['train_cfg']
+        # Get the training configuration if provided
+        self.train_cfg = model_config.get('train_cfg', None)
 
         # Process unlearner-specific parameters
         self.unlearner_name = config['unlearner']['name']
@@ -323,14 +324,11 @@ class UnlearnApp:
 
             # Train the model if it's newly initialized
             if not self.pretrained:
-                original_model = Trainer.train_model(
-                    model=original_model,
-                    epochs=,
-                    criterion=,
-                    optimizer=,
-                    train_dataloader=data_dict['train'])#, 
-                #     data_dict['val']
-                # )
+                original_model = Trainer(original_model).train_model(
+                    train_cfg=self.train_cfg,
+                    train_loader=data_dict['train'],
+                    val_loader=data_dict['val']
+                )
                 # Save the trained model
                 self.save_model_to_disk(original_model, model_path)
                 print('model trained and saved')
