@@ -107,75 +107,87 @@ def remove_classes(dataset: torch.utils.data.Dataset,
 
 def save_loaders(path, **loaders):
     """
-    Save multiple datasets and DataLoader configurations to a specified path.
+    Save datasets and their configuration settings.
 
     Args:
         path (str): Directory where datasets and configs will be saved.
         **loaders: Named DataLoaders in the form `name=loader`.
     """
     os.makedirs(path, exist_ok=True)
-
-    # Save each dataset and loader config
+    
+    # We need to save the actual configurations alongside the loaders
+    # because DataLoader doesn't expose all settings as attributes
+    loader_configs = {}
+    
+    # Save each dataset
     for name, loader in loaders.items():
         # Save the dataset
         with open(f"{path}/{name}_dataset.pkl", "wb") as f:
             pickle.dump(loader.dataset, f)
-
-        # Save loader config
-        config = {
+            
+        # Store batch_size (the only reliably accessible attribute)
+        loader_configs[name] = {
             "batch_size": loader.batch_size,
-            "shuffle": loader.shuffle,
-            "num_workers": loader.num_workers,
-            "pin_memory": loader.pin_memory if hasattr(loader, 'pin_memory') else False,
         }
-        
-        with open(f"{path}/{name}_config.pkl", "wb") as f:
-            pickle.dump(config, f)
+    
+    # Save the complete config file with a special name
+    with open(f"{path}/loader_configs.pkl", "wb") as f:
+        pickle.dump(loader_configs, f)
+    print(f"Datasets saved to {path}")
 
-    print(f"Datasets and configurations saved to {path}")
 
-
-def load_loaders(datapath, num_workers=None):
+def load_loaders(datapath, shuffle_settings=None, num_workers=4, pin_memory=True):
     """
-    Load multiple DataLoaders from saved datasets and configurations.
+    Load datasets and create DataLoaders with specified settings.
 
     Args:
-        datapath (str): Directory where datasets and configs are stored.
-        num_workers (int, optional): Override saved num_workers setting.
+        datapath (str): Directory where datasets are stored.
+        shuffle_settings (dict, optional): Dictionary of shuffle settings by loader name.
+        num_workers (int, optional): Number of worker processes.
+        pin_memory (bool, optional): Whether to pin memory.
 
     Returns:
         dict: A dictionary mapping dataset names to DataLoaders.
     """
+    # Default shuffle settings if none provided
+    if shuffle_settings is None:
+        shuffle_settings = {
+            'train': True,
+            'retain': True,
+            'forget': True,
+            'val': False,
+            'test': False
+        }
+    
     loaders = {}
-
+    # Load configurations
+    try:
+        with open(f"{datapath}/loader_configs.pkl", "rb") as f:
+            loader_configs = pickle.load(f)
+    except FileNotFoundError:
+        loader_configs = {}
     # Find all dataset files
     dataset_files = [f for f in os.listdir(datapath) if f.endswith("_dataset.pkl")]
     
     for file in dataset_files:
         name = file.replace("_dataset.pkl", "")
-        config_file = f"{datapath}/{name}_config.pkl"
-        
         # Load dataset
         with open(f"{datapath}/{file}", "rb") as f:
             dataset = pickle.load(f)
-        
-        # Load config
-        with open(config_file, "rb") as f:
-            config = pickle.load(f)
-        
-        # Override num_workers if specified
-        if num_workers is not None:
-            config["num_workers"] = num_workers
-            
-        # Create DataLoader with loaded config
+        # Get saved batch size or use default
+        config = loader_configs.get(name, {})
+        batch_size = config.get("batch_size", 32)
+        # Get shuffle setting for this loader 
+        shuffle = shuffle_settings[name]
+        # Create DataLoader
         loaders[name] = DataLoader(
             dataset,
-            batch_size=config["batch_size"],
-            shuffle=config["shuffle"],
-            num_workers=config["num_workers"],
-            pin_memory=config.get("pin_memory", False),
+            batch_size=batch_size,
+            shuffle=shuffle,
+            num_workers=num_workers,
+            pin_memory=pin_memory
         )
-
+    
     return loaders
 
 
@@ -250,7 +262,7 @@ def get_all_loaders(train_data,
 
 
     # Create forget/retain splits based on specified method
-    if method == 'index':
+    if method == 'instances':
         forget_set_indices = kwargs.get('forget_set_indices', [0])
         if verbose:
             print(f"Removing {len(forget_set_indices)} instances by indices")
@@ -303,10 +315,10 @@ def get_all_loaders(train_data,
         )
             
     # Save loaders if path is provided
-    if save_path:
-        if verbose:
-            print(f"Saving loaders to {save_path}")
-        save_loaders(path=save_path, **loaders)
+    # if save_path:
+    #     if verbose:
+    #         print(f"Saving loaders to {save_path}")
+    #     save_loaders(path=save_path, **loaders)
 
     return  (
                 loaders['forget'], 

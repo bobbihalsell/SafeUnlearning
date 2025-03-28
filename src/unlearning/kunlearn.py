@@ -1,17 +1,18 @@
-import os
-import timm
-import torch
+# import os
+# import timm
+# import torch
 import torch.nn as nn
 import copy
-from typing import Optional
-from src.unlearning.utils import (setup_device,
-                                  UnsupportedModelError,
-                                  available_if,
-                                  _has_forget_dataloader,
-                                  _has_retain_dataloader,
-                                  l2_penalty)
-from itertools import cycle
-from base import BaseUnlearner
+from unlearning.finetune import FinetuneUnlearner
+# from typing import Optional
+# from unlearning.utils import (setup_device,
+#                                   UnsupportedModelError,
+#                                   available_if,
+#                                   _has_forget_dataloader,
+#                                   _has_retain_dataloader,
+#                                   l2_penalty)
+# from itertools import cycle
+# from base import BaseUnlearner
 
 
 from typing import Optional, Union, Tuple, List, Dict, Any
@@ -25,8 +26,8 @@ class KUnlearn(FinetuneUnlearner):
     This approach is based on the concept that different layers in neural networks
     capture different levels of abstraction. By freezing the first k layers and
     either:
-    1. Fine-tuning only the remaining layers (CFk - Catastrophic Forgetting)
-    2. Reinitializing and then fine-tuning the remaining layers (EUk - Exact Unlearning)
+    1. Fine-tuning only the remaining layers (cfk - Catastrophic Forgetting)
+    2. Reinitializing and then fine-tuning the remaining layers (euk - Exact Unlearning)
     
     The model selectively retains general knowledge in early layers while modifying
     later layers to "forget" specific data points or classes.
@@ -35,7 +36,8 @@ class KUnlearn(FinetuneUnlearner):
                 k: int,
                 device,
                 evaluate: bool = False,
-                method: str = 'CFk',
+                method: str = 'cfk',
+                init=None
                 ):
         """
         Initialize the KUnlearn class.
@@ -47,14 +49,15 @@ class KUnlearn(FinetuneUnlearner):
                     If None, will be automatically determined.
             evaluate (bool): Whether to track and return evaluation metrics during unlearning.
             method (str): Unlearning approach to use. Options:
-                         - 'CFk': Catastrophic Forgetting - freeze first k layers and fine-tune the rest.
-                         - 'EUk': Exact Unlearning - freeze first k layers, reinitialize the rest,
+                         - 'cfk': Catastrophic Forgetting - freeze first k layers and fine-tune the rest.
+                         - 'euk': Exact Unlearning - freeze first k layers, reinitialize the rest,
                                   and then fine-tune.
         """
         super().__init__(device, evaluate)
         self.k = k
-        assert method in ['CFk', 'EUk'], "Method must be either 'CFk' or 'EUk'."
+        assert method in ['cfk', 'euk'], "Method must be either 'cfk' or 'euk'."
         self.method = method
+        self.init = init
 
 
     def _freeze_first_k_layers(self, model):
@@ -80,11 +83,11 @@ class KUnlearn(FinetuneUnlearner):
                 param.requires_grad = False
         return model
 
-    def _reinitialize_weights(self, model, method="zero"):
+    def _reinitialize_weights(self, model):
         """
         Reinitializes the weights of all layers after the k-th layer.
         
-        This is used in the EUk approach to completely reset specific layers,
+        This is used in the euk approach to completely reset specific layers,
         forcing the model to relearn patterns from scratch on those layers.
 
         Args:
@@ -104,15 +107,15 @@ class KUnlearn(FinetuneUnlearner):
         # Reinitialize parameters in layers after the k-th layer
         for i in range(self.k, len(layers)):
             for param in layers[i].parameters():
-                if method == "zero":
+                if self.init == "zero":
                     # Set all weights to zero
                     param.data.zero_()
-                elif method == "xavier":
+                elif self.init == "xavier":
                     # Apply Xavier uniform initialization to weight matrices
                     # Only apply Xavier to weight tensors, not biases
                     if param.dim() > 1:  
                         nn.init.xavier_uniform_(param)
-                elif method == "randn":
+                elif self.init == "randn":
                     # Initialize with standard normal distribution
                     param.data.normal_()
                 else:
@@ -122,7 +125,6 @@ class KUnlearn(FinetuneUnlearner):
     def unlearn(self,
                 model: nn.Module,
                 data_dict: Dict[str, DataLoader],
-                reinit_method = 'randn',
                 **kwargs):
             """
             Perform K-unlearning by freezing the first k layers and fine-tuning the rest.
@@ -160,8 +162,8 @@ class KUnlearn(FinetuneUnlearner):
             
             # Freeze the first k layers of the model
             modified_model = self._freeze_first_k_layers(modified_model)
-            if self.method == 'EUk':
-                modified_model = self._reinitialize_weights(modified_model, method=reinit_method)
+            if self.method == 'euk':
+                modified_model = self._reinitialize_weights(modified_model)
 
             # Call the parent class's unlearn method with the modified model
             return super().unlearn(modified_model, data_dict, **kwargs)

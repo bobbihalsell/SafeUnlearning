@@ -1,20 +1,20 @@
-model: 
-  name: resnet18  # or resnet34 or resnet50 or CNN or AllCNN
-  save_name: resnet18_neggrad  # Name of the model to save
-  pretrained: false
-  num_classes: 10 
+model: # THIS TEST USES CIFAR5, A SMALL CNN (2 LAYERS) AND NEGGRAD WITH FEW EPOCHS
+  name: cnn  # or resnet34 or resnet50 or CNN or AllCNN
+  save_name: cnn_test  # Name of the model to save
+  pretrained: True
+  num_classes: 5 
   # The following are the parameters for the CNN model, ignore if you wish to use ResNet
   cnn_cfg:
     in_channels: 3
-    filters: [64, 128, 256, 512]
-    dropout_rate: 0.3  # For CNN
+    filters: [64, 64]
+    dropout_rate: 0.1  # For CNN
     dropout_rates: [0.1, 0.1, 0.1]  # For AllCNN
     use_batch_norm: true
-    downsample_every: 2
+    downsample_every: 1
   train_cfg:
-    epochs: 5
+    epochs: 3
     loss_fn: cross_entropy
-    lr: 1e-4
+    lr: 0.01
     weight_decay: 0
     optimizer: sgd
     momentum: 0.9
@@ -23,7 +23,8 @@ unlearner:
   evaluate: true
   cfg:
     # Common parameters for all unlearners
-    lr: 1e-4
+    loss_fn: cross_entropy
+    lr: 0.01
     weight_decay: 0
     use_l2_penalty: false
     loss_fn: cross_entropy
@@ -38,23 +39,25 @@ unlearner:
     method: CFk  # For kunlearn (CFk or EUk)
     reinit_method: randn  # For euk (randn or zero or xaiver)
 dataset:
-  name: cifar10  # Options: cifar10, cifar5, cifar100
+  name: cifar5  # Options: cifar10, cifar5, cifar100
   val_ratio: 0.0
-  save_data: false
-  save_loaders: false
-  save_dir: data/ 
+  save_data: true
+  save_loaders: true
+  save_dir: savedata/ 
   cfg:
     batch_sizes:
-      retain: 64
-      forget: 64
-      train: 128
-      test: 128
+      retain: 32
+      forget: 32
+      val: 0
+      train: 64
+      test: 64
     shuffle_settings:
       retain: true
       forget: true
       train: true
+      val: false
       test: false
-    num_workers: 4
+    num_workers: 1
 forget_method:
   name: instances  # Options: instances (select indices), class_instances (random N from class(es)), class (remove entire class(es))
   parameters:

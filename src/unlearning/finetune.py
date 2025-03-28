@@ -3,7 +3,7 @@ import timm
 import torch
 import torch.nn as nn
 import copy
-from src.unlearning.utils import (l2_penalty)
+from unlearning.utils import (l2_penalty)
 from itertools import cycle
 from base import BaseUnlearner
 from typing import Dict
