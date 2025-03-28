@@ -366,7 +366,6 @@ class UnlearnApp:
         return unlearned_model
     
 
-
 if __name__ == '__main__':
     app = UnlearnApp()
     app.run()

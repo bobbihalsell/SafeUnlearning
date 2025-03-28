@@ -122,9 +122,11 @@ def save_loaders(path, **loaders):
     # Save each dataset
     for name, loader in loaders.items():
         # Save the dataset
+        if name == 'val' and loader is None:
+            continue
         with open(f"{path}/{name}_dataset.pkl", "wb") as f:
             pickle.dump(loader.dataset, f)
-            
+
         # Store batch_size (the only reliably accessible attribute)
         loader_configs[name] = {
             "batch_size": loader.batch_size,

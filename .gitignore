@@ -6,6 +6,7 @@ data/**
 # *.pt
 # *.pth
 **/artifacts/**
+**/output/**
 
 # C extensions
 *.so
