@@ -2,6 +2,7 @@ import argparse
 import yaml
 import timm
 import torch
+import torch.nn as nn
 import torchvision
 from unlearning.utils import set_seed, setup_device
 import os
@@ -76,7 +77,13 @@ class UnlearnApp:
                 if self.unlearner_name == 'scrub' and param == 'epochs':
                     continue
                 missing_params.append(param)
-
+            if param == 'loss_fn':
+                if self.unlearn_params['loss_fn'] == 'cross_entropy':
+                    self.unlearn_params['loss_fn'] = nn.CrossEntropyLoss()
+                else:
+                    raise ValueError(f'Only cross_entropy loss_fn is allowed, received '
+                                     f'{self.unlearn_params['loss_fn']}')
+                
         if missing_params:
             raise ValueError(f"Missing required parameters for unlearning: {', '.join(missing_params)}")
 
@@ -334,9 +341,7 @@ class UnlearnApp:
         original_model = self.initialize_model()
         unlearner = self.initialize_unlearner()
         print('unlearner initialized')
-        for key, param in self.unlearn_params.items():
-            print(key, ' , ', param, )
-            print(type(param))
+        self._extract_unlearner_params()
         unlearned_model, losses = unlearner.unlearn(original_model, data_dict, **self.unlearn_params)
         print('model unlearned')
 
