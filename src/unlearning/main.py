@@ -335,7 +335,9 @@ class UnlearnApp:
 
             # Step 4: Evaluate the original model before unlearning
             if isinstance(val_loader, torch.utils.data.DataLoader):
-                Trainer(original_model).evaluate_model(val_loader)
+                val_loss, val_accuracy = Trainer(original_model).evaluate_model(val_loader)
+                print(f"Pre-unlearning Validation Loss: {val_loss:.4f}")
+                print(f"Pre-unlearning Validation Accuracy: {val_accuracy:.2f}%\n")
 
         unlearner = self.initialize_unlearner()
         print('unlearner initialized')
@@ -357,7 +359,9 @@ class UnlearnApp:
 
          # Step 7: Evaluate the model after unlearning
         if isinstance(val_loader, torch.utils.data.DataLoader):
-            Trainer(unlearned_model).evaluate_model(val_loader)
+            val_loss, val_accuracy = Trainer(unlearned_model).evaluate_model(val_loader)
+            print(f"Post-unlearning Validation Loss: {val_loss:.4f}")
+            print(f"Post-unlearning Validation Accuracy: {val_accuracy:.2f}%\n")
 
         return unlearned_model
     
