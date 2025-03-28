@@ -418,10 +418,7 @@ class UnlearnApp:
         for key, param in self.unlearn_params.items():
             print(key, ' , ', param, )
             print(type(param))
-        if self.evaluate:
-            unlearned_model, losses = unlearner.unlearn(original_model, data_dict, **self.unlearn_params)
-        else:
-            unlearned_model, losses = unlearner.unlearn(original_model, data_dict, **self.unlearn_params), None  # Ensure losses is always defined
+        unlearned_model, losses = unlearner.unlearn(original_model, data_dict, **self.unlearn_params)
         print('model unlearned')
 
         # Step 6: Save the unlearned model
@@ -430,7 +427,7 @@ class UnlearnApp:
         print('model saved')
 
         # Save losses if available
-        if losses is not None:
+        if self.evaluate:
             self.save_losses_to_disk(losses)
             print('losses saved')
 
