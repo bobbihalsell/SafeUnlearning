@@ -80,7 +80,9 @@ class FinetuneUnlearner(BaseUnlearner):
                                     lr=lr,
                                     weight_decay=weight_decay)
 
-        eval_only_data = [data for data in data_dict.keys() if data != 'retain']
+        eval_only_data = [data for data in data_dict.keys() if 
+                          data != 'retain' and
+                          data_dict[data] is not None]
 
         # Main training loop
         for _ in range(num_epochs):

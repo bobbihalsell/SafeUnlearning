@@ -254,7 +254,9 @@ class SCRUB(BaseUnlearner):
                                     lr=lr,
                                     weight_decay=weight_decay)
         
-        eval_only_data = [data for data in data_dict.keys() if data not in ['retain']]
+        eval_only_data = [data for data in data_dict.keys() if 
+                          data not in ['retain'] and 
+                          data_dict[data] is not None]
 
         # Calculate total number of epochs and initialize counters
         num_epochs = max(min_epochs, max_epochs)

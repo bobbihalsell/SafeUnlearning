@@ -80,7 +80,9 @@ class NegGrad(BaseUnlearner):
                                     lr=lr,
                                     weight_decay=weight_decay)
 
-        eval_only_data = [data for data in data_dict.keys() if data != 'forget']
+        eval_only_data = [data for data in data_dict.keys() if 
+                          data != 'forget' and
+                          data_dict[data] is not None]
 
         # Main training loop
         for _ in range(num_epochs):
@@ -245,7 +247,9 @@ class NegGradPlus(BaseUnlearner):
                                     lr=lr,
                                     weight_decay=weight_decay)
 
-        eval_only_data = [data for data in data_dict.keys() if data not in ['forget', 'retain']]
+        eval_only_data = [data for data in data_dict.keys() if 
+                          data not in ['forget', 'retain'] and 
+                          data_dict[data] is not None]
 
         # Main training loop
         for _ in range(num_epochs):

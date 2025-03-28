@@ -1,44 +1,52 @@
 import torch
 import torch.nn as nn
-from functools import wraps
-from torch.utils.data import DataLoader
 import random
 import numpy as np
 import os
 
 
 def save_model(model: nn.Module,
+               output_dir: str,
                unlearning_algorithm: str,
                model_name: str,
                seed: str,
                model_type: str,
-               payload: dict = None
-               ):
-    """ Saves an entire model and training info at a filepath specified by a convention.
+               payload: dict = None):
+    """ Saves a model's state_dict and training info at a filepath specified by a convention.
 
-    artifacts/unlearn/{unlearning_algorithm}/{model_name}_{seed}_{model_type}.pt
+    Saves to:
+        artifacts/unlearn/{unlearning_algorithm}/{model_name}_{seed}_{model_type}.pt
 
     Args:
         model (nn.Module): The model to be saved.
-        unlearning_algorithm (str): The name of the unlearning algorithm
-        model_name (str): The model name (e.g. resnet18)
-        seed (int): The seed used during the experiment
+        unlearning_algorithm (str): The name of the unlearning algorithm.
+        model_name (str): The model name (e.g., resnet18).
+        seed (int): The seed used during the experiment.
         model_type (str): The model is either 'original' or 'unlearned'.
         payload (dict, optional): Additional information (e.g., losses, metrics).
 
     Returns:
-        None
+        str: The filepath where the model was saved.
     """
-    directory = f'src/artifacts/unlearn/{unlearning_algorithm}'
+    directory = f'{output_dir}/unlearn/{unlearning_algorithm}'
     os.makedirs(directory, exist_ok=True)  # Ensure the directory exists
-    
+
     filepath = os.path.join(directory, f'{model_name}_{seed}_{model_type}.pt')
-    # Save model and optional payload
-    save_data = {'model': model}
+
+    # Save only the state_dict
+    save_data = {
+        'state_dict': model.state_dict(),
+        'model_name': model_name,
+        'unlearning_algorithm': unlearning_algorithm
+    }
+    
     if payload:
-        save_data.update(payload)  # Merge payload into save_data
+        save_data.update(payload)  # Merge additional metadata
 
     torch.save(save_data, filepath)
+    print(f"Model state_dict saved to {filepath}")
+
+    return filepath
 
 
 class UnsupportedModelError(Exception):

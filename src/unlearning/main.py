@@ -4,7 +4,7 @@ import timm
 import torch
 import torch.nn as nn
 import torchvision
-from unlearning.utils import set_seed, setup_device
+from unlearning.utils import save_model, set_seed, setup_device
 import os
 from datasets.preprocessing import get_all_loaders, save_loaders, load_loaders
 from unlearning.finetune import FinetuneUnlearner
@@ -230,38 +230,23 @@ class UnlearnApp:
             print(f"Loaded loaders from {loaders_dir}")
             return loaders
         except Exception as e:
-            print(f"Error loading loaders: {e}")
-            return None
-
-    def save_model_to_disk(self, model, model_path):
-        """Save model to disk."""
-        model_dir = os.path.join(self.output_dir, 'models')
-        os.makedirs(model_dir, exist_ok=True)
-
-        torch.save({
-            'model_state_dict': model.state_dict(),
-            'model_name': self.model_name,
-            'unlearner': self.unlearner_name,
-            'num_classes': self.num_classes
-        }, model_path)
-
-        print(f"Saved model to {model_path}")
-        return model_path
+            raise Exception(f"Error loading loaders: {e}")
 
     def load_model_from_disk(self, model_path):
         """Load model from disk."""
         if not os.path.exists(model_path):
-            print(f"Model file {model_path} not found.")
-            return None
+            raise FileNotFoundError(f"Model file {model_path} not found.")
+
         try:
             checkpoint = torch.load(model_path, map_location=self.device)
             # Initialize appropriate model architecture
             model = self.initialize_model()
             # Load state dict
-            model.load_state_dict(checkpoint['model_state_dict'])
+            model.load_state_dict(checkpoint['state_dict'])
             model = model.to(self.device)
             print(f"Loaded model from {model_path}")
             return model
+
         except Exception as e:
             raise Exception(f'Error loading model: {e}')
 
@@ -339,25 +324,34 @@ class UnlearnApp:
                 print(f"Pre-unlearning Validation Accuracy: {val_accuracy:.2f}%\n")
         """
         original_model = self.initialize_model()
+        save_model(original_model,
+                   output_dir=self.output_dir,
+                   unlearning_algorithm=self.unlearner_name,
+                   model_name=self.model_name,
+                   seed=self.seed, 
+                   model_type='original')
+
+        # Step 4: Unlearning
         unlearner = self.initialize_unlearner()
         print('unlearner initialized')
         self._extract_unlearner_params()
-        unlearned_model, losses = unlearner.unlearn(original_model, data_dict, **self.unlearn_params)
+        unlearned_model, losses = unlearner.unlearn(original_model, 
+                                                    data_dict, 
+                                                    **self.unlearn_params)
         print('model unlearned')
 
-        # Step 6: Save the unlearned model
-        unlearned_model_path = os.path.join(self.output_dir, 'models', f"{self.model_name}_{self.unlearner_name}.pth")
-        self.save_model_to_disk(unlearned_model, unlearned_model_path)
-        print('model saved')
+        # Step 5: Save the unlearned model
+        save_model(unlearned_model,
+                   output_dir=self.output_dir, 
+                   unlearning_algorithm=self.unlearner_name,
+                   model_name=self.model_name,
+                   seed=self.seed, 
+                   model_type='unlearned',
+                   payload=losses)
 
-        # Save losses if available
-        if self.evaluate:
-            self.save_losses_to_disk(losses)
-            print('losses saved')
-
-         # Step 7: Evaluate the model after unlearning
-        if isinstance(val_loader, torch.utils.data.DataLoader):
-            val_loss, val_accuracy = Trainer(unlearned_model).evaluate_model(val_loader)
+        # Step 6: Evaluate the model after unlearning
+        if isinstance(data_dict.get('val', None), torch.utils.data.DataLoader):
+            val_loss, val_accuracy = Trainer(unlearned_model).evaluate_model(data_dict['val'])
             print(f"Post-unlearning Validation Loss: {val_loss:.4f}")
             print(f"Post-unlearning Validation Accuracy: {val_accuracy:.2f}%\n")
 
@@ -367,4 +361,5 @@ class UnlearnApp:
 if __name__ == '__main__':
     app = UnlearnApp()
     app.run()
-    # Run python src/unlearning/main.py --config_path src/experiments/unlearn_test.yaml
+    # Run pip install -e .
+    # Run python src/unlearning/main.py --config_path src/experiments/simple_exp.yaml
