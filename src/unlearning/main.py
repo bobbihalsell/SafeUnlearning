@@ -10,6 +10,7 @@ from unlearning.finetune import FinetuneUnlearner
 from unlearning.scrub import SCRUB
 from unlearning.kunlearn import KUnlearn
 from unlearning.neggrad import NegGrad, NegGradPlus
+from unlearning.trainer import Trainer
 from models.cnns import AllCNN, CNN
 from datasets import load_datasets as src_datasets
 import os
@@ -234,86 +235,6 @@ class UnlearnApp:
             print(f"Error loading loaders: {e}")
             return None
 
-    def train_model(self, model, train_loader, val_loader=None):
-        """Train the model using provided train_loader and validation loader."""
-        print(f"Training {self.model_name} model...")
-
-        # Extract training parameters
-        epochs = self.train_cfg['epochs']
-        criterion = self.train_cfg['loss_fn']
-        optimizer = self.train_cfg['optimizer']
-
-        # Move model to device
-        model = model.to(self.device)
-        model.train()
-
-        # Training loop
-        for epoch in range(epochs):
-            running_loss = 0.0
-            correct = 0
-            total = 0
-
-            for inputs, labels in train_loader:
-                inputs, labels = inputs.to(self.device), labels.to(self.device)
-
-                # Zero the parameter gradients
-                optimizer.zero_grad()
-
-                # Forward pass
-                outputs = model(inputs)
-                loss = criterion(outputs, labels)
-
-                # Backward pass and optimize
-                loss.backward()
-                optimizer.step()
-
-                # Statistics
-                running_loss += loss.item()
-                _, predicted = outputs.max(1)
-                total += labels.size(0)
-                correct += predicted.eq(labels).sum().item()
-
-            # Print epoch statistics
-            train_loss = running_loss / len(train_loader)
-            train_acc = 100. * correct / total
-            print(f'Epoch [{epoch+1}/{epochs}] - Loss: {train_loss:.4f}, Acc: {train_acc:.2f}%')
-
-            # Validate if validation loader is provided
-            if val_loader:
-                val_loss, val_acc = self.evaluate_model(model, val_loader, criterion)
-                print(f'Validation - Loss: {val_loss:.4f}, Acc: {val_acc:.2f}%')
-                model.train()
-
-        return model
-
-    def evaluate_model(self, model, test_loader, criterion=None):
-        """Evaluate the model on the test set."""
-        if criterion is None:
-            criterion = nn.CrossEntropyLoss()
-
-        model.eval()
-        model = model.to(self.device)
-
-        test_loss = 0
-        correct = 0
-        total = 0
-
-        with torch.no_grad():
-            for inputs, targets in test_loader:
-                inputs, targets = inputs.to(self.device), targets.to(self.device)
-                outputs = model(inputs)
-                loss = criterion(outputs, targets)
-  
-                test_loss += loss.item()
-                _, predicted = outputs.max(1)
-                total += targets.size(0)
-                correct += predicted.eq(targets).sum().item()
-
-        test_loss = test_loss / len(test_loader)
-        accuracy = 100. * correct / total
-
-        return test_loss, accuracy
-
     def save_model_to_disk(self, model, model_path):
         """Save model to disk."""
         model_dir = os.path.join(self.output_dir, 'models')
@@ -402,9 +323,12 @@ class UnlearnApp:
 
             # Train the model if it's newly initialized
             if not self.pretrained:
-                original_model = self.train_model(
-                    original_model, 
-                    data_dict['train'])#, 
+                original_model = Trainer.train_model(
+                    model=original_model,
+                    epochs=,
+                    criterion=,
+                    optimizer=,
+                    train_dataloader=data_dict['train'])#, 
                 #     data_dict['val']
                 # )
                 # Save the trained model
@@ -422,7 +346,7 @@ class UnlearnApp:
         print('model unlearned')
 
         # Step 6: Save the unlearned model
-        unlearned_model_path = model_path = os.path.join(self.output_dir, 'models', f"{self.model_save_name}_{self.unlearner_name}.pth")
+        unlearned_model_path = os.path.join(self.output_dir, 'models', f"{self.model_save_name}_{self.unlearner_name}.pth")
         self.save_model_to_disk(unlearned_model, unlearned_model_path)
         print('model saved')
 

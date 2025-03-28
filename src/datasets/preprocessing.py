@@ -193,7 +193,6 @@ def load_loaders(datapath, shuffle_settings=None, num_workers=4, pin_memory=True
 
 def get_all_loaders(train_data, 
                     test_data, 
-                    save_path=None, 
                     method='instances', 
                     val_ratio=0.0, 
                     batch_sizes=None, 
@@ -206,7 +205,6 @@ def get_all_loaders(train_data,
     Args:
         train_path: Path to the training data file
         test_path: Path to the test data file
-        save_path: Path to save the loaders (if None, loaders won't be saved)
         method: Method to use for splitting ('instances', 'class_instances', or 'class')
         batch_sizes: Dictionary containing the batch sizes for each loader type
                     Default: {'forget': 64, 'retain': 64, 'train': 128, 'test': 128}
@@ -313,12 +311,6 @@ def get_all_loaders(train_data,
             num_workers=num_workers,
             pin_memory=True
         )
-            
-    # Save loaders if path is provided
-    # if save_path:
-    #     if verbose:
-    #         print(f"Saving loaders to {save_path}")
-    #     save_loaders(path=save_path, **loaders)
 
     return  (
                 loaders['forget'], 
