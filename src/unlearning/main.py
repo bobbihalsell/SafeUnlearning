@@ -333,7 +333,9 @@ class UnlearnApp:
                 self.save_model_to_disk(original_model, model_path)
                 print('model trained and saved')
 
-            # Step 4: Evaluate the original model before unlearning TODO: Add evaluation
+            # Step 4: Evaluate the original model before unlearning
+            if isinstance(val_loader, torch.utils.data.DataLoader):
+                Trainer(original_model).evaluate_model(val_loader)
 
         unlearner = self.initialize_unlearner()
         print('unlearner initialized')
@@ -353,7 +355,9 @@ class UnlearnApp:
             self.save_losses_to_disk(losses)
             print('losses saved')
 
-         # Step 7: Evaluate the model after unlearning TODO: Add evaluation
+         # Step 7: Evaluate the model after unlearning
+        if isinstance(val_loader, torch.utils.data.DataLoader):
+            Trainer(unlearned_model).evaluate_model(val_loader)
 
         return unlearned_model
     
