@@ -3,27 +3,15 @@ import yaml
 import timm
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
 from unlearning.utils import save_model, set_seed, setup_device
-# from unlearning.neggrad import NegGrad, NegGradPlus
-# from unlearning.preprocessing import (
-#     remove_samples_by_indices,
-#     remove_classes
-# )
 import os
 from datasets.preprocessing import get_all_loaders, save_loaders, load_loaders
 from unlearning.finetune import FinetuneUnlearner
 from unlearning.scrub import SCRUB
 from unlearning.kunlearn import KUnlearn
 from unlearning.neggrad import NegGrad, NegGradPlus
-
-import models.resnets
 from models.cnns import AllCNN, CNN
-
 from datasets import load_datasets as src_datasets
-import datetime
-
-import sys
 import os
 
 DEFAULT_SEED = 42
@@ -44,6 +32,7 @@ class UnlearnApp:
         # Get data from the config
         self.device = setup_device()
         self.seed = config.get('seed', DEFAULT_SEED)
+        set_seed(self.seed)
 
         model_config= config['model']
         self.model_name = model_config['name']
@@ -423,10 +412,6 @@ class UnlearnApp:
                 print('model trained and saved')
 
             # Step 4: Evaluate the original model before unlearning TODO: Add evaluation
-                self.evaluate_model(
-                    original_model,
-                    data_dict['test']
-                )
 
         unlearner = self.initialize_unlearner()
         print('unlearner initialized')

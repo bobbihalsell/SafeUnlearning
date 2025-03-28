@@ -73,9 +73,8 @@ class FinetuneUnlearner(BaseUnlearner):
         if 'retain' not in data_dict.keys():
             raise ValueError("'retain' data must be in data_dict.")
 
-        # Initialize loss tracking if evaluation is enabled
-        if self.evaluate:
-            losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
+        # Initialize loss tracking
+        losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
 
         optimizer = torch.optim.SGD(params=model.parameters(),
                                     lr=lr,
@@ -117,6 +116,4 @@ class FinetuneUnlearner(BaseUnlearner):
                     loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
                     losses[f"{data_type}_losses"].append(loader_loss.item())
 
-        if self.evaluate:
-            return unlearned_model, losses
-        return unlearned_model
+        return unlearned_model, losses
