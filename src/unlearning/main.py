@@ -58,6 +58,7 @@ class UnlearnApp:
         # Process forget method parameters
         self.forget_method = config['forget_method']['name']
         self.forget_params = config['forget_method']['parameters']
+        assert self.forget_params is not None  # TODO add YAML validation.
 
         # Output directory
         self.output_dir = config.get('output_dir', 'artifacts/')

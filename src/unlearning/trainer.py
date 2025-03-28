@@ -88,7 +88,12 @@ class Trainer:
         return self.model
 
     def evaluate_model(self, test_loader):
-        """Evaluate the model on the test set."""
+        """Evaluate the model on a test/val set."""
+        try: # TODO use a less bootleg approach
+            self.criterion
+        except AttributeError:
+            self.criterion = nn.CrossEntropyLoss()
+        
         self.model.eval()
         test_loss = 0
         correct = 0

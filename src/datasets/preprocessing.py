@@ -210,7 +210,7 @@ def get_all_loaders(train_data,
         test_path: Path to the test data file
         method: Method to use for splitting ('instances', 'class_instances', or 'class')
         batch_sizes: Dictionary containing the batch sizes for each loader type
-                    Default: {'forget': 64, 'retain': 64, 'train': 128, 'test': 128}
+                    Default: {'forget': 64, 'retain': 64, 'val': 64, 'train': 128, 'test': 128}
         shuffle_settings: Dictionary specifying shuffle settings for each loader type
                          Default: {'forget': True, 'retain': True, 'train': True, 'test': False}
         **kwargs: Additional arguments including:
@@ -225,8 +225,8 @@ def get_all_loaders(train_data,
         Tuple containing (forget_loader, retain_loader, train_loader, test_loader)
     """
     # Default configurations
-    default_batch_sizes = {'forget': 64, 'retain': 64, 'train': 128, 'test': 128}
-    default_shuffle = {'forget': True, 'retain': True, 'train': True, 'test': False}
+    default_batch_sizes = {'forget': 64, 'retain': 64, 'val': 64, 'train': 128, 'test': 128}
+    default_shuffle = {'forget': True, 'retain': True, 'train': True, 'val': False, 'test': False}
     
     # Use provided configs or defaults
     batch_sizes = batch_sizes or default_batch_sizes

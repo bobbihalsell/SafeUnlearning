@@ -38,7 +38,7 @@ dataset:
     batch_sizes:
       retain: 32
       forget: 32
-      val: 0
+      val: 32
       train: 64
       test: 64
     shuffle_settings:
@@ -52,7 +52,7 @@ forget_method:
   name: instances  # Options: instances (select indices), class_instances (random N from class(es)), class (remove entire class(es))
   parameters:
     # Specify only the relevant parameters for your chosen method
-    # forget_set_indices: [0, 1, 2]  # For 'instances' method
+    forget_set_indices: [0, 1, 2]  # For 'instances' method
     # forget_labels: [1]  # For 'class' and 'class_instances' method
     # num_to_forget: 20  # For 'class_instances' method (with forget_labels)
 seed: 42
