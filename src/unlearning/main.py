@@ -13,9 +13,9 @@ from unlearning.kunlearn import KUnlearn
 from unlearning.neggrad import NegGrad, NegGradPlus
 from unlearning.trainer import Trainer
 from datasets import load_datasets as src_datasets
-import os
 
 DEFAULT_SEED = 42
+
 
 class UnlearnApp:
     def __init__(self):
@@ -293,38 +293,13 @@ class UnlearnApp:
                 self.save_loaders_to_disk(data_dict)
                 print('loaders saved')
 
-        # Step 3: Initialize or load a pre-trained model
-        # We don't need this now, and self.load_model_from_disk()
-        """
-        model_path = os.path.join(self.output_dir, 'models', f"{self.model_save_name}.pth")
-        print('model path {}'.format(model_path))
-        if os.path.exists(model_path) and self.pretrained:
-            # Load pre-trained model
-            original_model = self.load_model_from_disk(model_path)
-            print('model loaded')
-        else:
-            # Initialize new model
-            original_model = self.initialize_model()
-            print('model initialized')
-
-            # Train the model if it's newly initialized
-            if not self.pretrained:
-                original_model = Trainer(original_model).train_model(
-                    train_cfg=self.train_cfg,
-                    train_loader=data_dict['train'],
-                    val_loader=data_dict['val']
-                )
-                # Save the trained model
-                self.save_model_to_disk(original_model, model_path)
-                print('model trained and saved')
-
-            # Step 4: Evaluate the original model before unlearning
-            if isinstance(val_loader, torch.utils.data.DataLoader):
-                val_loss, val_accuracy = Trainer(original_model).evaluate_model(val_loader)
-                print(f"Pre-unlearning Validation Loss: {val_loss:.4f}")
-                print(f"Pre-unlearning Validation Accuracy: {val_accuracy:.2f}%\n")
-        """
+        # Step 3: Initialize or load a pre-trained model, evaluate and save.
         original_model = self.initialize_model()
+        if isinstance(data_dict.get('val', None), torch.utils.data.DataLoader):
+            val_loss, val_accuracy = Trainer(original_model).evaluate_model(data_dict['val'])
+            print(f"Pre-unlearning Validation Loss: {val_loss:.4f}")
+            print(f"Pre-unlearning Validation Accuracy: {val_accuracy:.2f}%\n")
+
         save_model(original_model,
                    output_dir=self.output_dir,
                    unlearning_algorithm=self.unlearner_name,
@@ -351,6 +326,7 @@ class UnlearnApp:
                    payload=losses)
 
         # Step 6: Evaluate the model after unlearning
+        # TODO handle case where model has not been trained but evaluate required nonetheless
         if isinstance(data_dict.get('val', None), torch.utils.data.DataLoader):
             val_loss, val_accuracy = Trainer(unlearned_model).evaluate_model(data_dict['val'])
             print(f"Post-unlearning Validation Loss: {val_loss:.4f}")
