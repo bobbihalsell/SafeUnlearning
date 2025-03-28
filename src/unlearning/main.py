@@ -2,9 +2,8 @@ import argparse
 import yaml
 import timm
 import torch
-import torch.nn as nn
 import torchvision
-from unlearning.utils import save_model, set_seed, setup_device
+from unlearning.utils import set_seed, setup_device
 import os
 from datasets.preprocessing import get_all_loaders, save_loaders, load_loaders
 from unlearning.finetune import FinetuneUnlearner
@@ -12,7 +11,6 @@ from unlearning.scrub import SCRUB
 from unlearning.kunlearn import KUnlearn
 from unlearning.neggrad import NegGrad, NegGradPlus
 from unlearning.trainer import Trainer
-from models.cnns import AllCNN, CNN
 from datasets import load_datasets as src_datasets
 import os
 
@@ -38,8 +36,8 @@ class UnlearnApp:
 
         model_config= config['model']
         self.model_name = model_config['name']
-        self.model_save_name = model_config['save_name']
-        self.model_ckpt_path = model_config['model_ckpt_path']
+        self.model_ckpt_path = model_config.get('model_ckpt_path', None)
+        # Check whether to use built-in pretrained weights
         self.pretrained = not bool(self.model_ckpt_path)
         self.num_classes = model_config['num_classes']
         # Get the training configuration if provided
@@ -53,9 +51,7 @@ class UnlearnApp:
         # Process dataset parameters
         self.dataset_name = config['dataset']['name']
         self.val_ratio = config['dataset']['val_ratio']
-        self.save_data = config['dataset']['save_data']
         self.save_loaders = config['dataset']['save_loaders']
-        self.save_dir = config['dataset']['save_dir']
         self.dataset_cfg = config['dataset']['cfg']
 
         # Process forget method parameters
@@ -63,7 +59,7 @@ class UnlearnApp:
         self.forget_params = config['forget_method']['parameters']
 
         # Output directory
-        self.output_dir = config.get('output_dir', 'output/')
+        self.output_dir = config.get('output_dir', 'artifacts/')
         os.makedirs(self.output_dir, exist_ok=True)
 
     def _extract_unlearner_params(self):
@@ -114,47 +110,42 @@ class UnlearnApp:
 
     def initialize_model(self):
         """Initialize the model based on model name from user configuration."""
-        if 'cnn' in self.model_name.lower():
-            # Create CNN or AllCNN model
-            if self.model_name.lower() == 'cnn':
-                model = CNN(
-                    in_channels=self.model_params.get('in_channels', 3),
-                    filters=self.model_params.get('filters', [64, 64, 128, 128, 256, 256]),
-                    num_classes=self.num_classes,
-                    dropout_rate=self.model_params.get('dropout_rate', 0.3),
-                    use_batch_norm=self.model_params.get('use_batch_norm', True),
-                    downsample_every=self.model_params.get('downsample_every', 3)
-                )
-            elif self.model_name.lower() == 'allcnn':
-                model = AllCNN(
-                    filters=self.model_params.get('filters', [32, 32, 64, 64, 128]),
-                    num_classes=self.num_classes,
-                    dropout_rates=self.model_params.get('dropout_rates', [0.1, 0.1, 0.1]),
-                    use_batchnorm=self.model_params.get('use_batch_norm', True),
-                    downsample_every=self.model_params.get('downsample_every', 2)
-                )
-        else:
-            if hasattr(torchvision.models, self.model_name):
-                model = torchvision.models.get_model(
-                    self.model_name,
-                    weights="DEFAULT" if self.pretrained else None,
-                )
-                model.fc = torch.nn.Linear(model.fc.in_features, self.num_classes)
-            else:
-                print(f"Couldn't find {self.model_name} in torchvision. Looking in timm")
-                try:
-                    model = timm.create_model(
-                        self.model_name,
-                        pretrained=self.pretrained,
-                        num_classes=self.num_classes,
-                    )
-                except Exception:
-                    raise AttributeError(f"{self.model_name} not found in torchvision or timm.")
+        if hasattr(torchvision.models, self.model_name):
+            model = torchvision.models.get_model(
+                self.model_name,
+                weights="DEFAULT" if self.pretrained else None,
+            )
 
-            if self.model_ckpt_path:
-                checkpoint = torch.load(self.model_ckpt_path, map_location="cpu")
-                checkpoint = checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint
-                model.load_state_dict(checkpoint)
+            # Adjust the last layer based on model type
+            if hasattr(model, "fc"):  # ResNet-style
+                model.fc = torch.nn.Linear(model.fc.in_features, self.num_classes)
+            elif hasattr(model, "classifier"):  # MobileNet, EfficientNet, VGG, DenseNet
+                if isinstance(model.classifier, torch.nn.Sequential):  
+                    # Handle cases like MobileNet where classifier is Sequential
+                    last_layer_idx = len(model.classifier) - 1
+                    model.classifier[last_layer_idx] = torch.nn.Linear(
+                        model.classifier[last_layer_idx].in_features, self.num_classes
+                    )
+                else:
+                    model.classifier = torch.nn.Linear(model.classifier.in_features, self.num_classes)
+            else:
+                raise AttributeError(f"Unknown classification layer for {self.model_name}")
+
+        else:
+            print(f"Couldn't find {self.model_name} in torchvision. Looking in timm")
+            try:
+                model = timm.create_model(
+                    self.model_name,
+                    pretrained=self.pretrained,
+                    num_classes=self.num_classes,
+                )
+            except Exception:
+                raise AttributeError(f"{self.model_name} not found in torchvision or timm.")
+
+        if self.model_ckpt_path:
+            checkpoint = torch.load(self.model_ckpt_path, map_location="cpu")
+            checkpoint = checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint
+            model.load_state_dict(checkpoint)
 
         return model
 
@@ -350,7 +341,7 @@ class UnlearnApp:
         print('model unlearned')
 
         # Step 6: Save the unlearned model
-        unlearned_model_path = os.path.join(self.output_dir, 'models', f"{self.model_save_name}_{self.unlearner_name}.pth")
+        unlearned_model_path = os.path.join(self.output_dir, 'models', f"{self.model_name}_{self.unlearner_name}.pth")
         self.save_model_to_disk(unlearned_model, unlearned_model_path)
         print('model saved')
 
