@@ -3,6 +3,7 @@ import yaml
 import timm
 import torch
 import torch.nn as nn
+import torchvision
 from unlearning.utils import save_model, set_seed, setup_device
 import os
 from datasets.preprocessing import get_all_loaders, save_loaders, load_loaders
@@ -38,7 +39,8 @@ class UnlearnApp:
         model_config= config['model']
         self.model_name = model_config['name']
         self.model_save_name = model_config['save_name']
-        self.pretrained = model_config['pretrained']
+        self.model_ckpt_path = model_config['model_ckpt_path']
+        self.pretrained = not bool(self.model_ckpt_path)
         self.num_classes = model_config['num_classes']
         # Get the training configuration if provided
         self.train_cfg = model_config.get('train_cfg', None)
@@ -112,7 +114,6 @@ class UnlearnApp:
 
     def initialize_model(self):
         """Initialize the model based on model name from user configuration."""
-        # TODO replace this algorithm with model_init.py from Jebastin
         if 'cnn' in self.model_name.lower():
             # Create CNN or AllCNN model
             if self.model_name.lower() == 'cnn':
@@ -133,29 +134,27 @@ class UnlearnApp:
                     downsample_every=self.model_params.get('downsample_every', 2)
                 )
         else:
-            # Use timm or custom resnet implementations
-            if 'resnet' in self.model_name.lower():
-                # # Check for custom ResNet implementations
-                # if self.model_name == 'resnet18':
-                #     model = resnets.get_resnet18(num_classes=self.num_classes)
-                # elif self.model_name == 'resnet34':
-                #     model = resnets.get_resnet34(num_classes=self.num_classes)
-                # elif self.model_name == 'resnet50':
-                #     model = resnets.get_resnet50(num_classes=self.num_classes)
-                # else:
-                #     # Fall back to timm for other ResNet variants
-                #     model = timm.create_model(
-                #         model_name=self.model_name,
-                #         pretrained=self.pretrained,
-                #         num_classes=self.num_classes
-                #     )
-            # else:
-                # Use timm for other model architectures
-                model = timm.create_model(
-                    model_name=self.model_name,
-                    pretrained=self.pretrained,
-                    num_classes=self.num_classes
+            if hasattr(torchvision.models, self.model_name):
+                model = torchvision.models.get_model(
+                    self.model_name,
+                    weights="DEFAULT" if self.pretrained else None,
                 )
+                model.fc = torch.nn.Linear(model.fc.in_features, self.num_classes)
+            else:
+                print(f"Couldn't find {self.model_name} in torchvision. Looking in timm")
+                try:
+                    model = timm.create_model(
+                        self.model_name,
+                        pretrained=self.pretrained,
+                        num_classes=self.num_classes,
+                    )
+                except Exception:
+                    raise AttributeError(f"{self.model_name} not found in torchvision or timm.")
+
+            if self.model_ckpt_path:
+                checkpoint = torch.load(self.model_ckpt_path, map_location="cpu")
+                checkpoint = checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint
+                model.load_state_dict(checkpoint)
 
         return model
 
@@ -311,6 +310,8 @@ class UnlearnApp:
                 print('loaders saved')
 
         # Step 3: Initialize or load a pre-trained model
+        # We don't need this now, and self.load_model_from_disk()
+        """
         model_path = os.path.join(self.output_dir, 'models', f"{self.model_save_name}.pth")
         print('model path {}'.format(model_path))
         if os.path.exists(model_path) and self.pretrained:
@@ -338,7 +339,8 @@ class UnlearnApp:
                 val_loss, val_accuracy = Trainer(original_model).evaluate_model(val_loader)
                 print(f"Pre-unlearning Validation Loss: {val_loss:.4f}")
                 print(f"Pre-unlearning Validation Accuracy: {val_accuracy:.2f}%\n")
-
+        """
+        original_model = self.initialize_model()
         unlearner = self.initialize_unlearner()
         print('unlearner initialized')
         for key, param in self.unlearn_params.items():
