@@ -264,20 +264,20 @@ def get_all_loaders(train_data,
 
     # Create forget/retain splits based on specified method
     if method == 'instances':
-        forget_set_indices = kwargs.get('forget_set_indices', [0])
+        forget_set_indices = kwargs['forget_set_indices']
         if verbose:
             print(f"Removing {len(forget_set_indices)} instances by indices")
         retain_dataset = remove_samples_by_indices(train_data_subset, forget_set_indices, return_forget, verbose)
         
     elif method == 'class_instances':
-        forget_labels = kwargs.get('forget_labels', [0])
-        num_to_forget = kwargs.get('num_to_forget', 1)
+        forget_labels = kwargs['forget_labels']
+        num_to_forget = kwargs['num_to_forget']
         if verbose:
             print(f"Removing {num_to_forget} instances from each of classes {forget_labels}")
         retain_dataset = remove_samples_by_class(train_data_subset, forget_labels, num_to_forget, return_forget, verbose)
         
     elif method == 'class':
-        forget_labels = kwargs.get('forget_labels', [0])
+        forget_labels = kwargs['forget_labels']
         if verbose:
             print(f"Removing all instances of classes {forget_labels}")
         retain_dataset = remove_classes(train_data_subset, forget_labels, return_forget, verbose)

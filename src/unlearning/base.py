@@ -92,9 +92,9 @@ class BaseUnlearner:
         Raises:
             ValueError: If any of the parameters fails validation checks.
         """
+        num_epochs = kwargs['epochs']
+        lr = kwargs['lr']
         # Extract parameters with default values
-        num_epochs = kwargs.get('num_epochs', 1)
-        lr = kwargs.get('lr', 1e-2)
         weight_decay = kwargs.get('weight_decay', 0)
         loss_fn = kwargs.get('loss_fn')
         use_l2_penalty = kwargs.get('use_l2_penalty', False)
