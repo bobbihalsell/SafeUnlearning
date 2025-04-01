@@ -110,7 +110,7 @@ imagenet_transform = transforms.Compose([
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  
     ])
 
-def download_dataset_from_web(url, save_dir, transform=imagenet_transform):
+def download_dataset_from_web(url, save_dir, proportion=1.0, transform=imagenet_transform):
     """
     Download, extract and load the dataset (train and test).
 
@@ -162,5 +162,8 @@ def download_dataset_from_web(url, save_dir, transform=imagenet_transform):
     train_dataset = datasets.ImageFolder(root=train_dir, transform=transform)
     test_dataset = datasets.ImageFolder(root=test_dir, transform=transform)
 
+    if proportion<1:
+        train_dataset = stratified_subset(train_dataset, proportion)
+        test_dataset = stratified_subset(test_dataset, proportion)
     return train_dataset, test_dataset
 
