@@ -61,7 +61,13 @@ def remove_samples_by_class(train_data: torch.utils.data.Dataset,
             - If `return_forget=False`: Returns only `retain_set`.
     """
     # Get the targets as a numpy array
-    targets = np.array(train_data.targets) if isinstance(train_data.targets, list) else train_data.targets
+    if isinstance(train_data, torch.utils.data.Subset):
+        if hasattr(train_data.dataset, "targets"):
+            targets = np.array(train_data.dataset.targets)[train_data.indices]
+        else:
+            targets = np.array([train_data.dataset[i][1] for i in train_data.indices])
+    else:
+        targets = np.array(train_data.targets) if hasattr(train_data, "targets") else np.array([train_data[i][1] for i in range(len(train_data))])
 
     forget_indices = sorted([
         idx 

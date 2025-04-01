@@ -49,6 +49,7 @@ class UnlearnApp:
         # Process unlearner-specific parameters
         self.unlearner_name = config['unlearner']['name']
         self.evaluate = config['unlearner']['evaluate']
+        self.verbose = config['unlearner']['verbose']
         self.unlearn_params = config['unlearner']['cfg']
 
         # Process dataset parameters
@@ -163,19 +164,23 @@ class UnlearnApp:
         """ Initialize the correct unlearner from user specification."""
         if self.unlearner_name == 'finetune':
             unlearner = FinetuneUnlearner(self.device,
-                                 self.evaluate
+                                 self.evaluate,
+                                 self.verbose
                                 )
         elif self.unlearner_name == 'neggrad':
             unlearner = NegGrad(self.device,
-                                 self.evaluate
+                                 self.evaluate,
+                                 self.verbose
                                 )
         elif self.unlearner_name == 'neggradplus':
             unlearner = NegGradPlus(self.device,
-                                 self.evaluate
+                                 self.evaluate,
+                                 self.verbose
                                 )
         elif self.unlearner_name == 'scrub':
             unlearner = SCRUB(self.device,
-                                 self.evaluate
+                                 self.evaluate,
+                                 self.verbose
                                 )
         elif self.unlearner_name == 'euk':
             k = self.unlearn_params[k]
@@ -183,7 +188,8 @@ class UnlearnApp:
                             k=self.unlearn_params[k],
                             method=self.unlearner_name,
                             device=self.device,
-                            evaluate=self.evaluate
+                            evaluate=self.evaluate,
+                            verbose=self.verbose
                             )
         elif self.unlearner_name == 'cfk':
             k = self.unlearn_params[k]
@@ -191,7 +197,8 @@ class UnlearnApp:
                             k=self.unlearn_params[k],
                             method=self.unlearner_name,
                             device=self.device,
-                            evaluate=self.evaluate
+                            evaluate=self.evaluate,
+                            verbose=self.verbose
                             )
         else:
             raise ValueError(f'unlearner_name {self.unlearner_name}'
