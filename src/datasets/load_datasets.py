@@ -1,9 +1,9 @@
 import torch
 from torch.utils.data import Subset
-from torchvision import datasets, transforms
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from torch.utils.data import Subset
+import numpy as np
 
 
 def load_cifar10_datasets():
@@ -15,10 +15,10 @@ def load_cifar10_datasets():
     ])
     train_dataset = datasets.CIFAR10(root="./data", train=True,
                                      download=True, transform=transform)
-    train_dataset = Subset(train_dataset, list(range(500)))
+    # train_dataset = Subset(train_dataset, list(range(500)))
     test_dataset = datasets.CIFAR10(root="./data", train=False,
                                     download=True, transform=transform)
-    test_dataset = Subset(test_dataset, list(range(500)))
+    # test_dataset = Subset(test_dataset, list(range(500)))
 
     return train_dataset, test_dataset
 
@@ -77,3 +77,36 @@ def load_cifar100_datasets():
     test_dataset = Subset(test_dataset, list(range(500)))
 
     return train_dataset, test_dataset
+
+
+def load_cifar10_datasets(proportion=1.0):
+    assert 0 < proportion <= 1, "Proportion must be between 0 and 1."
+
+    transform = transforms.Compose([
+        transforms.Resize(224), 
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],  # ImageNet mean
+                             std=[0.229, 0.224, 0.225])   # ImageNet std
+    ])
+
+    train_dataset = datasets.CIFAR10(root="./data", train=True, download=True, transform=transform)
+    test_dataset = datasets.CIFAR10(root="./data", train=False, download=True, transform=transform)
+
+    def stratified_subset(dataset, proportion):
+        targets = np.array(dataset.targets)
+        num_classes = len(set(targets))
+        indices = []
+
+        for cls in range(num_classes):
+            cls_indices = np.where(targets == cls)[0]
+            num_samples = int(len(cls_indices) * proportion)
+            indices.extend(np.random.choice(cls_indices, num_samples, replace=False))
+
+        return Subset(dataset, indices)
+    
+    if proportion<1:
+        train_subset = stratified_subset(train_dataset, proportion)
+        test_subset = stratified_subset(test_dataset, proportion)
+        return train_subset, test_subset
+    else:
+        return train_dataset, test_dataset
