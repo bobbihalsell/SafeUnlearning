@@ -1,18 +1,19 @@
 model: # THIS TEST USES CIFAR5
   name: mobilenet_v2
   pretrained: true  # Use library-provided pretrained weights.
-  num_classes: 5
+  num_classes: 10
   model_ckpt_path: # If there are pretrained weights, pass in the str here.
-  train_cfg:
-    epochs: 3
+  train_cfg:ß
+    epochs: 10
     loss_fn: cross_entropy
     lr: 0.01
     weight_decay: 0
     optimizer: sgd
     momentum: 0.9
 unlearner:
-  name: neggrad  # Options: neggrad, neggradplus, scrub, euk, cfk, finetune
+  name: neggradplus  # Options: neggrad, neggradplus, scrub, euk, cfk, finetune
   evaluate: true
+  verbose: true
   cfg:
     # Common parameters for all unlearners
     loss_fn: cross_entropy
@@ -20,7 +21,7 @@ unlearner:
     weight_decay: 0
     use_l2_penalty: false
     loss_fn: cross_entropy
-    epochs: 5 # Ignored for scrub
+    epochs: 1 # Ignored for scrub
     # Specific parameters for some unlearners (will be ignored for others)
     beta: 0.5  # For neggradplus  beta = 0: forget only, beta = 1: retain only
     min_epochs: 2  # For scrub  retain aligning steps
@@ -31,7 +32,8 @@ unlearner:
     method: CFk  # For kunlearn (CFk or EUk)
     reinit_method: randn  # For euk (randn or zero or xaiver)
 dataset:
-  name: cifar5  # Options: cifar10, cifar5, cifar100
+  name: cifar10  # Options: cifar10, cifar5, cifar100
+  proportion: 1.0 # Choose 1 to get all data. Data will always be balanced.
   val_ratio: 0.2
   save_loaders: true
   cfg:
@@ -49,11 +51,11 @@ dataset:
       test: false
     num_workers: 1
 forget_method:
-  name: instances  # Options: instances (select indices), class_instances (random N from class(es)), class (remove entire class(es))
+  name: class_instances  # Options: instances (select indices), class_instances (random N from class(es)), class (remove entire class(es))
   parameters:
     # Specify only the relevant parameters for your chosen method
-    forget_set_indices: [0, 1, 2]  # For 'instances' method
-    # forget_labels: [1]  # For 'class' and 'class_instances' method
-    # num_to_forget: 20  # For 'class_instances' method (with forget_labels)
+    # forget_set_indices: [0, 1, 2]  # For 'instances' method
+    forget_labels: [5]  # For 'class' and 'class_instances' method
+    num_to_forget: 100  # For 'class_instances' method (with forget_labels)
 seed: 42
 output_dir: artifacts/
