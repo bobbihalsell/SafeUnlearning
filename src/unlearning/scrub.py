@@ -109,7 +109,7 @@ class SCRUB(BaseUnlearner):
         retain_ce = criterion(unl_out, true_y)
         return (alpha * retain_kl + gamma * retain_ce)/Nr, retain_kl/Nr, retain_ce/Nr
     
-    def max_epoch(self, forget_data, optimizer, step=True):
+    def max_epoch(self, model, unlearned_model, forget_data, optimizer, step=True):
         """
         Perform one epoch of maximizing divergence on forget data.
         This is the "forgetting" step where we make the model outputs diverge
@@ -134,7 +134,9 @@ class SCRUB(BaseUnlearner):
         for forget_batch in forget_loader:
             forget_x = forget_batch[0]
             # Compute divergence loss
-            loss = self.forget_loss(forget_x)
+            original_out = model(forget_x)
+            unl_out = unlearned_model(forget_x)
+            loss = self.forget_loss(original_out, unl_out)
             if step:
                 optimizer.zero_grad()
                 # We negate the loss because we want to maximize divergence
@@ -145,7 +147,7 @@ class SCRUB(BaseUnlearner):
         avg_loss = avg_loss/len(forget_loader)
         return avg_loss
     
-    def min_epoch(self, retain_data, optimizer, alpha, gamma, criterion):
+    def min_epoch(self, model, unlearned_model, retain_data, optimizer, alpha, gamma, criterion):
         """
         Perform one epoch of minimizing divergence on retain data.
         
@@ -178,7 +180,10 @@ class SCRUB(BaseUnlearner):
         for retain_batch in retain_loader:
             retain_x, retain_y = retain_batch
             # Compute retain losses
-            loss, kl_loss, ce_loss = self.retain_loss(retain_x, retain_y, alpha, gamma, criterion)
+            original_out = model(retain_x)
+            unl_out = unlearned_model(retain_x)
+            loss = self.forget_loss(original_out, unl_out)
+            loss, kl_loss, ce_loss = self.retain_loss(original_out, unl_out, retain_y, alpha, gamma, criterion)
             optimizer.zero_grad()
             # Perform optimization using combined loss
             loss.backward()
@@ -197,6 +202,7 @@ class SCRUB(BaseUnlearner):
                 data_dict: Dict[str, DataLoader],
                 min_epochs: int,
                 max_epochs: int,
+                verbose: bool = False,
                 **kwargs):
         """
         Perform SCRUB unlearning
@@ -233,7 +239,7 @@ class SCRUB(BaseUnlearner):
         unlearned_model = copy.deepcopy(model)
 
         # Validate and extract common hyperparameters
-        loss_fn, _, lr, weight_decay, _ = self.valid_args(kwargs)
+        loss_fn, _, lr, weight_decay, _ = self.valid_args(**kwargs)
         if min_epochs < 1 or max_epochs < 1:
             raise ValueError("Number of min and max epochs must be greater than 0.")
         
@@ -269,12 +275,14 @@ class SCRUB(BaseUnlearner):
 
             # Maximize divergence on forget data
             if max_i < max_epochs:
-                self.max_epoch(data_dict['forget'], optimizer)
+                self.max_epoch(model, unlearned_model, data_dict['forget'], optimizer)
                 max_i+=1
 
             # Minimize divergence on retain data
             if min_i < min_epochs:
                 _, _, retain_loss = self.min_epoch(
+                                    model, 
+                                    unlearned_model,
                                     data_dict['retain'], 
                                     optimizer, 
                                     alpha=alpha,
@@ -284,13 +292,21 @@ class SCRUB(BaseUnlearner):
                 min_i+=1
                 total_retain_loss += retain_loss
 
+            if verbose:
+                print(f'Epoch {e}: Retain Loss: {total_retain_loss}')
+
             if self.evaluate:
                 # Calculate average retain loss for this epoch
-                losses['retain_losses'].append(total_retain_loss/len(data_dict['retain']))
+                losses['retain_losses'].append(total_retain_loss)
                 unlearned_model.eval()
                 # Evaluate model on other datasets
                 for data_type in eval_only_data:
                     loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
                     losses[f"{data_type}_losses"].append(loader_loss.item())
+                    if verbose:
+                        print(f'{data_type.capitalize()} Loss: {loader_loss}', end='  ')
+                if verbose:
+                    print()
+                
 
         return unlearned_model, losses

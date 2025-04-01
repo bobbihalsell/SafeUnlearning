@@ -37,6 +37,7 @@ class FinetuneUnlearner(BaseUnlearner):
     def unlearn(self,
                 model: nn.Module,
                 data_dict: Dict[str, DataLoader],
+                verbose: bool = False,
                 **kwargs):
         """
         Unlearn by fine-tuning the model on retain data only.
@@ -67,7 +68,7 @@ class FinetuneUnlearner(BaseUnlearner):
         unlearned_model = copy.deepcopy(model)
 
         # Validate and extract common hyperparameters
-        loss_fn, num_epochs, lr, weight_decay, use_l2_penalty = self.valid_args(kwargs)
+        loss_fn, num_epochs, lr, weight_decay, use_l2_penalty = self.valid_args(**kwargs)
 
         # Ensure required data is available
         if 'retain' not in data_dict.keys():
@@ -109,13 +110,21 @@ class FinetuneUnlearner(BaseUnlearner):
                 retain_loss.backward()
                 optimizer.step()
 
+            if verbose:
+                print(f'Epoch {e}: Retain Loss: {total_retain_loss}')
+
             if self.evaluate:
-                # Calculate and store average retain loss for this epoch
-                losses['retain_losses'].append(total_retain_loss/len(data_dict['retain']))
+                # Calculate average retain loss for this epoch
+                losses['retain_losses'].append(total_retain_loss)
                 unlearned_model.eval()
-                # Evaluate on other datasets
+                # Evaluate model on other datasets
                 for data_type in eval_only_data:
                     loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
                     losses[f"{data_type}_losses"].append(loader_loss.item())
+                    if verbose:
+                        print(f'{data_type.capitalize()} Loss: {loader_loss}', end='  ')
+                if verbose:
+                    print()
+                
 
         return unlearned_model, losses

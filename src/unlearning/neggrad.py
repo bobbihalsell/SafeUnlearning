@@ -36,6 +36,7 @@ class NegGrad(BaseUnlearner):
     def unlearn(self,
                 model: nn.Module,
                 data_dict: Dict[str, DataLoader],
+                verbose: bool = True,
                 **kwargs):
         """
         Perform NegGrad unlearning.
@@ -85,7 +86,7 @@ class NegGrad(BaseUnlearner):
                           data_dict[data] is not None]
 
         # Main training loop
-        for _ in range(num_epochs):
+        for e in range(num_epochs):
             total_forget_loss = 0
             for forget_inputs, forget_labels in data_dict['forget']:
                 unlearned_model.train()
@@ -110,17 +111,24 @@ class NegGrad(BaseUnlearner):
                 optimizer.step()
                 total_forget_loss += forget_loss.item()
 
+            if verbose:
+                print(f'Epoch {e}: Retain Loss: {total_retain_loss}')
+
             if self.evaluate:
-                # Calculate average forget loss for this epoch
-                losses['forget_losses'].append(total_forget_loss/len(data_dict['forget']))
-                # Evaluate model on other datasets
+                # Calculate average retain loss for this epoch
+                losses['retain_losses'].append(total_retain_loss)
                 unlearned_model.eval()
+                # Evaluate model on other datasets
                 for data_type in eval_only_data:
                     loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
                     losses[f"{data_type}_losses"].append(loader_loss.item())
+                    if verbose:
+                        print(f'{data_type.capitalize()} Loss: {loader_loss}', end='  ')
+                if verbose:
+                    print()
 
         return unlearned_model, losses
-
+    
 
 class NegGradPlus(BaseUnlearner):
     """
@@ -191,6 +199,7 @@ class NegGradPlus(BaseUnlearner):
     def unlearn(self,
                 model: nn.Module,
                 data_dict: Dict[str, DataLoader],
+                verbose: bool = False,
                 **kwargs):
         """
         Perform NegGrad+ unlearning with balanced retain/forget optimization.
@@ -295,15 +304,21 @@ class NegGradPlus(BaseUnlearner):
                 total_forget_loss += forget_loss.item()
                 total_retain_loss += retain_loss.item()
 
-            # Track metrics if evaluation is enabled
+            if verbose:
+                print(f'Epoch {e}: Retain Loss: {total_retain_loss}')
+
             if self.evaluate:
-                # Calculate average losses for this epoch
-                losses['forget_losses'].append(total_forget_loss/len(data_dict['forget']))
-                losses['retain_losses'].append(total_retain_loss/len(data_dict['retain']))
-                # Evaluate model on other datasets
+                # Calculate average retain loss for this epoch
+                losses['retain_losses'].append(total_retain_loss)
                 unlearned_model.eval()
+                # Evaluate model on other datasets
                 for data_type in eval_only_data:
                     loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
                     losses[f"{data_type}_losses"].append(loader_loss.item())
+                    if verbose:
+                        print(f'{data_type.capitalize()} Loss: {loader_loss}', end='  ')
+                if verbose:
+                    print()
+                
 
         return unlearned_model, losses

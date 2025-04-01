@@ -13,6 +13,7 @@ from unlearning.kunlearn import KUnlearn
 from unlearning.neggrad import NegGrad, NegGradPlus
 from unlearning.trainer import Trainer
 from datasets import load_datasets as src_datasets
+from unlearning.eval import plot
 
 DEFAULT_SEED = 42
 
@@ -31,7 +32,8 @@ class UnlearnApp:
                 print('.yaml file not found.')
 
         # Get data from the config
-        self.device = setup_device()
+        self.device='cpu'
+        # self.device = setup_device()
         self.seed = config.get('seed', DEFAULT_SEED)
         set_seed(self.seed)
 
@@ -252,6 +254,7 @@ class UnlearnApp:
             raise Exception(f'Error loading model: {e}')
 
     def run(self):
+        print('running...')
         # Step 1: Initialize and prepare datasets
         train_dataset, test_dataset = self.initialize_dataset()
         print('datasets initialized')
@@ -268,6 +271,16 @@ class UnlearnApp:
             # Extract loader configurations
             batch_sizes = self.dataset_cfg['batch_sizes']
             shuffle_settings = self.dataset_cfg['shuffle_settings']
+
+            # Add this before the problematic line
+            class_counts = {}
+            for i in range(len(train_dataset)):
+                label = train_dataset[i][1]  # Assuming labels are at index 1
+                if label in class_counts:
+                    class_counts[label] += 1
+                else:
+                    class_counts[label] = 1
+            print(f"Class counts in train_data_subset: {class_counts}")
 
             # Create dataloaders
             forget_loader, retain_loader, train_loader, val_loader, test_loader = get_all_loaders(
@@ -299,6 +312,12 @@ class UnlearnApp:
             val_loss, val_accuracy = Trainer(original_model).evaluate_model(data_dict['val'])
             print(f"Pre-unlearning Validation Loss: {val_loss:.4f}")
             print(f"Pre-unlearning Validation Accuracy: {val_accuracy:.2f}%\n")
+        retain_loss, retain_accuracy = Trainer(original_model).evaluate_model(data_dict['retain'])
+        forget_loss, forget_accuracy = Trainer(original_model).evaluate_model(data_dict['forget'])
+        print(f"Pre-unlearning Retain Loss: {retain_loss:.4f}")
+        print(f"Pre-unlearning Retain Accuracy: {retain_accuracy:.2f}%\n")
+        print(f"Pre-unlearning Forget Loss: {forget_loss:.4f}")
+        print(f"Pre-unlearning Forget Accuracy: {forget_accuracy:.2f}%\n")
 
         save_model(original_model,
                    output_dir=self.output_dir,
@@ -331,6 +350,15 @@ class UnlearnApp:
             val_loss, val_accuracy = Trainer(unlearned_model).evaluate_model(data_dict['val'])
             print(f"Post-unlearning Validation Loss: {val_loss:.4f}")
             print(f"Post-unlearning Validation Accuracy: {val_accuracy:.2f}%\n")
+        retain_loss, retain_accuracy = Trainer(unlearned_model).evaluate_model(data_dict['retain'])
+        forget_loss, forget_accuracy = Trainer(unlearned_model).evaluate_model(data_dict['forget'])
+        print(f"Pre-unlearning Retain Loss: {retain_loss:.4f}")
+        print(f"Pre-unlearning Retain Accuracy: {retain_accuracy:.2f}%\n")
+        print(f"Pre-unlearning Forget Loss: {forget_loss:.4f}")
+        print(f"Pre-unlearning Forget Accuracy: {forget_accuracy:.2f}%\n")
+
+        if self.evaluate:
+            plot(losses)
 
         return unlearned_model
 
