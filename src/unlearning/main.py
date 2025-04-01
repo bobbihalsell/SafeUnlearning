@@ -54,6 +54,8 @@ class UnlearnApp:
 
         # Process dataset parameters
         self.dataset_name = config['dataset']['name']
+        self.from_web = config['dataset']['from_web']
+        self.url = config['dataset']['url']
         self.val_ratio = config['dataset']['val_ratio']
         self.save_loaders = config['dataset']['save_loaders']
         self.dataset_cfg = config['dataset']['cfg']
@@ -214,6 +216,10 @@ class UnlearnApp:
             train_dataset, test_dataset = src_datasets.load_cifar5_datasets()
         elif self.dataset_name == 'cifar100':
             train_dataset, test_dataset = src_datasets.load_cifar100_datasets()
+        elif self.from_web:
+            save_dir = f'./{self.dataset_name}'
+            train_dataset, test_dataset = src_datasets.download_dataset_from_web(self.url, save_dir)
+
         else:
             raise ValueError(f'{self.dataset_name} not supported.')
         return train_dataset, test_dataset
@@ -279,15 +285,19 @@ class UnlearnApp:
             batch_sizes = self.dataset_cfg['batch_sizes']
             shuffle_settings = self.dataset_cfg['shuffle_settings']
 
-            # Add this before the problematic line
+            # DEBUGGING
             class_counts = {}
+            labels = []
             for i in range(len(train_dataset)):
                 label = train_dataset[i][1]  # Assuming labels are at index 1
+                labels.append(label)
                 if label in class_counts:
                     class_counts[label] += 1
                 else:
                     class_counts[label] = 1
-            print(f"Class counts in train_data_subset: {class_counts}")
+            # print(f"Class counts in train_data_subset: {class_counts}")
+            print(f'len(labels) {len(labels)}')
+            print(f'max: {max(class_counts.values())}')
 
             # Create dataloaders
             forget_loader, retain_loader, train_loader, val_loader, test_loader = get_all_loaders(

@@ -4,6 +4,9 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from torch.utils.data import Subset
 import numpy as np
+import os
+import requests
+import tarfile
 
 def stratified_subset(dataset, proportion):
         targets = np.array(dataset.targets)
@@ -100,20 +103,64 @@ def load_cifar100_datasets(proportion=1.0):
     return train_dataset, test_dataset
 
 
-def load_cifar10_datasets(proportion=1.0):
-    assert 0 < proportion <= 1, "Proportion must be between 0 and 1."
-
-    transform = transforms.Compose([
-        transforms.Resize(224), 
+imagenet_transform = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],  # ImageNet mean
-                             std=[0.229, 0.224, 0.225])   # ImageNet std
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  
     ])
 
-    train_dataset = datasets.CIFAR10(root="./data", train=True, download=True, transform=transform)
-    test_dataset = datasets.CIFAR10(root="./data", train=False, download=True, transform=transform)
+def download_dataset_from_web(url, save_dir, transform=imagenet_transform):
+    """
+    Download, extract and load the dataset (train and test).
+
+    Args:
+    - url: The URL to download the dataset.
+    - save_dir: Directory to save the extracted dataset.
+    - dataset_name: Name of the dataset (default 'imagenet', modify if using others).
     
-    if proportion<1:
-        train_dataset = stratified_subset(train_dataset, proportion)
-        test_dataset = stratified_subset(test_dataset, proportion)
+    Returns:
+    - train_loader, test_loader: DataLoader objects for training and testing datasets.
+    """
+    # Create save directory if it doesn't exist
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    
+    # Define the filename
+    filename = url.split("/")[-1]
+    file_path = os.path.join(save_dir, filename)
+    
+    # Download the dataset
+    if not os.path.exists(file_path):
+        print(f"Downloading {filename}...")
+        response = requests.get(url, stream=True)
+        with open(file_path, "wb") as file:
+            for chunk in response.iter_content(chunk_size=8192):
+                file.write(chunk)
+        print(f"Download complete: {file_path}")
+    else:
+        print(f"{filename} already downloaded.")
+    
+    # Extract the tar file
+    if tarfile.is_tarfile(file_path):
+        print(f"Extracting {filename}...")
+        with tarfile.open(file_path, "r:gz") as tar:
+            tar.extractall(path=save_dir)
+        print(f"Extraction complete.")
+    else:
+        print("The downloaded file is not a valid tar file.")
+        return None, None
+    
+    # Load the dataset from extracted files (assuming ImageNet structure)
+    train_dir = os.path.join(save_dir, 'train')
+    test_dir = os.path.join(save_dir, 'val')
+
+    if not os.path.exists(train_dir) or not os.path.exists(test_dir):
+        print(f"Train or test directory missing in {save_dir}. Please verify the structure.")
+        return None, None
+        
+    train_dataset = datasets.ImageFolder(root=train_dir, transform=transform)
+    test_dataset = datasets.ImageFolder(root=test_dir, transform=transform)
+
     return train_dataset, test_dataset
+
