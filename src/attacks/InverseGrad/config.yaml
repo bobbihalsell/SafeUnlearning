@@ -1,0 +1,23 @@
+experiments:
+- exp_name: resnet18_ga_1forget_1ep
+  seed: 42
+  original_weights_path: ../../artifacts/models/resnet18_cifar10_10ep.pth
+  unlearned_weights_path: ../../artifacts/unlearned/resnet18_ga_1forget_1ep.pth
+  labels: [7]
+  rec_experiments: 1
+  rec_epochs: 300
+  rec_lr: 0.5
+  grad_lr: 0.05
+  image_mean: &id001
+  - 0.5
+  - 0.5
+  - 0.5
+  image_shape: &id002
+  - 3
+  - 32
+  - 32
+  image_std: &id003
+  - 0.5
+  - 0.5
+  - 0.5
+  savepath: ../../artifacts/reconstructed/DGL/
