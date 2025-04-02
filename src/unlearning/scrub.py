@@ -256,7 +256,7 @@ class SCRUB(BaseUnlearner):
         # Initialize loss tracking
         losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
 
-        optimizer = torch.optim.SGD(params=model.parameters(),
+        optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
                                     lr=lr,
                                     weight_decay=weight_decay)
         

@@ -112,11 +112,11 @@ class NegGrad(BaseUnlearner):
                 total_forget_loss += forget_loss.item()
 
             if verbose:
-                print(f'Epoch {e}: Retain Loss: {total_retain_loss}')
+                print(f'Epoch {e}: Forget Loss: {total_forget_loss}')
 
             if self.evaluate:
                 # Calculate average retain loss for this epoch
-                losses['retain_losses'].append(total_retain_loss)
+                losses['forget_losses'].append(total_forget_loss)
                 unlearned_model.eval()
                 # Evaluate model on other datasets
                 for data_type in eval_only_data:
@@ -261,7 +261,7 @@ class NegGradPlus(BaseUnlearner):
                           data_dict[data] is not None]
 
         # Main training loop
-        for _ in range(num_epochs):
+        for e in range(num_epochs):
             total_forget_loss, total_retain_loss = 0, 0
             for retain_batch, forget_batch in zip(data_dict['retain'],
                                                   cycle(data_dict['forget'])
@@ -305,7 +305,7 @@ class NegGradPlus(BaseUnlearner):
                 total_retain_loss += retain_loss.item()
 
             if verbose:
-                print(f'Epoch {e}: Retain Loss: {total_retain_loss}')
+                print(f'Epoch {e}: Retain Loss: {total_retain_loss}, Forget Loss: {total_forget_loss}')
 
             if self.evaluate:
                 # Calculate average retain loss for this epoch
