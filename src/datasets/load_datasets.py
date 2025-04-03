@@ -32,10 +32,8 @@ def load_cifar10_datasets(proportion=1.0):
     ])
     train_dataset = datasets.CIFAR10(root="./data", train=True,
                                      download=True, transform=transform)
-    # train_dataset = Subset(train_dataset, list(range(500)))
     test_dataset = datasets.CIFAR10(root="./data", train=False,
                                     download=True, transform=transform)
-    # test_dataset = Subset(test_dataset, list(range(500)))
 
     if proportion < 1:
         train_dataset = stratified_subset(train_dataset, proportion)
@@ -64,10 +62,6 @@ def load_cifar5_datasets(proportion=1.0):
     train_indices = [i for i, (_, label) in enumerate(full_train_dataset) if label < 5]
     test_indices = [i for i, (_, label) in enumerate(full_test_dataset) if label < 5]
 
-    # Limit to 500 samples
-    train_indices = train_indices[:500]
-    test_indices = test_indices[:500]
-
     # Create subsets
     train_dataset = Subset(full_train_dataset, train_indices)
     test_dataset = Subset(full_test_dataset, test_indices)
@@ -95,10 +89,6 @@ def load_cifar100_datasets(proportion=1.0):
     test_dataset = datasets.CIFAR100(root="./data", train=False,
                                      download=True, transform=transform)
 
-    # Limit to 500 samples
-    train_dataset = Subset(train_dataset, list(range(500)))
-    test_dataset = Subset(test_dataset, list(range(500)))
-
     if proportion < 1:
         train_dataset = stratified_subset(train_dataset, proportion)
         test_dataset = stratified_subset(test_dataset, proportion)
@@ -109,20 +99,21 @@ imagenet_transform = transforms.Compose([
         transforms.Resize(256),
         transforms.CenterCrop(224),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
+
 
 def download_dataset_from_web(url, save_dir, proportion=1.0, transform=imagenet_transform):
     """
     Download, extract and load the dataset (train and test).
 
     Args:
-    - url: The URL to download the dataset.
-    - save_dir: Directory to save the extracted dataset.
-    - transform (torchvision.transforms): A transformation pipeline corresponding to the image dataset
+        url: The URL to download the dataset.
+        save_dir: Directory to save the extracted dataset.
+        transform (torchvision.transforms): A transformation pipeline
 
     Returns:
-    - train_loader, test_loader: DataLoader objects for training and testing datasets.
+        train_dataset, test_dataset (Tuple[Dataset])
     """
     # Create save directory if it doesn't exist
     if not os.path.exists(save_dir):
