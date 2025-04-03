@@ -188,7 +188,7 @@ class TrainApp:
         os.makedirs(self.model_save_dir, exist_ok=True)
         save_path = self.model_save_dir + f'/{self.model_name}_{self.seed}_original.pt'
 
-        print("Starting training...")
+        print(f"Starting training with device {device}...")
         for epoch in range(num_epochs):
             # Training phase
             model.train()
