@@ -32,9 +32,9 @@ unlearner:
     method: CFk  # For kunlearn (CFk or EUk)
     reinit_method: randn  # For euk (randn or zero or xaiver)
 dataset:
-  name: testingfunc  # Options: cifar10, cifar5, cifar100, imagenet
-  from_web: True
+  name: custom  # Options: cifar10, cifar5, cifar100, custom
   url: https://github.com/torvalds/linux/archive/master.tar.gz # ignored if not from_web. must end in .tar or .tar.gz
+  root:
   proportion: 0.001 # Choose 1 to get all data. Data will always be balanced.
   val_ratio: 0.2
   save_loaders: true

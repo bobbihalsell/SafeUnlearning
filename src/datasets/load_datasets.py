@@ -141,16 +141,15 @@ def download_dataset_from_web(url, save_dir, proportion=1.0, transform=imagenet_
             tar.extractall(path=save_dir)
         print("Extraction complete.")
     else:
-        print("The downloaded file is not a valid tar file.")
-        return None, None
+        raise Exception("The downloaded file is not a valid tar file.")
 
     # Load the dataset from extracted files (assuming ImageNet structure)
     train_dir = os.path.join(save_dir, 'train')
     test_dir = os.path.join(save_dir, 'val')
 
     if not os.path.exists(train_dir) or not os.path.exists(test_dir):
-        print(f"Train or test directory missing in {save_dir}. Please verify the structure.")
-        return None, None
+        raise Exception(f"Train or test directory missing in {save_dir}."
+                        " Please verify the structure.")
 
     train_dataset = datasets.ImageFolder(root=train_dir, transform=transform)
     test_dataset = datasets.ImageFolder(root=test_dir, transform=transform)

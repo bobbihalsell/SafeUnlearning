@@ -32,12 +32,12 @@ class UnlearnApp:
                 print('.yaml file not found.')
 
         # Get data from the config
-        self.device='cpu'
-        # self.device = setup_device()
+        self.device = setup_device()
+        print(f'Using device: {self.device}')
         self.seed = config.get('seed', DEFAULT_SEED)
         set_seed(self.seed)
 
-        model_config= config['model']
+        model_config = config['model']
         self.model_name = model_config['name']
         self.model_ckpt_path = model_config.get('model_ckpt_path', None)
         # Check whether to use built-in pretrained weights
@@ -54,7 +54,6 @@ class UnlearnApp:
 
         # Process dataset parameters
         self.dataset_name = config['dataset']['name']
-        self.from_web = config['dataset']['from_web']
         self.url = config['dataset']['url']
         self.val_ratio = config['dataset']['val_ratio']
         self.save_loaders = config['dataset']['save_loaders']
@@ -89,7 +88,7 @@ class UnlearnApp:
                 else:
                     raise ValueError(f'Only cross_entropy loss_fn is allowed, received '
                                      f'{self.unlearn_params['loss_fn']}')
-                
+
         if missing_params:
             raise ValueError(f"Missing required parameters for unlearning: {', '.join(missing_params)}")
 
@@ -216,10 +215,13 @@ class UnlearnApp:
             train_dataset, test_dataset = src_datasets.load_cifar5_datasets()
         elif self.dataset_name == 'cifar100':
             train_dataset, test_dataset = src_datasets.load_cifar100_datasets()
-        elif self.from_web:
-            save_dir = f'./{self.dataset_name}'
-            train_dataset, test_dataset = src_datasets.download_dataset_from_web(self.url, save_dir)
-
+        elif self.dataset_name == 'custom':
+            if self.url:
+                # Download and save
+                train_dataset, test_dataset = src_datasets.download_dataset_from_web(self.url, 
+                                                                                     './data')
+            else:
+                raise Exception('If specifying a custom dataset, a web URL to the dataset must be provided.')
         else:
             raise ValueError(f'{self.dataset_name} not supported.')
         return train_dataset, test_dataset
@@ -285,25 +287,11 @@ class UnlearnApp:
             batch_sizes = self.dataset_cfg['batch_sizes']
             shuffle_settings = self.dataset_cfg['shuffle_settings']
 
-            # DEBUGGING
-            class_counts = {}
-            labels = []
-            for i in range(len(train_dataset)):
-                label = train_dataset[i][1]  # Assuming labels are at index 1
-                labels.append(label)
-                if label in class_counts:
-                    class_counts[label] += 1
-                else:
-                    class_counts[label] = 1
-            # print(f"Class counts in train_data_subset: {class_counts}")
-            print(f'len(labels) {len(labels)}')
-            print(f'max: {max(class_counts.values())}')
-
             # Create dataloaders
             forget_loader, retain_loader, train_loader, val_loader, test_loader = get_all_loaders(
-                train_dataset, 
-                test_dataset, 
-                method=self.forget_method, 
+                train_dataset,
+                test_dataset,
+                method=self.forget_method,
                 batch_sizes=batch_sizes,
                 shuffle_settings=shuffle_settings,
                 val_ratio=self.val_ratio,
@@ -316,7 +304,7 @@ class UnlearnApp:
                 'val': val_loader,
                 'test': test_loader
                 }
-            
+
             print(data_dict.keys())
             # Save loaders if configured to do so
             if self.save_loaders:
@@ -354,10 +342,10 @@ class UnlearnApp:
 
         # Step 5: Save the unlearned model
         save_model(unlearned_model,
-                   output_dir=self.output_dir, 
+                   output_dir=self.output_dir,
                    unlearning_algorithm=self.unlearner_name,
                    model_name=self.model_name,
-                   seed=self.seed, 
+                   seed=self.seed,
                    model_type='unlearned',
                    payload=losses)
 
