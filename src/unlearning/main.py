@@ -193,17 +193,15 @@ class UnlearnApp:
                 self.evaluate,
             )
         elif self.unlearner_name == 'euk':
-            k = self.unlearn_params[k]
             unlearner = KUnlearn(
-                k=self.unlearn_params[k],
+                k=self.unlearn_params['k'],
                 method=self.unlearner_name,
                 device=self.device,
                 evaluate=self.evaluate,
                 )
         elif self.unlearner_name == 'cfk':
-            k = self.unlearn_params[k]
             unlearner = KUnlearn(
-                k=self.unlearn_params[k],
+                k=self.unlearn_params['k'],
                 method=self.unlearner_name,
                 device=self.device,
                 evaluate=self.evaluate
