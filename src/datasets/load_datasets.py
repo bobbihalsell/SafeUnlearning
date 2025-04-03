@@ -1,13 +1,20 @@
 from torch.utils.data import Subset
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
+from datasets.cifar10 import (get_cifar10_train_transform,
+                              get_cifar10_test_transform)
+from datasets.cifar100 import (get_cifar100_train_transform,
+                               get_cifar100_test_transform)
+from datasets.imagenet import (get_imagenet_train_transform,
+                               get_imagenet_test_transform)
 import numpy as np
 import os
 import requests
 import tarfile
 
 
-def stratified_subset(dataset, proportion):
+def _get_stratified_subset(dataset,
+                           proportion: float):
     """ Get a stratified subset of the dataset, retaining class distributions."""
     targets = np.array(dataset.targets)
     num_classes = len(set(targets))
@@ -23,97 +30,83 @@ def stratified_subset(dataset, proportion):
     return Subset(dataset, indices)
 
 
-def load_cifar10_datasets(proportion=1.0):
-    transform = transforms.Compose([
-        transforms.Resize(224),  # Resize CIFAR images to 224x224
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],  # ImageNet mean
-                             std=[0.229, 0.224, 0.225])   # ImageNet std
-    ])
-    train_dataset = datasets.CIFAR10(root="./data", train=True,
-                                     download=True, transform=transform)
-    test_dataset = datasets.CIFAR10(root="./data", train=False,
-                                    download=True, transform=transform)
+def load_dataset(dataset_name: str,
+                 proportion: float,
+                 dataset_save_path: str):
+    """ Load and transform a train and test dataset.
 
+    Transforms for the dataset must be pre-provided in the code somewhere.
+
+    Args:
+        dataset_name (str): The name of the dataset-of-origin of the images
+        proportion (float): The proportion of the dataset that will be used
+        dataset_save_path (str): The path at which the dataset is saved.
+            If the dataset is from ImageNet, use
+            the parent of the train and val directories.
+    Returns:
+        train_dataset, test_dataset (Tuple[Dataset])
+    """
+    # Select the correct transform
+    if dataset_name == 'cifar10':
+        train_transform = get_cifar10_train_transform()
+        test_transform = get_cifar10_test_transform()
+        train_dataset = datasets.CIFAR10(root=dataset_save_path, train=True, download=True, transform=train_transform)
+        test_dataset = datasets.CIFAR10(root=dataset_save_path, train=False, download=True, transform=test_transform)
+
+    elif dataset_name == 'cifar100':
+        train_transform = get_cifar100_train_transform()
+        test_transform = get_cifar100_test_transform()
+        train_dataset = datasets.CIFAR100(root=dataset_save_path, train=True, download=True, transform=train_transform)
+        test_dataset = datasets.CIFAR100(root=dataset_save_path, train=False, download=True, transform=test_transform)
+
+    elif dataset_name == 'cifar5':
+        train_transform = get_cifar10_train_transform()
+        test_transform = get_cifar10_test_transform()
+        full_train_dataset = datasets.CIFAR10(root=dataset_save_path, train=True, download=True, transform=train_transform)
+        full_test_dataset = datasets.CIFAR10(root=dataset_save_path, train=False, download=True, transform=test_transform)
+
+        # Filter classes to keep only 0-4
+        train_indices = [i for i, (_, label) in enumerate(full_train_dataset) if label < 5]
+        test_indices = [i for i, (_, label) in enumerate(full_test_dataset) if label < 5]
+
+        train_dataset = Subset(full_train_dataset, train_indices)
+        test_dataset = Subset(full_test_dataset, test_indices)
+
+    elif dataset_name == 'imagenet':
+        train_transform = get_imagenet_train_transform()
+        test_transform = get_imagenet_test_transform()
+        # Dataset directory structure must follow the structure required by ImageFolder
+        train_dataset_save_path = os.path.join(dataset_save_path, "train")
+        test_dataset_save_path = os.path.join(dataset_save_path, "val")
+        train_dataset = datasets.ImageFolder(root=train_dataset_save_path,
+                                             transform=train_transform)
+        test_dataset = datasets.ImageFolder(root=test_dataset_save_path,
+                                            transform=test_transform)
+
+    else:
+        # Note: All subsequent custom datasets must follow ImageNet structure
+        raise Exception(f'{dataset_name} is an unsupported dataset.')
+
+    # Apply proportional subsampling if needed
     if proportion < 1:
-        train_dataset = stratified_subset(train_dataset, proportion)
-        test_dataset = stratified_subset(test_dataset, proportion)
+        train_dataset = _get_stratified_subset(train_dataset,
+                                               proportion)
+        test_dataset = _get_stratified_subset(test_dataset,
+                                              proportion)
+
     return train_dataset, test_dataset
 
 
-def load_cifar5_datasets(proportion=1.0):
+def download_dataset_from_web(url, save_dir):
     """
-    Load a subset of CIFAR-10 containing only the first 5 classes (0-4).
-    """
-    transform = transforms.Compose([
-        transforms.Resize(224),  # Resize images to 224x224
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],  # ImageNet mean
-                             std=[0.229, 0.224, 0.225])   # ImageNet std
-    ])
-
-    # Load full CIFAR-10 datasets
-    full_train_dataset = datasets.CIFAR10(root="./data", train=True,
-                                          download=True, transform=transform)
-    full_test_dataset = datasets.CIFAR10(root="./data", train=False,
-                                         download=True, transform=transform)
-
-    # Filter to keep only classes 0-4 (first 5 classes)
-    train_indices = [i for i, (_, label) in enumerate(full_train_dataset) if label < 5]
-    test_indices = [i for i, (_, label) in enumerate(full_test_dataset) if label < 5]
-
-    # Create subsets
-    train_dataset = Subset(full_train_dataset, train_indices)
-    test_dataset = Subset(full_test_dataset, test_indices)
-
-    if proportion < 1:
-        train_dataset = stratified_subset(train_dataset, proportion)
-        test_dataset = stratified_subset(test_dataset, proportion)
-    return train_dataset, test_dataset
-
-
-def load_cifar100_datasets(proportion=1.0):
-    """
-    Load CIFAR-100 dataset.
-    """
-    transform = transforms.Compose([
-        transforms.Resize(224),  # Resize images to 224x224
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],  # ImageNet mean
-                             std=[0.229, 0.224, 0.225])   # ImageNet std
-    ])
-
-    # Load CIFAR-100 datasets
-    train_dataset = datasets.CIFAR100(root="./data", train=True,
-                                      download=True, transform=transform)
-    test_dataset = datasets.CIFAR100(root="./data", train=False,
-                                     download=True, transform=transform)
-
-    if proportion < 1:
-        train_dataset = stratified_subset(train_dataset, proportion)
-        test_dataset = stratified_subset(test_dataset, proportion)
-    return train_dataset, test_dataset
-
-
-imagenet_transform = transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
-
-
-def download_dataset_from_web(url, save_dir, proportion=1.0, transform=imagenet_transform):
-    """
-    Download, extract and load the dataset (train and test).
+    Download a dataset from the web.
 
     Args:
         url: The URL to download the dataset.
         save_dir: Directory to save the extracted dataset.
-        transform (torchvision.transforms): A transformation pipeline
 
     Returns:
-        train_dataset, test_dataset (Tuple[Dataset])
+        None
     """
     # Create save directory if it doesn't exist
     if not os.path.exists(save_dir):
@@ -143,18 +136,10 @@ def download_dataset_from_web(url, save_dir, proportion=1.0, transform=imagenet_
     else:
         raise Exception("The downloaded file is not a valid tar file.")
 
-    # Load the dataset from extracted files (assuming ImageNet structure)
+    # Verify the dataset has correct structure
     train_dir = os.path.join(save_dir, 'train')
     test_dir = os.path.join(save_dir, 'val')
 
     if not os.path.exists(train_dir) or not os.path.exists(test_dir):
         raise Exception(f"Train or test directory missing in {save_dir}."
                         " Please verify the structure.")
-
-    train_dataset = datasets.ImageFolder(root=train_dir, transform=transform)
-    test_dataset = datasets.ImageFolder(root=test_dir, transform=transform)
-
-    if proportion < 1:
-        train_dataset = stratified_subset(train_dataset, proportion)
-        test_dataset = stratified_subset(test_dataset, proportion)
-    return train_dataset, test_dataset
