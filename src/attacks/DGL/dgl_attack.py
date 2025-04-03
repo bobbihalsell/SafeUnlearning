@@ -168,6 +168,7 @@ if __name__=="__main__":
 
     for params in config["experiments"]:
         exp_name = params["exp_name"]
+        seed = params["seed"]
         num_classes = params["num_classes"]
         original_weights_path = params["original_weights_path"]
         unlearned_weights_path = params["unlearned_weights_path"]
@@ -181,6 +182,8 @@ if __name__=="__main__":
         image_mean = params["image_mean"]
         image_std = params["image_std"]
         save_path = params["savepath"]
+
+        set_seed(seed)
 
         print(f"Running experiment: {exp_name}")
         print(params)
