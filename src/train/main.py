@@ -2,9 +2,11 @@ import argparse
 import yaml
 import torchvision
 import torch
+from torch.utils.data import DataLoader
 import timm
 from datasets import load_datasets as src_datasets
 from datasets import preprocessing
+from train.utils import setup_device
 
 
 class TrainApp:
@@ -25,12 +27,24 @@ class TrainApp:
                 config = yaml.safe_load(f)
             except FileNotFoundError:
                 print('.yaml file not found.')
+                exit(1)
 
-        self.model_name = config['name']
-        self.pretrained = config['pretrained']
-        self.num_classes = config['num_classes']
-        self.save_path = config['save_path']
-        assert self.save_path is not None
+        model_cfg = config['model']
+        self.model_name = model_cfg['name']
+        self.pretrained = model_cfg['pretrained']
+        self.num_classes = model_cfg['num_classes']
+        self.model_save_path = model_cfg['save_path']
+        assert self.model_save_path is not None
+
+        dataset_cfg = config['dataset']
+        self.dataset_name = dataset_cfg['name']
+        self.url = dataset_cfg['url']
+        self.dataset_save_path = dataset_cfg['save_path']
+        self.proportion = dataset_cfg['proportion']
+        self.val_ratio = dataset_cfg['val_ratio']
+
+        self.batch_sizes = dataset_cfg['batch_sizes']
+        self.num_workers = dataset_cfg['num_workers']
 
     def initialize_model(self):
         """Initialize the model based on model name from user configuration."""
@@ -97,7 +111,7 @@ class TrainApp:
         )
         self._validate_split(train_subset, val_dataset, test_dataset)
 
-        return train_dataset, test_dataset
+        return train_subset, val_dataset, test_dataset
 
     def _validate_split(self, train_set, val_set, test_set):
         """ Debugger to check no dataset leakage"""
@@ -109,15 +123,111 @@ class TrainApp:
         assert len(val_set_indices & test_set_indices) == 0
         assert len(train_set_indices & test_set_indices) == 0
 
-    def pretrain(self, model):
-        """ Perform pretraining of a model on a dataset."""
-        pass
+    def convert_to_dataloaders(self,
+                               train_dataset,
+                               val_dataset,
+                               test_dataset):
+        """ Convert the datasets to dataloaders before training."""
+        train_batch_size = self.batch_sizes['train']
+        val_batch_size = self.batch_sizes['val']
+        test_batch_size = self.batch_sizes['test']
 
-    def run(self):
-        print(self.model_name)
-        print(self.pretrained)
-        print(self.num_classes)
-        print(self.save_path)
+        train_dl = DataLoader(train_dataset,
+                              batch_size=train_batch_size,
+                              shuffle=True)
+        val_dl = DataLoader(val_dataset,
+                            batch_size=val_batch_size,
+                            shuffle=False)
+        test_dl = DataLoader(test_dataset,
+                             batch_size=test_batch_size,
+                             shuffle=False)
+
+        return train_dl, val_dl, test_dl
+
+    def pretrain(self):
+        """ Perform pretraining of a model on a dataset."""
+        # Step 1: Initialize the model
+        model = self.initialize_model()
+        device = setup_device()
+        model.to(device)
+
+        # Step 2: Load datasets and dataloaders
+        train_dataset, val_dataset, test_dataset = self.initialize_datasets()
+        train_dl, val_dl, test_dl = self.convert_to_dataloaders(train_dataset,
+                                                                val_dataset,
+                                                                test_dataset)
+
+        # Step 3: Set up loss function and optimizer
+        criterion = torch.nn.CrossEntropyLoss()
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+        # Training configuration
+        num_epochs = 10
+        best_val_loss = float("inf")
+
+        print("Starting training...")
+        for epoch in range(num_epochs):
+            # Training phase
+            model.train()
+            train_loss = 0.0
+            correct, total = 0, 0
+
+            for batch in train_dl:
+                inputs, labels = batch
+                inputs, labels = inputs.to(device), labels.to(device)
+
+                optimizer.zero_grad()
+                outputs = model(inputs)
+                loss = criterion(outputs, labels)
+                loss.backward()
+                optimizer.step()
+
+                train_loss += loss.item() * inputs.size(0)
+                _, predicted = outputs.max(1)
+                total += labels.size(0)
+                correct += predicted.eq(labels).sum().item()
+
+            train_loss /= len(train_dl.dataset)
+            train_acc = 100.0 * correct / total
+
+            # Validation phase
+            val_loss, val_acc = self.eval_model(criterion, model, val_dl)
+
+            print(f"Epoch {epoch+1}/{num_epochs} - "
+                  f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}% - "
+                  f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%")
+
+            # Save the best model based on validation loss
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                torch.save(model.state_dict(), self.model_save_path)
+                print(f"New best model saved at {self.model_save_path}")
+
+        print("Training complete.")
+
+    def eval_model(self, criterion, model, val_dl):
+        model.eval()
+        device = setup_device()
+        val_loss = 0.0
+        correct, total = 0, 0
+
+        with torch.no_grad():
+            for batch in val_dl:
+                inputs, labels = batch
+                inputs, labels = inputs.to(device), labels.to(device)
+
+                outputs = model(inputs)
+                loss = criterion(outputs, labels)
+
+                val_loss += loss.item() * inputs.size(0)
+                _, predicted = outputs.max(1)
+                total += labels.size(0)
+                correct += predicted.eq(labels).sum().item()
+
+        val_loss /= len(val_dl.dataset)
+        val_acc = 100.0 * correct / total
+
+        return val_loss, val_acc
 
 
 if __name__ == '__main__':
