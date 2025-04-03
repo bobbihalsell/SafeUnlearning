@@ -24,10 +24,10 @@ class ImageSaver:
             plt.imshow(images[0].permute(1, 2, 0).cpu())
             plt.axis('off')
         else:
-            fig, axes = plt.subplots(1, self.num_images == 1, figsize=(40, images.shape[0]*12))
+            fig, axes = plt.subplots(1, self.num_images, figsize=(40, self.num_images*12))
             for i, im in enumerate(images):
                 axes[i].imshow(im.permute(1, 2, 0).cpu())
-                axes[i].set_title(f"Loss: {loss:.2f}", fontsize=40) 
+                # axes[i].set_title(f"Loss: {loss:.2f}", fontsize=40) 
 
         filename = self._generate_filename(filename)
         plt.savefig(self.base_save_path / filename, bbox_inches='tight')
