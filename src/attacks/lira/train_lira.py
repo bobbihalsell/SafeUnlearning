@@ -1,5 +1,5 @@
 import argparse
-from pipeline.lira.step_1_lira_generate_splits import get_retain_forget_val_test_indices
+from utils import get_retain_forget_val_test_indices
 from pipeline.step_5_unlearn import UnlearnerApp
 from pipeline.optuna_search_hp import instantiate_objects
 from munl.datasets import get_loaders_from_dataset_and_unlearner_from_cfg_with_indices
