@@ -1,0 +1,25 @@
+model:
+  name: mobilenet_v2
+  pretrained: true  # Use library-provided pretrained weights.
+  num_classes: 10
+  save_path: # filepath to save the trained model
+  train_cfg:
+    epochs: 10
+    loss_fn: cross_entropy
+    lr: 0.01
+    weight_decay: 0
+    optimizer: sgd
+    momentum: 0.9
+dataset:
+  name: cifar10  # Options: cifar10, cifar5, cifar100, imagenet
+  url: # must end in .tar or .tar.gz
+  save_path: ./test # the directory filepath where the dataset should be saved. 
+  proportion: 0.001 # Choose 1 to get all data.
+  val_ratio: 0.2
+  save_loaders: true
+  cfg:
+    batch_sizes:
+      train: 64
+      val: 64
+      test: 64
+    num_workers: 1

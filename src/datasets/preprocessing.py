@@ -196,8 +196,39 @@ def load_loaders(datapath, shuffle_settings=None, num_workers=4, pin_memory=True
             num_workers=num_workers,
             pin_memory=pin_memory
         )
-    
+
     return loaders
+
+
+def train_val_split(train_dataset,
+                    val_ratio,
+                    verbose=True):
+    """ Perform a train/validation dataset split based on val ratio.
+
+    Args:
+        train_dataset (Dataset)
+        val_ratio (float): Validation ratio
+
+    Returns:
+        train_data_subset, val_dataset
+    """
+    if verbose:
+        print(f'Creating validation set with {val_ratio*100:.1f}% '
+              ' of training data.')
+
+    train_size = len(train_dataset)
+    indices = list(range(train_size))
+
+    np.random.shuffle(indices)
+
+    val_size = int(val_ratio * train_size)
+    val_indices = indices[:val_size]
+    train_indices = indices[val_size:]
+    # Create subsets
+    val_dataset = Subset(train_dataset, val_indices)
+    train_data_subset = Subset(train_dataset, train_indices)
+
+    return train_data_subset, val_dataset
 
 
 def get_all_loaders(train_data, 
@@ -210,7 +241,7 @@ def get_all_loaders(train_data,
                     **kwargs):
     """
     Complete pipeline to load data, create forget/retain splits, and save loaders.
-    
+
     Args:
         train_path: Path to the training data file
         test_path: Path to the test data file
@@ -226,7 +257,7 @@ def get_all_loaders(train_data,
                  - forget_labels: Labels to forget for class-based methods (default: [0])
                  - num_to_forget: Number of instances to forget per class (default: 1)
                  - num_workers: Number of worker processes for data loading (default: 4)
-        
+
     Returns:
         Tuple containing (forget_loader, retain_loader, train_loader, test_loader)
     """
@@ -243,30 +274,9 @@ def get_all_loaders(train_data,
     verbose = kwargs.get('verbose', False)
     num_workers = kwargs.get('num_workers', 4)
 
-    # Create validation split from training data before any unlearning to keep validation independent
-    if val_ratio > 0:
-        if verbose:
-            print(f"Creating validation set with {val_ratio*100:.1f}% of training data")
-        
-        train_size = len(train_data)
-        indices = list(range(train_size))
-        
-        # Set seed for reproducible splits
-        torch.manual_seed(random_seed)
-        np.random.seed(random_seed)
-        np.random.shuffle(indices)
-        
-        val_size = int(val_ratio * train_size)
-        val_indices = indices[:val_size]
-        train_indices = indices[val_size:]
-        
-        # Create subsets
-        val_dataset = Subset(train_data, val_indices)
-        train_data_subset = Subset(train_data, train_indices)
-    else:
+    train_data_subset, val_dataset = train_val_split(train_data, val_ratio, verbose=verbose)
+    if len(val_dataset) == 0:
         val_dataset = None
-        train_data_subset = train_data
-
 
     # Create forget/retain splits based on specified method
     if method == 'instances':
@@ -274,29 +284,29 @@ def get_all_loaders(train_data,
         if verbose:
             print(f"Removing {len(forget_set_indices)} instances by indices")
         retain_dataset = remove_samples_by_indices(train_data_subset, forget_set_indices, return_forget, verbose)
-        
+
     elif method == 'class_instances':
         forget_labels = kwargs['forget_labels']
         num_to_forget = kwargs['num_to_forget']
         if verbose:
             print(f"Removing {num_to_forget} instances from each of classes {forget_labels}")
         retain_dataset = remove_samples_by_class(train_data_subset, forget_labels, num_to_forget, return_forget, verbose)
-        
+
     elif method == 'class':
         forget_labels = kwargs['forget_labels']
         if verbose:
             print(f"Removing all instances of classes {forget_labels}")
         retain_dataset = remove_classes(train_data_subset, forget_labels, return_forget, verbose)
-        
+
     else:
         raise ValueError(f"Unknown method: {method}. Choose from 'instances', 'class_instances', or 'class'.")
-    
+
     # Separate retain and forget datasets if both were returned
     if return_forget and isinstance(retain_dataset, tuple) and len(retain_dataset) == 2:
         retain_dataset, forget_dataset = retain_dataset
     elif return_forget:
         raise ValueError("Expected return_forget=True to return a tuple of (retain, forget) datasets")
-    
+
     # Create loader configurations
     loader_configs = {
         'forget': (forget_dataset, batch_sizes['forget'], shuffle_settings['forget']),
@@ -307,7 +317,7 @@ def get_all_loaders(train_data,
 
     # Add validation loader if validation set exists
     if val_dataset is not None:
-        loader_configs['val'] = (val_dataset, 
+        loader_configs['val'] = (val_dataset,
                                batch_sizes.get('val', default_batch_sizes['val']), 
                                shuffle_settings.get('val', default_shuffle['val']))
 

@@ -1,4 +1,4 @@
-model: # THIS TEST USES CIFAR5
+model:
   name: mobilenet_v2
   pretrained: true  # Use library-provided pretrained weights.
   num_classes: 10
