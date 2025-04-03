@@ -92,8 +92,7 @@ def load_dataset(dataset_name: str,
         train_dataset = _get_stratified_subset(train_dataset,
                                                proportion)
         test_dataset = _get_stratified_subset(test_dataset,
-                                              proportion)
-
+                                              proportion=1)
     return train_dataset, test_dataset
 
 

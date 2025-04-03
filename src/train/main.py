@@ -6,7 +6,9 @@ from torch.utils.data import DataLoader
 import timm
 from datasets import load_datasets as src_datasets
 from datasets import preprocessing
-from train.utils import setup_device
+from train.utils import setup_device, set_seed
+import wandb
+import os
 
 
 class TrainApp:
@@ -29,22 +31,27 @@ class TrainApp:
                 print('.yaml file not found.')
                 exit(1)
 
+        self.seed = config['seed']
+        set_seed(self.seed)
+
         model_cfg = config['model']
         self.model_name = model_cfg['name']
         self.pretrained = model_cfg['pretrained']
         self.num_classes = model_cfg['num_classes']
-        self.model_save_path = model_cfg['save_path']
-        assert self.model_save_path is not None
+        self.model_save_dir = model_cfg['save_dir']
+        assert self.model_save_dir is not None
 
         dataset_cfg = config['dataset']
         self.dataset_name = dataset_cfg['name']
         self.url = dataset_cfg['url']
-        self.dataset_save_path = dataset_cfg['save_path']
+        self.dataset_save_dir = dataset_cfg['save_dir']
         self.proportion = dataset_cfg['proportion']
         self.val_ratio = dataset_cfg['val_ratio']
 
         self.batch_sizes = dataset_cfg['batch_sizes']
         self.num_workers = dataset_cfg['num_workers']
+
+        self.train_cfg = model_cfg['train_cfg']
 
     def initialize_model(self):
         """Initialize the model based on model name from user configuration."""
@@ -98,30 +105,27 @@ class TrainApp:
             # Download and save ImageNet
             src_datasets.download_imagenet_dataset_from_web(
                 url=self.url,
-                dataset_save_path=self.save_path)
+                dataset_save_path=self.dataset_save_dir)
 
         train_dataset, test_dataset = src_datasets.load_dataset(
             dataset_name=self.dataset_name,
             proportion=self.proportion,
-            dataset_save_path=self.save_path)
+            dataset_save_path=self.dataset_save_dir)
         # Perform train/val split
         train_subset, val_dataset = preprocessing.train_val_split(
             train_dataset=train_dataset,
             val_ratio=self.val_ratio
         )
-        self._validate_split(train_subset, val_dataset, test_dataset)
+        self._validate_split(train_subset, val_dataset)
 
         return train_subset, val_dataset, test_dataset
 
-    def _validate_split(self, train_set, val_set, test_set):
+    def _validate_split(self, train_set, val_set):
         """ Debugger to check no dataset leakage"""
         train_set_indices = set(train_set.indices)
         val_set_indices = set(val_set.indices)
-        test_set_indices = set(test_set.indices)
 
         assert len(train_set_indices & val_set_indices) == 0
-        assert len(val_set_indices & test_set_indices) == 0
-        assert len(train_set_indices & test_set_indices) == 0
 
     def convert_to_dataloaders(self,
                                train_dataset,
@@ -146,6 +150,21 @@ class TrainApp:
 
     def pretrain(self):
         """ Perform pretraining of a model on a dataset."""
+        lr = self.train_cfg['lr']
+        num_epochs = self.train_cfg['epochs']
+        weight_decay = self.train_cfg['weight_decay']
+
+        wandb.init(
+            project="TEST",
+            config={
+                "epochs": num_epochs,
+                "batch_size": self.batch_sizes['train'],
+                "learning_rate": lr,
+                "weight_decay": weight_decay,
+                "model_name": self.model_name,
+                "num_classes": self.num_classes,
+            },
+        )
         # Step 1: Initialize the model
         model = self.initialize_model()
         device = setup_device()
@@ -153,17 +172,21 @@ class TrainApp:
 
         # Step 2: Load datasets and dataloaders
         train_dataset, val_dataset, test_dataset = self.initialize_datasets()
-        train_dl, val_dl, test_dl = self.convert_to_dataloaders(train_dataset,
-                                                                val_dataset,
-                                                                test_dataset)
+        train_dl, val_dl, _ = self.convert_to_dataloaders(train_dataset,
+                                                          val_dataset,
+                                                          test_dataset)
 
         # Step 3: Set up loss function and optimizer
         criterion = torch.nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+        optimizer = torch.optim.Adam(model.parameters(), 
+                                     lr=lr,
+                                     weight_decay=weight_decay)
 
         # Training configuration
-        num_epochs = 10
         best_val_loss = float("inf")
+        # Create the directory if it does not exist
+        os.makedirs(self.model_save_dir, exist_ok=True)
+        save_path = self.model_save_dir + f'/{self.model_name}_{self.seed}_original.pt'
 
         print("Starting training...")
         for epoch in range(num_epochs):
@@ -190,8 +213,20 @@ class TrainApp:
             train_loss /= len(train_dl.dataset)
             train_acc = 100.0 * correct / total
 
+            wandb.log({
+                "train_loss": train_loss,
+                "train_accuracy": train_acc,
+                "epoch": epoch + 1
+            })
+
             # Validation phase
             val_loss, val_acc = self.eval_model(criterion, model, val_dl)
+
+            wandb.log({
+                "val_loss": val_loss,
+                "val_accuracy": val_acc,
+                "epoch": epoch + 1
+            })
 
             print(f"Epoch {epoch+1}/{num_epochs} - "
                   f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}% - "
@@ -200,10 +235,11 @@ class TrainApp:
             # Save the best model based on validation loss
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
-                torch.save(model.state_dict(), self.model_save_path)
-                print(f"New best model saved at {self.model_save_path}")
+                torch.save(model.state_dict(), save_path)
+                print(f"New best model saved at {save_path}")
 
         print("Training complete.")
+        wandb.finish()
 
     def eval_model(self, criterion, model, val_dl):
         model.eval()
@@ -232,4 +268,4 @@ class TrainApp:
 
 if __name__ == '__main__':
     trainer = TrainApp()
-    trainer.run()
+    trainer.pretrain()
