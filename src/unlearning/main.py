@@ -55,7 +55,16 @@ class UnlearnApp:
         # Process dataset parameters
         self.dataset_name = config['dataset']['name']
         self.url = config['dataset']['url']
+        if self.dataset_name != 'imagenet' and self.url is not None:
+            raise Exception('URL download is only supported for ImageNet data.'
+                            ' This is automatically handled for '
+                            'CIFAR datasets.')
+        self.save_path = config['dataset']['save_path']
+        assert self.save_path is not None  # User must provide this
+        self.proportion = config['dataset']['proportion']
+        assert self.proportion >= 0 and self.proportion <= 1
         self.val_ratio = config['dataset']['val_ratio']
+        assert self.val_ratio >= 0 and self.val_ratio <= 1
         self.save_loaders = config['dataset']['save_loaders']
         self.dataset_cfg = config['dataset']['cfg']
 
@@ -164,43 +173,41 @@ class UnlearnApp:
     def initialize_unlearner(self):
         """ Initialize the correct unlearner from user specification."""
         if self.unlearner_name == 'finetune':
-            unlearner = FinetuneUnlearner(self.device,
-                                 self.evaluate,
-                                 self.verbose
-                                )
+            unlearner = FinetuneUnlearner(
+                self.device,
+                self.evaluate,
+            )
         elif self.unlearner_name == 'neggrad':
-            unlearner = NegGrad(self.device,
-                                 self.evaluate,
-                                 self.verbose
-                                )
+            unlearner = NegGrad(
+                self.device,
+                self.evaluate,
+            )
         elif self.unlearner_name == 'neggradplus':
-            unlearner = NegGradPlus(self.device,
-                                 self.evaluate,
-                                 self.verbose
-                                )
+            unlearner = NegGradPlus(
+                self.device,
+                self.evaluate,
+            )
         elif self.unlearner_name == 'scrub':
-            unlearner = SCRUB(self.device,
-                                 self.evaluate,
-                                 self.verbose
-                                )
+            unlearner = SCRUB(
+                self.device,
+                self.evaluate,
+            )
         elif self.unlearner_name == 'euk':
             k = self.unlearn_params[k]
             unlearner = KUnlearn(
-                            k=self.unlearn_params[k],
-                            method=self.unlearner_name,
-                            device=self.device,
-                            evaluate=self.evaluate,
-                            verbose=self.verbose
-                            )
+                k=self.unlearn_params[k],
+                method=self.unlearner_name,
+                device=self.device,
+                evaluate=self.evaluate,
+                )
         elif self.unlearner_name == 'cfk':
             k = self.unlearn_params[k]
             unlearner = KUnlearn(
-                            k=self.unlearn_params[k],
-                            method=self.unlearner_name,
-                            device=self.device,
-                            evaluate=self.evaluate,
-                            verbose=self.verbose
-                            )
+                k=self.unlearn_params[k],
+                method=self.unlearner_name,
+                device=self.device,
+                evaluate=self.evaluate
+                )
         else:
             raise ValueError(f'unlearner_name {self.unlearner_name}'
                              ' not supported.')
@@ -209,21 +216,17 @@ class UnlearnApp:
 
     def initialize_dataset(self):
         """ Initialize the entire dataset based on dataset name."""
-        if self.dataset_name == 'cifar10':
-            train_dataset, test_dataset = src_datasets.load_cifar10_datasets()
-        elif self.dataset_name == 'cifar5':
-            train_dataset, test_dataset = src_datasets.load_cifar5_datasets()
-        elif self.dataset_name == 'cifar100':
-            train_dataset, test_dataset = src_datasets.load_cifar100_datasets()
-        elif self.dataset_name == 'custom':
-            if self.url:
-                # Download and save
-                train_dataset, test_dataset = src_datasets.download_dataset_from_web(self.url, 
-                                                                                     './data')
-            else:
-                raise Exception('If specifying a custom dataset, a web URL to the dataset must be provided.')
-        else:
-            raise ValueError(f'{self.dataset_name} not supported.')
+        if self.dataset_name == 'imagenet' and self.url is not None:
+            # Download and save ImageNet
+            src_datasets.download_imagenet_dataset_from_web(
+                url=self.url,
+                dataset_save_path=self.save_path)
+
+        train_dataset, test_dataset = src_datasets.load_dataset(
+            dataset_name=self.dataset_name,
+            proportion=self.proportion,
+            dataset_save_path=self.save_path)
+
         return train_dataset, test_dataset
 
     def save_loaders_to_disk(self, loaders_dict):
@@ -335,8 +338,8 @@ class UnlearnApp:
         unlearner = self.initialize_unlearner()
         print('unlearner initialized')
         self._extract_unlearner_params()
-        unlearned_model, losses = unlearner.unlearn(original_model, 
-                                                    data_dict, 
+        unlearned_model, losses = unlearner.unlearn(original_model,
+                                                    data_dict,
                                                     **self.unlearn_params)
         print('model unlearned')
 
