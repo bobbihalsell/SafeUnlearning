@@ -97,24 +97,26 @@ def load_dataset(dataset_name: str,
     return train_dataset, test_dataset
 
 
-def download_dataset_from_web(url, save_dir):
+def download_imagenet_dataset_from_web(url, dataset_save_path):
     """
-    Download a dataset from the web.
+    Download an ImageNet dataset tar file and save it in a specified directory.
+
+    The tar file MUST be of the form used by ImageNet.
 
     Args:
         url: The URL to download the dataset.
-        save_dir: Directory to save the extracted dataset.
+        dataset_save_path: Directory to save the extracted dataset.
 
     Returns:
         None
     """
     # Create save directory if it doesn't exist
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+    if not os.path.exists(dataset_save_path):
+        os.makedirs(dataset_save_path)
 
     # Define the filename
     filename = url.split("/")[-1]
-    file_path = os.path.join(save_dir, filename)
+    file_path = os.path.join(dataset_save_path, filename)
 
     # Download the dataset
     if not os.path.exists(file_path):
@@ -131,15 +133,15 @@ def download_dataset_from_web(url, save_dir):
     if tarfile.is_tarfile(file_path):
         print(f"Extracting {filename}...")
         with tarfile.open(file_path, "r:gz") as tar:
-            tar.extractall(path=save_dir)
+            tar.extractall(path=dataset_save_path)
         print("Extraction complete.")
     else:
         raise Exception("The downloaded file is not a valid tar file.")
 
     # Verify the dataset has correct structure
-    train_dir = os.path.join(save_dir, 'train')
-    test_dir = os.path.join(save_dir, 'val')
+    train_dir = os.path.join(dataset_save_path, 'train')
+    test_dir = os.path.join(dataset_save_path, 'val')
 
     if not os.path.exists(train_dir) or not os.path.exists(test_dir):
-        raise Exception(f"Train or test directory missing in {save_dir}."
+        raise Exception(f"Train or test directory missing in {dataset_save_path}."
                         " Please verify the structure.")
