@@ -28,62 +28,37 @@ def get_parser():
     return parser
 
 
-def get_vit_name(split_ndx, forget_ndx):
-    return f"10_32vit11m_0_{split_ndx}_{forget_ndx}.pth"
+def run(lira_model_root: Path, model_name: str, unlearner: str, split_ndx: int,
+        forget_ndx: int, output_dir: Path, device: str):
+    cifar_complete, _ = get_dataset_and_lengths(
+        Path("datasets"), "cifar10", transform=get_cifar10_test_transform()
+    )
+    loader = DataLoader(
+        cifar_complete, batch_size=1024, shuffle=False, num_workers=4
+    )
 
-
-def get_resnet_name(split_ndx, forget_ndx):
-    return f"10_resnet18_0_{split_ndx}_{forget_ndx}.pth"
-
-
-class LiraExtractionApp:
-    def __init__(self, lira_model_root: Path, device):
-        self.lira_model_root = lira_model_root
-        self.device = device
-        self.batch_size = 1024
-
-    def run(
-        self,
-        model_name: str,
-        unlearner: str,
-        split_ndx: int,
-        forget_ndx: int,
-        output_dir: Path,
-    ):
-        if model_name not in ["resnet18"]:
-            raise ValueError("Only resnet18 is supported")
-
-        cifar_complete, _ = get_dataset_and_lengths(
-            Path("datasets"), "cifar10", transform=get_cifar10_test_transform()
-        )
-        loader = DataLoader(
-            cifar_complete, batch_size=self.batch_size, shuffle=False, num_workers=4
-        )
-
-        model = torchvision.models.resnet18(weights=None, num_classes=10)
-        weights = torch.load(
-            self.lira_model_root / unlearner / get_resnet_name(split_ndx, forget_ndx),
-            map_location=self.device,
-        )
-        model.load_state_dict(weights)
-        model.to(self.device)
-        model.eval()
-        with torch.no_grad():
-            extracted = extract_target_and_outputs(model, loader, device=self.device)
-        _, logits = extracted
-        probas = softmax(torch.Tensor(logits), dim=1).numpy()
-        output_path = (
-            output_dir / unlearner / f"{model_name}_0_{split_ndx}_{forget_ndx}.npy"
-        )
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        np.save(output_path, probas)
+    model = torchvision.models.resnet18(weights=None, num_classes=10)
+    weights = torch.load(
+        lira_model_root / unlearner / f"{model_name}_{split_ndx}_{forget_ndx}.pth",
+        map_location=device,
+    )
+    model.load_state_dict(weights)
+    model.to(device)
+    model.eval()
+    with torch.no_grad():
+        extracted = extract_target_and_outputs(model, loader, device=device)
+    _, logits = extracted
+    probas = softmax(torch.Tensor(logits), dim=1).numpy()
+    output_path = (
+        output_dir / unlearner / f"{model_name}_{split_ndx}_{forget_ndx}.npy"
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    np.save(output_path, probas)
 
 
 def main(args):
-    app = LiraExtractionApp(args.lira_model_root, args.device)
-    app.run(
-        args.model, args.unlearner, args.split_ndx, args.forget_ndx, args.output_dir
-    )
+    run(args.lira_model_root, args.model, args.unlearner, args.split_ndx, args.forget_ndx, args.output_dir,
+        args.device)
 
 
 if __name__ == "__main__":

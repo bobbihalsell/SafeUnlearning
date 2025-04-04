@@ -1,15 +1,12 @@
 import argparse
 import pickle
 from collections import defaultdict
-from os import cpu_count
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-from joblib import Parallel, delayed  # type: ignore
 from numpy.typing import NDArray as Array
-from scipy.stats import norm  # type: ignore
-from tqdm import tqdm  # type: ignore
+from scipy.stats import norm
 
 from munl.datasets import get_dataset_and_lengths
 from munl.datasets.cifar10 import get_cifar10_test_transform
@@ -43,17 +40,9 @@ def compute_membership_probabilities(id_to_correct_probas):
 
         # For each predicted probability in the 'forgotten' vector (A),
         # compute the membership probability
-        # for proba in id_to_correct_probas[ndx].forgotten:
-        #     membership_prob = predicted_membership_probability(proba,
-        # forget_mean, forget_std, never_mean, never_std)
-        #     ndx_to_membership[ndx].append(membership_prob)
-        ndx_to_membership[ndx] = Parallel(n_jobs=max(cpu_count() - 1, 1))(
-            delayed(predicted_membership_probability)(
-                proba, forget_mean, forget_std, never_mean, never_std
-            )
-            for proba in id_to_correct_probas[ndx].forgotten
-        )
-
+        for proba in id_to_correct_probas[ndx].forgotten:
+            membership_prob = predicted_membership_probability(proba, forget_mean, forget_std, never_mean, never_std)
+            ndx_to_membership[ndx].append(membership_prob)
     return ndx_to_membership
 
 
@@ -95,7 +84,6 @@ class ProbasNeverAndForgotten:
 def extract_correct_probabilities(
     probas: Array, targets: Array, indices: Dict[int, NeverAndForgotten]
 ):
-    print(probas.shape)
     indices_to_correct_probas_never_and_forgotten = {}
     for ndx in sorted(indices):
         indices_to_correct_probas_never_and_forgotten[ndx] = ProbasNeverAndForgotten()
@@ -129,56 +117,9 @@ def reconstruct_split_and_forget(
     return reconstructed
 
 
-def main(args):
-    print("Computing final LIRAs")
-    unlearners = args.unlearners
-    lira_root = args.lira_root
-    lira_preds = args.lira_preds
-    args.test_indices = np.load(args.lira_root / "test_matrices.npy")
-
-    cifar_complete, _ = get_dataset_and_lengths(
-        Path("datasets"), "cifar10", transform=get_cifar10_test_transform()
-    )
-    targets = np.concatenate([cifar_complete.datasets[ndx].targets for ndx in range(2)])
-
-    forgets_splits_and_forget_indices = reconstruct_split_and_forget(lira_root)
-
-    print("Populating id_to_forgotten_never_seen")
-    id_to_forgotten_never_seen = {}
-    # Basically we go through the test indices split_indices
-    for split_ndx, row in enumerate(TEST_INDICES):
-        for value in row:
-            if value not in id_to_forgotten_never_seen:
-                id_to_forgotten_never_seen[value] = NeverAndForgotten()
-            id_to_forgotten_never_seen[value].never.extend(
-                [(split_ndx, forget_ndx) for forget_ndx in range(10)]
-            )
-    for split_ndx in range(64):
-        for forget_ndx in range(10):
-            for value in forgets_splits_and_forget_indices[split_ndx, forget_ndx]:
-                id_to_forgotten_never_seen[value].forgotten.append(
-                    (split_ndx, forget_ndx)
-                )
-
-    print("Populating id_to_correct_probas")
-    for unlearner in tqdm(unlearners):
-        storage = get_preds(lira_preds, unlearner)
-        id_to_correct_probas = extract_correct_probabilities(
-            storage, targets, id_to_forgotten_never_seen
-        )
-        ndx_to_membership = compute_membership_probabilities(id_to_correct_probas)
-        formatable_data_path = "lira/{unlearner}_membership.npy"
-        data_path = formatable_data_path.format(unlearner=unlearner)
-        with open(data_path, "wb") as out_fo:
-            pickle.dump(obj=ndx_to_membership, file=out_fo)
-        del storage
-
-
+# TODO: fix hardcoded values
 def get_preds(lira_preds: Path, unlearner: str):
     storage = np.zeros(shape=(64, 10, 60_000, 10))
-    print(
-        storage.itemsize * storage.size,
-    )
     unlearner_dir = lira_preds / unlearner
     ndx = 0
     for split_ndx in range(64):
@@ -192,19 +133,52 @@ def get_preds(lira_preds: Path, unlearner: str):
     return res
 
 
-if __name__ == "__main__":
-    # LIRA_ROOT = Path("artifacts") / "lira"
+def main(args):
+    unlearner = args.unlearner
+    lira_root = args.lira_root
+    lira_preds = args.lira_preds
+    num_splits = args.num_splits
+    num_forgets = args.num_forgets
+    num_elements = args.num_elements
+    test_indices = np.load(args.lira_root / "test_matrices.npy")
 
-    # TRAIN_INDICES = np.load(LIRA_ROOT / "train_matrices.npy")
-    # TEST_INDICES = np.load(LIRA_ROOT / "test_matrices.npy")
+    # TODO: fix hardcoded dataset
+    cifar_complete, _ = get_dataset_and_lengths(
+        Path("datasets"), "cifar10", transform=get_cifar10_test_transform()
+    )
+    targets = np.concatenate([cifar_complete.datasets[ndx].targets for ndx in range(2)])
+
+    forgets_splits_and_forget_indices = reconstruct_split_and_forget(lira_root, num_splits, num_forgets, num_elements)
+
+    id_to_forgotten_never_seen = {}
+    for split_ndx, row in enumerate(test_indices):
+        for value in row:
+            if value not in id_to_forgotten_never_seen:
+                id_to_forgotten_never_seen[value] = NeverAndForgotten()
+            id_to_forgotten_never_seen[value].never.extend(
+                [(split_ndx, forget_ndx) for forget_ndx in range(num_forgets)]
+            )
+    for split_ndx in range(num_splits):
+        for forget_ndx in range(num_forgets):
+            for value in forgets_splits_and_forget_indices[split_ndx, forget_ndx]:
+                id_to_forgotten_never_seen[value].forgotten.append(
+                    (split_ndx, forget_ndx)
+                )
+
+    storage = get_preds(lira_preds, unlearner)
+    id_to_correct_probas = extract_correct_probabilities(
+        storage, targets, id_to_forgotten_never_seen
+    )
+    ndx_to_membership = compute_membership_probabilities(id_to_correct_probas)
+    with open(f"lira/{unlearner}_membership.npy", "wb") as out_fo:
+        pickle.dump(obj=ndx_to_membership, file=out_fo)
+
+
+if __name__ == "__main__":
     args = argparse.Namespace()
     args.lira_root = Path(
         "/home/gcp-compute/for_reproducibility/lira_predictions/lira"
     )
     args.lira_preds = Path("lira") / "predictions"
-    # args.unlearners = ["naive", "original", "kgltop2", "kgltop3", "kgltop4",
-    # "kgltop5", "kgltop6"]
-    # args.unlearners = ["naive", "original", "kgltop2", "kgltop3", "kgltop5", "kgltop6"]
-    # args.unlearners = ["finetune", "kgltop4"]
     args.unlearners = ["kgltop4"]
     main(args)
