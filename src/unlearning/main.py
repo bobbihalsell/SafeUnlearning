@@ -15,8 +15,6 @@ from unlearning.neggrad import NegGrad, NegGradPlus
 from datasets import load_datasets as src_datasets
 from unlearning.eval import plot
 
-DEFAULT_SEED = 42
-
 
 class UnlearnApp(InputValidator):
     def __init__(self):
@@ -40,16 +38,10 @@ class UnlearnApp(InputValidator):
 
         self.device = setup_device()
         print(f'Using device: {self.device}')
-        self.seed = config.get('seed', DEFAULT_SEED)
+        self.seed = config['seed']
         set_seed(self.seed)
 
-        model_config = config['model']
-        self.model_name = model_config['name']
-        self.model_ckpt_path = model_config['model_ckpt_path']
-        assert self.model_ckpt_path is not None
-        self.num_classes = model_config['num_classes']
         self.unlearn_params['loss_fn'] = nn.CrossEntropyLoss()
-
         # Output directory
         self.output_dir = config.get('output_dir', 'artifacts/')
         os.makedirs(self.output_dir, exist_ok=True)

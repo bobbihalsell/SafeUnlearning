@@ -1,4 +1,5 @@
 from unlearning.utils import ConfigError
+import os
 
 
 class InputValidator:
@@ -20,8 +21,15 @@ class InputValidator:
         self.forget_method = config['forget_method']['name']
         self.forget_params = config['forget_method']['parameters']
 
+        model_config = config['model']
+        self.model_name = model_config['name']
+        self.model_ckpt_path = model_config['model_ckpt_path']
+        self.num_classes = model_config['num_classes']
+
         self._validate_unlearner_params()
         self._validate_dataset_params()
+        self._validate_forget_params()
+        self._validate_model_params()
 
     def _validate_unlearner_params(self):
         """
@@ -116,3 +124,13 @@ class InputValidator:
             raise ConfigError('Dataset support only for '
                               f'{', '.join(list(valid_forget_methods))}. '
                               f'Received {self.forget_method}')
+
+    def _validate_model_params(self):
+        """ Check some of the model-related config params from the YAML file.
+
+        This validates only some of the model parameters, as it is more
+        efficient to use the EAFP approach for model name and
+        initialization checking."""
+        if not os.path.exists(self.model_ckpt_path):
+            raise ConfigError("Model weights file not found: "
+                              f"{self.model_ckpt_path}")
