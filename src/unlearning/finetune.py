@@ -81,8 +81,9 @@ class FinetuneUnlearner(BaseUnlearner):
         # Main training loop
         for epoch in range(num_epochs):
             total_retain_loss = 0
+            num_batches = 0
             for retain_inputs, retain_labels in data_dict['retain']:
-
+                num_batches += 1
                 model.train()
                 optimizer.zero_grad()
 
@@ -103,8 +104,9 @@ class FinetuneUnlearner(BaseUnlearner):
                 retain_loss.backward()
                 optimizer.step()
 
+            avg_retain_loss = total_retain_loss/num_batches
             if verbose:
-                print(f'Epoch {epoch+1}: Retain Loss: {total_retain_loss}')
+                print(f'Epoch {epoch+1}: Retain Loss: {avg_retain_loss}')
 
             # Calculate average retain loss for this epoch
             losses['retain_losses'].append(total_retain_loss)

@@ -103,7 +103,7 @@ class KUnlearn(FinetuneUnlearner):
                     # Initialize with standard normal distribution
                     param.data.normal_()
                 else:
-                    raise ValueError(f"Unknown method: {method}")
+                    raise ValueError("Unknown method")
         return model
 
     def unlearn(self,
