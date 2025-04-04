@@ -39,8 +39,8 @@ class InputValidator:
         Raises exception if required parameters are missing.
         """
         if not (self.unlearn_params['loss_fn'] == 'cross_entropy'):
-            raise AttributeError('loss_fn must be cross_entropy, '
-                                 f'received {self.unlearn_params['loss_fn']}')
+            raise ConfigError('loss_fn must be cross_entropy, '
+                              f'received {self.unlearn_params['loss_fn']}')
         # common parameters for unlearners
         required_params = ['epochs',
                            'lr',
@@ -85,7 +85,7 @@ class InputValidator:
                 self.unlearn_params['k']
             except KeyError:
                 raise ConfigError(f'Missing required parameter k for '
-                                 f'{self.unlearner_name.upper()} unlearner')
+                                  f'{self.unlearner_name.upper()} unlearner')
             if self.unlearner_name == 'euk':
                 # Check for EUk-specific parameters
                 if 'reinit_method' not in self.unlearn_params:
@@ -111,9 +111,9 @@ class InputValidator:
             raise ConfigError('val_ratio must be a float between 0 and 1.')
 
         if self.dataset_name != 'imagenet' and self.url is not None:
-            raise Exception('URL download is only supported for ImageNet data.'
-                            ' This is automatically handled for '
-                            'CIFAR datasets.')
+            raise ConfigError('URL download is only supported for ImageNet data.'
+                              ' This is automatically handled for '
+                              'CIFAR datasets.')
 
     def _validate_forget_params(self):
         valid_forget_methods = {'instances', 'class_instances', 'classes'}
