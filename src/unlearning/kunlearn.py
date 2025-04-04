@@ -1,20 +1,6 @@
-# import os
-# import timm
-# import torch
 import torch.nn as nn
 import copy
 from unlearning.finetune import FinetuneUnlearner
-# from typing import Optional
-# from unlearning.utils import (setup_device,
-#                                   UnsupportedModelError,
-#                                   available_if,
-#                                   _has_forget_dataloader,
-#                                   _has_retain_dataloader,
-#                                   l2_penalty)
-# from itertools import cycle
-# from base import BaseUnlearner
-
-
 from typing import Optional, Union, Tuple, List, Dict, Any
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -35,7 +21,6 @@ class KUnlearn(FinetuneUnlearner):
     def __init__(self, 
                 k: int,
                 device,
-                evaluate: bool = False,
                 method: str = 'cfk',
                 init=None
                 ):
@@ -47,13 +32,12 @@ class KUnlearn(FinetuneUnlearner):
                     These layers will maintain their original weights.
             device: Computing device (CPU/GPU) to use for computations.
                     If None, will be automatically determined.
-            evaluate (bool): Whether to track and return evaluation metrics during unlearning.
             method (str): Unlearning approach to use. Options:
                          - 'cfk': Catastrophic Forgetting - freeze first k layers and fine-tune the rest.
                          - 'euk': Exact Unlearning - freeze first k layers, reinitialize the rest,
                                   and then fine-tune.
         """
-        super().__init__(device, evaluate)
+        super().__init__(device)
         self.k = k
         assert method in ['cfk', 'euk'], "Method must be either 'cfk' or 'euk'."
         self.method = method
@@ -126,44 +110,39 @@ class KUnlearn(FinetuneUnlearner):
                 model: nn.Module,
                 data_dict: Dict[str, DataLoader],
                 **kwargs):
-            """
-            Perform K-unlearning by freezing the first k layers and fine-tuning the rest.
-            
-            This method implements two approaches to k-unlearning:
-            1. CFk (Catastrophic Forgetting): Freeze first k layers and fine-tune the rest
-            2. EUk (Exact Unlearning): Freeze first k layers, reinitialize remaining layers,
-            and then fine-tune
+        """ Perform K-unlearning by freezing the first k layers and fine-tuning the rest.
 
-            Args:
-                model (nn.Module): The original model to unlearn from
-                data_dict (Dict[str, DataLoader]): Dictionary containing dataloaders for different datasets
-                                                Must include 'retain' data
-                reinit_method (str): Method to use for reinitializing weights in EUk approach
-                                    Options: 'zero', 'xavier', 'random'/'randn'
-                **kwargs: Additional arguments passed to the parent unlearn method, including:
-                        - loss_fn: Loss function to use for training
-                        - num_epochs: Number of training epochs
-                        - lr: Learning rate
-                        - weight_decay: Weight decay parameter
-                        - use_l2_penalty: Whether to add L2 regularization
+        This method implements two approaches to k-unlearning:
+        1. CFk (Catastrophic Forgetting): Freeze first k layers and fine-tune the rest
+        2. EUk (Exact Unlearning): Freeze first k layers, reinitialize remaining layers,
+        and then fine-tune
 
-            Returns:
-                If self.evaluate is True:
-                    Tuple of (unlearned_model, losses_dict) where losses_dict contains
-                    tracked losses for each dataset type
-                Otherwise:
-                    The unlearned model
-                    
-            Raises:
-                ValueError: If k is larger than the number of layers in the model
-            """
-            # Create a copy of the model to avoid modifying the original
-            modified_model = copy.deepcopy(model)
-            
-            # Freeze the first k layers of the model
-            modified_model = self._freeze_first_k_layers(modified_model)
-            if self.method == 'euk':
-                modified_model = self._reinitialize_weights(modified_model)
+        Args:
+            model (nn.Module): The original model to unlearn from
+            data_dict (Dict[str, DataLoader]): Dictionary containing dataloaders for different datasets
+                                            Must include 'retain' data
+            reinit_method (str): Method to use for reinitializing weights in EUk approach
+                                Options: 'zero', 'xavier', 'random'/'randn'
+            **kwargs: Additional arguments passed to the parent unlearn method, including:
+                    - loss_fn: Loss function to use for training
+                    - num_epochs: Number of training epochs
+                    - lr: Learning rate
+                    - weight_decay: Weight decay parameter
+                    - use_l2_penalty: Whether to add L2 regularization
 
-            # Call the parent class's unlearn method with the modified model
-            return super().unlearn(modified_model, data_dict, **kwargs)
+        Returns:
+            The unlearned model
+
+        Raises:
+            ValueError: If k is larger than the number of layers in the model
+        """
+        # Create a copy of the model to avoid modifying the original
+        modified_model = copy.deepcopy(model)
+
+        # Freeze the first k layers of the model
+        modified_model = self._freeze_first_k_layers(modified_model)
+        if self.method == 'euk':
+            modified_model = self._reinitialize_weights(modified_model)
+
+        # Call the parent class's unlearn method with the modified model
+        return super().unlearn(modified_model, data_dict, **kwargs)

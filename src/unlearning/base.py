@@ -9,7 +9,6 @@ class BaseUnlearner:
     """ Base class for all machine unlearning implementations."""
     def __init__(self,
                  device,
-                 evaluate: bool = False
                  ):
         """
         Initialize the BaseUnlearner.
@@ -17,10 +16,8 @@ class BaseUnlearner:
         Args:
             device: Computing device (GPU/CPU) to use for computations.
                    If None, will be automatically determined.
-            evaluate: Whether to track and return evaluation metrics during unlearning.
         """
         self.device = device if device is not None else setup_device()        
-        self.evaluate = evaluate
 
     @abstractmethod
     def unlearn(

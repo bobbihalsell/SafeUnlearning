@@ -12,7 +12,6 @@ from unlearning.finetune import FinetuneUnlearner
 from unlearning.scrub import SCRUB
 from unlearning.kunlearn import KUnlearn
 from unlearning.neggrad import NegGrad, NegGradPlus
-from unlearning.trainer import Trainer
 from datasets import load_datasets as src_datasets
 from unlearning.eval import plot
 
@@ -46,26 +45,10 @@ class UnlearnApp(InputValidator):
 
         model_config = config['model']
         self.model_name = model_config['name']
-        self.model_ckpt_path = model_config.get('model_ckpt_path', None)
-        # Check whether to use built-in pretrained weights
-        self.pretrained = not bool(self.model_ckpt_path)
+        self.model_ckpt_path = model_config['model_ckpt_path']
+        assert self.model_ckpt_path is not None
         self.num_classes = model_config['num_classes']
-        # Process unlearner-specific parameters
-        self.evaluate = config['unlearner']['evaluate']
-        self.verbose = config['unlearner']['verbose']
         self.unlearn_params['loss_fn'] = nn.CrossEntropyLoss()
-
-        # Process dataset parameters
-        self.url = config['dataset']['url']
-        if self.dataset_name != 'imagenet' and self.url is not None:
-            raise Exception('URL download is only supported for ImageNet data.'
-                            ' This is automatically handled for '
-                            'CIFAR datasets.')
-
-        # Process forget method parameters
-        self.forget_method = config['forget_method']['name']
-        self.forget_params = config['forget_method']['parameters']
-        assert self.forget_params is not None  # TODO add YAML validation.
 
         # Output directory
         self.output_dir = config.get('output_dir', 'artifacts/')
@@ -76,26 +59,34 @@ class UnlearnApp(InputValidator):
         if hasattr(torchvision.models, self.model_name):
             model = torchvision.models.get_model(
                 self.model_name,
-                weights="DEFAULT" if self.pretrained else None,
+                weights=None,
             )
 
             # Adjust the last layer based on model type
             if hasattr(model, "fc"):  # ResNet-style
-                model.fc = torch.nn.Linear(model.fc.in_features, self.num_classes)
+                model.fc = torch.nn.Linear(
+                    model.fc.in_features, self.num_classes
+                )
             elif hasattr(model, "classifier"):  # MobileNet, EfficientNet, VGG, DenseNet
-                if isinstance(model.classifier, torch.nn.Sequential):  
+                if isinstance(model.classifier, torch.nn.Sequential):
                     # Handle cases like MobileNet where classifier is Sequential
                     last_layer_idx = len(model.classifier) - 1
                     model.classifier[last_layer_idx] = torch.nn.Linear(
-                        model.classifier[last_layer_idx].in_features, self.num_classes
+                        model.classifier[last_layer_idx].in_features,
+                        self.num_classes
                     )
                 else:
-                    model.classifier = torch.nn.Linear(model.classifier.in_features, self.num_classes)
+                    model.classifier = torch.nn.Linear(
+                        model.classifier.in_features, self.num_classes
+                    )
             else:
-                raise AttributeError(f"Unknown classification layer for {self.model_name}")
+                raise AttributeError(
+                    f"Unknown classification layer for {self.model_name}"
+                )
 
         else:
-            print(f"Couldn't find {self.model_name} in torchvision. Looking in timm")
+            print(f"Couldn't find {self.model_name} in torchvision. "
+                  "Looking in timm.")
             try:
                 model = timm.create_model(
                     self.model_name,
@@ -103,12 +94,14 @@ class UnlearnApp(InputValidator):
                     num_classes=self.num_classes,
                 )
             except Exception:
-                raise AttributeError(f"{self.model_name} not found in torchvision or timm.")
+                raise AttributeError(
+                    f"{self.model_name} not found in torchvision or timm."
+                )
 
-        if self.model_ckpt_path:
-            checkpoint = torch.load(self.model_ckpt_path, map_location="cpu")
-            checkpoint = checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint
-            model.load_state_dict(checkpoint)
+        checkpoint = torch.load(self.model_ckpt_path, map_location="cpu")
+        checkpoint = checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint
+        # Ensure the loaded model is strictly matching a supported model
+        model.load_state_dict(checkpoint, strict=True)
 
         return model
 
@@ -117,36 +110,30 @@ class UnlearnApp(InputValidator):
         if self.unlearner_name == 'finetune':
             unlearner = FinetuneUnlearner(
                 self.device,
-                self.evaluate,
             )
         elif self.unlearner_name == 'neggrad':
             unlearner = NegGrad(
                 self.device,
-                self.evaluate,
             )
         elif self.unlearner_name == 'neggradplus':
             unlearner = NegGradPlus(
                 self.device,
-                self.evaluate,
             )
         elif self.unlearner_name == 'scrub':
             unlearner = SCRUB(
                 self.device,
-                self.evaluate,
             )
         elif self.unlearner_name == 'euk':
             unlearner = KUnlearn(
                 k=self.unlearn_params['k'],
                 method=self.unlearner_name,
                 device=self.device,
-                evaluate=self.evaluate,
                 )
         elif self.unlearner_name == 'cfk':
             unlearner = KUnlearn(
                 k=self.unlearn_params['k'],
                 method=self.unlearner_name,
                 device=self.device,
-                evaluate=self.evaluate
                 )
         else:
             raise ValueError(f'unlearner_name {self.unlearner_name}'
@@ -171,21 +158,14 @@ class UnlearnApp(InputValidator):
 
     def save_loaders_to_disk(self, loaders_dict):
         """Save all dataloaders to disk."""
-        if not self.save_loaders:
-            return
-
         loaders_dir = os.path.join(self.output_dir, 'loaders')
         os.makedirs(loaders_dir, exist_ok=True)
-
         save_loaders(path=loaders_dir, **loaders_dict)
         print(f"Saved loaders to {loaders_dir}")
 
     def load_loaders_from_disk(self):
         """Load dataloaders from disk if available."""
         loaders_dir = os.path.join(self.output_dir, 'loaders')
-        if not os.path.exists(loaders_dir):
-            return None
-
         try:
             loaders = load_loaders(loaders_dir)
             print(f"Loaded loaders from {loaders_dir}")
@@ -277,7 +257,6 @@ class UnlearnApp(InputValidator):
         # Step 4: Unlearning
         unlearner = self.initialize_unlearner()
         print('unlearner initialized')
-        self._extract_unlearner_params()
         unlearned_model, losses = unlearner.unlearn(original_model,
                                                     data_dict,
                                                     **self.unlearn_params)

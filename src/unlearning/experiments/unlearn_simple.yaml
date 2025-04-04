@@ -1,18 +1,16 @@
 model:
   name: mobilenet_v2
   num_classes: 10
-  model_ckpt_path: # You must specify a path to the original model.
+  model_ckpt_path: ./artifacts/models/mobilenet_v2_42_original.pt  # You must specify a path to the original model.
 unlearner:
   name: neggradplus  # Options: neggrad, neggradplus, scrub, euk, cfk, finetune
   evaluate: true
-  verbose: true
   cfg:
     # Common parameters for all unlearners
     loss_fn: cross_entropy
     lr: 0.01
     weight_decay: 0
     use_l2_penalty: false
-    loss_fn: cross_entropy
     epochs: 1 # Ignored for scrub
     # Specific parameters for some unlearners (will be ignored for others)
     beta: 0.5  # For neggradplus  beta = 0: forget only, beta = 1: retain only
@@ -45,11 +43,11 @@ dataset:
       test: false
     num_workers: 1
 forget_method:
-  name: class_instances  # Options: instances (select indices), class_instances (random N from class(es)), class (remove entire class(es))
+  name: class_instances  # Options: instances (select indices), class_instances (random N from class(es)), classes (remove entire class(es))
   parameters:
     # Specify only the relevant parameters for your chosen method
     # forget_set_indices: [0, 1, 2]  # For 'instances' method
-    forget_labels: [5]  # For 'class' and 'class_instances' method
+    forget_labels: [5]  # For 'classes' and 'class_instances' method
     num_to_forget: 100  # For 'class_instances' method (with forget_labels)
 seed: 42
 output_dir: artifacts/

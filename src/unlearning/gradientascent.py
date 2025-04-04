@@ -1,4 +1,3 @@
-import os
 import yaml
 import random
 import numpy as np

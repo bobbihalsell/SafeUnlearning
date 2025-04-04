@@ -2,10 +2,13 @@ from unlearning.utils import ConfigError
 
 
 class InputValidator:
+    """ Validates most inputs to the configuration YAML file."""
     def __init__(self, config):
         assert isinstance(config, dict)
+
         self.unlearner_name = config['unlearner']['name']
         self.unlearn_params = config['unlearner']['cfg']
+
         self.dataset_name = config['dataset']['name']
         self.save_path = config['dataset']['save_path']
         self.proportion = config['dataset']['proportion']
@@ -13,6 +16,10 @@ class InputValidator:
         self.save_loaders = config['dataset']['save_loaders']
         self.dataset_cfg = config['dataset']['cfg']
         self.url = config['dataset']['url']
+
+        self.forget_method = config['forget_method']['name']
+        self.forget_params = config['forget_method']['parameters']
+
         self._validate_unlearner_params()
         self._validate_dataset_params()
 
@@ -39,16 +46,16 @@ class InputValidator:
                 missing_params.append(param)
 
         if missing_params:
-            raise ValueError('Missing required parameters for unlearning: '
-                             f'{', '.join(missing_params)}')
+            raise ConfigError('Missing required parameters for unlearning: '
+                              f'{', '.join(missing_params)}')
 
         # Add specific parameters based on unlearner type
         if self.unlearner_name == 'neggradplus':
             try:
                 self.unlearn_params['beta']
             except KeyError:
-                raise ValueError('Missing required parameter beta'
-                                 ' for NegGradPlus unlearner')
+                raise ConfigError('Missing required parameter beta'
+                                  ' for NegGradPlus unlearner')
 
         elif self.unlearner_name == 'scrub':
             # Check for required SCRUB-specific parameters
@@ -59,27 +66,27 @@ class InputValidator:
                 if param not in self.unlearn_params:
                     missing_scrub_params.append(param)
             if missing_scrub_params:
-                raise ValueError('Missing required params for SCRUB unlearner:'
-                                 f' {', '.join(missing_scrub_params)}')
+                raise ConfigError('Missing required params for SCRUB unlearner:'
+                                  f' {', '.join(missing_scrub_params)}')
 
-        elif self.unlearner_name in ['euk', 'cfk']:
+        elif self.unlearner_name in {'euk', 'cfk'}:
             # Check for k parameter
             try:
                 self.unlearn_params['k']
             except KeyError:
-                raise ValueError(f'Missing required parameter k for '
+                raise ConfigError(f'Missing required parameter k for '
                                  f'{self.unlearner_name.upper()} unlearner')
             if self.unlearner_name == 'euk':
                 # Check for EUk-specific parameters
                 if 'reinit_method' not in self.unlearn_params:
-                    raise ValueError('Missing required parameter '
-                                     'reinit_method for EUk unlearner')
+                    raise ConfigError('Missing required parameter '
+                                      'reinit_method for EUk unlearner')
 
     def _validate_dataset_params(self):
-        valid_dataset_names = ['cifar5',
+        valid_dataset_names = {'cifar5',
                                'cifar10',
                                'cifar100',
-                               'imagenet']
+                               'imagenet'}
         if self.dataset_name not in valid_dataset_names:
             raise ConfigError('Dataset support only for '
                               f'{', '.join(valid_dataset_names)}. '
@@ -97,3 +104,15 @@ class InputValidator:
             raise Exception('URL download is only supported for ImageNet data.'
                             ' This is automatically handled for '
                             'CIFAR datasets.')
+
+    def _validate_forget_params(self):
+        valid_forget_methods = {'instances', 'class_instances', 'classes'}
+        if not isinstance(self.forget_params, dict):
+            raise ConfigError('Error unpacking forget_method parameters. '
+                              'Please ensure you have appropriately '
+                              'indented and declared them.')
+
+        if self.forget_method not in valid_forget_methods:
+            raise ConfigError('Dataset support only for '
+                              f'{', '.join(list(valid_forget_methods))}. '
+                              f'Received {self.forget_method}')
