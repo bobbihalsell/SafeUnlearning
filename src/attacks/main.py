@@ -1,5 +1,8 @@
 import yaml
+import argparse
 from utils import set_seed, setup_device
+
+DEFAULT_SEED = 42
 
 class ReconstructionApp:
     def __init__(self):
@@ -19,3 +22,16 @@ class ReconstructionApp:
         print(f'Using device: {self.device}')
         self.seed = config.get('seed', DEFAULT_SEED)
         set_seed(self.seed)
+
+
+        # set up params common and speciifc 
+        # load learned and original model
+
+        # get gradients
+
+        # run attack
+
+        # save img
+
+
+        # eval
