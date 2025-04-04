@@ -238,9 +238,9 @@ class SCRUB(BaseUnlearner):
             raise ValueError("'forget' and 'retain' data must be in data_dict.")
 
         # Extract additional hyperparameters
-        alpha = kwargs.get('alpha', 1.0)
-        gamma = kwargs.get('gamma', 1.0)
-        if alpha < 0 or gamma < 0:  
+        alpha = kwargs['alpha']
+        gamma = kwargs['gamma']
+        if alpha < 0 or gamma < 0:
             raise ValueError("Alpha and gamma must be non-negative.")
 
         # Initialize loss tracking
