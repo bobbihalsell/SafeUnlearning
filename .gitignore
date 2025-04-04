@@ -5,6 +5,9 @@ __pycache__/
 data/**
 # *.pt
 # *.pth
+**/artifacts/**
+**/output/**
+**/wandb/**
 
 # C extensions
 *.so

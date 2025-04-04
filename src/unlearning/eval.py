@@ -1,85 +1,90 @@
 import torch
 import torch.nn as nn
-from src.unlearning.utils import setup_device, UnsupportedModelError
+from unlearning.utils import setup_device, UnsupportedModelError
+import matplotlib.pyplot as plt
 
+def plot(losses):
+    """
+    Plots loss curves for different dataset subsets over epochs.
+    
+    Args:
+        losses (dict): Dictionary where keys are dataset subset names (e.g., 'retain_losses', 'forget_losses')
+                        and values are lists of losses over epochs.
+    """
+
+    plt.figure(figsize=(10, 6))
+    
+    for subset, loss_values in losses.items():
+        loss_values = [loss.detach().cpu().numpy() if isinstance(loss, torch.Tensor) else loss for loss in loss_values]
+        plt.plot(range(1, len(loss_values) + 1), loss_values, label=subset)
+    
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
+    plt.title("Loss Curves for Different Data Subsets")
+    plt.legend()
+    plt.grid()
+    plt.show()
 
 class ClassificationEvaluator:
-    """ An evaluator that returns before/after accuracy for original and unlearned models."""
-    def __init__(self, original_model: nn.Module, unlearned_model: nn.Module):
-        if not isinstance(original_model, nn.Module) or not isinstance(unlearned_model, nn.Module):
-            raise UnsupportedModelError('A provided model is not a Pytorch model.')
+    """An evaluator that returns accuracy for multiple models on various datasets."""
 
+    def __init__(self, **models):
+        """Initialize the evaluator with any number of models."""
         self.device = setup_device()
-        self.original_model = original_model
-        self.unlearned_model = unlearned_model
+        self.models = {}
+
+        for name, model in models.items():
+            if not isinstance(model, nn.Module):
+                raise UnsupportedModelError(f'Model "{name}" is not a valid PyTorch model.')
+            self.models[name] = model.to(self.device)
 
     def get_model_accuracy(self, model: nn.Module, dataloader: torch.utils.data.DataLoader):
-        """ Get model accuracy over a torch Dataloader.
+        """Compute model accuracy over a dataset.
 
         Args:
-            model (torch.nn.Module): A classification Pytorch model.
-            dataloader (torch.utils.data.Dataloader): A Dataloader for the dataset you want to compute accuracy on.
+            model (torch.nn.Module): A classification PyTorch model.
+            dataloader (torch.utils.data.DataLoader): A dataloader for evaluation.
 
         Returns:
-            accuracy (float): The model accuracy over the provided dataset.
+            float: Accuracy of the model on the provided dataset.
         """
-        total = 0
-        correct = 0
+        total, correct = 0, 0
         model.eval()
+
         with torch.no_grad():
             for inputs, labels in dataloader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
                 outputs = model(inputs)
                 _, predictions = outputs.max(1)
                 correct += (predictions == labels).sum().item()
-                total += len(labels)
+                total += labels.size(0)
 
-        accuracy = correct / total if total > 0 else 0.0
+        return correct / total if total > 0 else 0.0
 
-        return accuracy
-
-    def compare_accuracy(self,
-                         retain_dataloader: torch.utils.data.DataLoader,
-                         forget_dataloader: torch.utils.data.DataLoader, 
-                         verbose: bool = False):
-        """ Compare the before/after accuracy on retain and forget set for a classifier.
+    def compare_accuracy(self, verbose=False, **dataloaders):
+        """Compare model accuracy across multiple datasets.
 
         Args:
-            retain_dataloader (torch.utils.data.DataLoader): The retain set dataloader.
-            forget_dataloader (torch.utils.data.DataLoader): The forget set dataloader.
-            verbose (bool, optional): Whether to print change in accuray
+            verbose (bool, optional): Whether to print the accuracy results.
+            **dataloaders: Named dataloaders to evaluate.
 
         Returns:
-            results (dict): A dictionary with 4 keys showing before/after results for 
-            the classifier on the retain and forget set.
+            dict: A dictionary with accuracy values for each dataset and model.
         """
-        if self.unlearned_model is not None and self.original_model is not None:
-            results = {}
-            self.original_model.to(self.device)
-            self.unlearned_model.to(self.device)
-            # Gauge original model performance on test set without forget labels
-            org_retain_accuracy = self.get_model_accuracy(self.original_model,
-                                                          retain_dataloader)
-            results['original_retain_acc'] = org_retain_accuracy
-            # Gauge original model performance on test forget set
-            org_forget_accuracy = self.get_model_accuracy(self.original_model,
-                                                          forget_dataloader)
-            results['original_forget_acc'] = org_forget_accuracy
-            # Gauge unlearned model performance on test set without forget labels
-            un_retain_accuracy = self.get_model_accuracy(self.unlearned_model,
-                                                         retain_dataloader)
-            results['unlearned_retain_acc'] = un_retain_accuracy
-            # Gauge unlearned model performance on test forget set
-            un_forget_accuracy = self.get_model_accuracy(self.unlearned_model,
-                                                         forget_dataloader)
-            results['unlearned_forget_acc'] = un_forget_accuracy
-            if verbose:
-                print(f'Original model retain accuracy: {org_retain_accuracy}')
-                print(f'Original model forget accuracy: {org_forget_accuracy}')
-                print(f'Unlearned model retain accuracy: {un_retain_accuracy}')
-                print(f'Unlearned model forget accuracy: {un_forget_accuracy}')
+        if not self.models:
+            raise ValueError("No models have been provided for evaluation.")
 
-            return results
+        results = {}
 
-        else:
-            raise Exception('Unlearned model has either not been trained or not been provided. Please provide one first.')
+        for model_name, model in self.models.items():
+            model.to(self.device)
+
+            for dataset_name, dataloader in dataloaders.items():
+                acc = self.get_model_accuracy(model, dataloader)
+                results[f'{model_name}_{dataset_name}_acc'] = acc
+
+                if verbose:
+                    print(f'{model_name} accuracy on {dataset_name}: {acc:.4f}')
+
+        return results
+    

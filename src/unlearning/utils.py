@@ -1,56 +1,61 @@
 import torch
-from functools import wraps
-from torch.utils.data import DataLoader
-from typing import Dict, Tuple, Any
-import pathlib
+import torch.nn as nn
+import random
+import numpy as np
+import os
 
 
-def save_checkpoint(
-    model: torch.nn.Module,
-    optimizer: torch.optim.Optimizer,
-    scheduler: torch.optim.lr_scheduler.LRScheduler,
-    epoch: int,
-    payload: Dict[str, Any],
-    filename: str = "checkpoint.pth",
-    save_dir: str = "checkpoints",
-) -> None:
-    """ Save a checkpoint during training."""
-    state = {
-        "epoch": epoch,
-        "state_dict": model.state_dict(),
-        "optimizer": optimizer.state_dict(),
-        "scheduler": scheduler.state_dict() if scheduler is not None else None,
-        "payload": payload,
+def save_model(model: nn.Module,
+               output_dir: str,
+               unlearning_algorithm: str,
+               model_name: str,
+               seed: str,
+               model_type: str,
+               payload: dict = None):
+    """ Saves a model's state_dict and training info at a filepath specified by a convention.
+
+    Saves to:
+        artifacts/unlearn/{unlearning_algorithm}/{model_name}_{seed}_{model_type}.pt
+
+    Args:
+        model (nn.Module): The model to be saved.
+        unlearning_algorithm (str): The name of the unlearning algorithm.
+        model_name (str): The model name (e.g., resnet18).
+        seed (int): The seed used during the experiment.
+        model_type (str): The model is either 'original' or 'unlearned'.
+        payload (dict, optional): Additional information (e.g., losses, metrics).
+
+    Returns:
+        str: The filepath where the model was saved.
+    """
+    directory = f'{output_dir}/unlearn/{unlearning_algorithm}'
+    os.makedirs(directory, exist_ok=True)  # Ensure the directory exists
+
+    filepath = os.path.join(directory, f'{model_name}_{seed}_{model_type}.pt')
+
+    # Save only the state_dict
+    save_data = {
+        'state_dict': model.state_dict(),
+        'model_name': model_name,
+        'unlearning_algorithm': unlearning_algorithm
     }
-    save_dir = pathlib.Path(save_dir)
-    save_dir.mkdir(parents=True, exist_ok=True)
-    path = save_dir / filename
-    torch.save(state, path)
-    print(f"Checkpoint saved at {path}")
+    
+    if payload:
+        save_data.update(payload)  # Merge additional metadata
 
+    torch.save(save_data, filepath)
+    print(f"Model state_dict saved to {filepath}")
 
-def load_checkpoint(
-    model: torch.nn.Module,
-    optimizer: torch.optim.Optimizer,
-    scheduler: torch.optim.lr_scheduler.LRScheduler,
-    filename: str = "checkpoint.pth",
-) -> Tuple[torch.nn.Module,
-           torch.optim.Optimizer,
-           torch.optim.lr_scheduler.LRScheduler,
-           int, 
-           Dict[str, Any]]:
-    """ Load a saved checkpoint."""
-    checkpoint = torch.load(filename)
-    model.load_state_dict(checkpoint["state_dict"])
-    optimizer.load_state_dict(checkpoint["optimizer"])
-    scheduler.load_state_dict(checkpoint["scheduler"])
-    epoch = checkpoint["epoch"]
-    payload = checkpoint["payload"]
-    return model, optimizer, scheduler, epoch, payload
+    return filepath
 
 
 class UnsupportedModelError(Exception):
     def __init__(self, message='Model type is not supported for this operation.'):
+        super().__init__(message)
+
+
+class ConfigError(Exception):
+    def __init__(self, message='Configuration .YAML specification error.'):
         super().__init__(message)
 
 
@@ -79,31 +84,11 @@ def l2_penalty(model, model_init, weight_decay):
     return l2_loss
 
 
-def available_if(condition):
-    """ Makes a method available based on the output of a callable condition."""
-    def decorator(method):
-        @wraps(method)
-        def inner(self, *args, **kwargs):
-            if not condition(self):
-                missing_cond = condition.__name__
-                raise AttributeError(
-                    f"Failed condition check: {missing_cond}. "
-                    f"{self.__class__.__name__} requires {missing_cond} to be "
-                    f"true to use {method.__name__}. Ensure that the "
-                    "corresponding attribute has been initialized.")
-            return method(self, *args, **kwargs)
-        return inner
-    return decorator
-
-
-def _has_forget_dataloader(unlearner):
-    return isinstance(unlearner.forget_dataloader, DataLoader)
-
-
-def _has_retain_and_forget_dataloader(unlearner):
-    return (isinstance(unlearner.forget_dataloader, DataLoader) and
-            isinstance(unlearner.retain_dataloader, DataLoader))
-
-
-def _has_retain_dataloader(unlearner):
-    return isinstance(unlearner.retain_dataloader, DataLoader)
+def set_seed(seed: int = 42):
+    """Set the random seed for reproducibility."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # For multi-GPU setups
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False  # Ensure deterministic behavior

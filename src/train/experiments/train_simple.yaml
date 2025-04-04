@@ -1,0 +1,21 @@
+model:
+  name: mobilenet_v2
+  pretrained: true  # Use library-provided pretrained weights.
+  num_classes: 10
+  save_dir: ./artifacts/models # directory to save the trained model
+  train_cfg:  # Will use Adam only for now
+    epochs: 10
+    lr: 0.01
+    weight_decay: 0
+dataset:
+  name: cifar10  # Options: cifar10, cifar5, cifar100, imagenet
+  url: # must end in .tar or .tar.gz
+  save_dir: ./data # the directory filepath where the dataset should be saved. 
+  proportion: 1 # Choose 1 to get all data.
+  val_ratio: 0.2
+  batch_sizes:
+    train: 64
+    val: 64
+    test: 64
+  num_workers: 4
+seed: 42
