@@ -51,3 +51,4 @@ forget_method:
     num_to_forget: 100  # For 'class_instances' method (with forget_labels)
 seed: 42
 output_dir: artifacts/
+verbose: true

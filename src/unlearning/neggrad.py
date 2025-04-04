@@ -80,7 +80,9 @@ class NegGrad(BaseUnlearner):
         # Main training loop
         for e in range(num_epochs):
             total_forget_loss = 0
+            num_batches = 0
             for forget_inputs, forget_labels in data_dict['forget']:
+                num_batches += 1
                 unlearned_model.train()
                 optimizer.zero_grad()
 
@@ -103,8 +105,10 @@ class NegGrad(BaseUnlearner):
                 optimizer.step()
                 total_forget_loss += forget_loss.item()
 
+            avg_forget_loss = total_forget_loss/num_batches
+
             if verbose:
-                print(f'Epoch {e}: Forget Loss: {total_forget_loss}')
+                print(f'Epoch {e + 1}: Forget Loss: {avg_forget_loss}')
 
             # Calculate average retain loss for this epoch
             losses['forget_losses'].append(total_forget_loss)
@@ -252,11 +256,13 @@ class NegGradPlus(BaseUnlearner):
         # Main training loop
         for e in range(num_epochs):
             total_forget_loss, total_retain_loss = 0, 0
+            num_batches = 0
             for retain_batch, forget_batch in zip(data_dict['retain'],
                                                   cycle(data_dict['forget'])
                                                   ):
                 unlearned_model.train()
                 optimizer.zero_grad()
+                num_batches += 1
                 # Process forget batch
                 forget_batch = [
                     tensor.to(self.device) for tensor in forget_batch
@@ -293,8 +299,12 @@ class NegGradPlus(BaseUnlearner):
                 total_forget_loss += forget_loss.item()
                 total_retain_loss += retain_loss.item()
 
-            if verbose:
-                print(f'Epoch {e}: Retain Loss: {total_retain_loss}, Forget Loss: {total_forget_loss}')
+            avg_retain_loss = total_retain_loss/num_batches
+            avg_forget_loss = total_forget_loss/num_batches
+
+            if verbose and num_batches > 0:
+                print(f'Epoch {e + 1}: Retain Loss: {avg_retain_loss}, '
+                      f'Forget Loss: {avg_forget_loss}')
 
             # Calculate average retain loss for this epoch
             losses['retain_losses'].append(total_retain_loss)
@@ -307,6 +317,5 @@ class NegGradPlus(BaseUnlearner):
                     print(f'{data_type.capitalize()} Loss: {loader_loss}', end='  ')
             if verbose:
                 print()
-                
 
         return unlearned_model, losses

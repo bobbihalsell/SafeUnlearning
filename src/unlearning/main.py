@@ -13,7 +13,6 @@ from unlearning.scrub import SCRUB
 from unlearning.kunlearn import KUnlearn
 from unlearning.neggrad import NegGrad, NegGradPlus
 from datasets import load_datasets as src_datasets
-from train.main import TrainApp
 
 
 class UnlearnApp(InputValidator):
@@ -222,25 +221,6 @@ class UnlearnApp(InputValidator):
 
         # Step 3: Initialize the pretrained model, and evaluate
         original_model = self.load_model_from_disk(self.model_ckpt_path)
-        if isinstance(data_dict.get('val', None), torch.utils.data.DataLoader):
-            val_loss, val_accuracy = TrainApp().eval_model(
-                criterion=self.unlearn_params['loss_fn'],
-                model=original_model,
-                val_dl=data_dict['val'])
-            print(f"Pre-unlearning Validation Loss: {val_loss:.4f}")
-            print(f"Pre-unlearning Validation Accuracy: {val_accuracy:.2f}%\n")
-        retain_loss, retain_accuracy = TrainApp().eval_model(
-                criterion=self.unlearn_params['loss_fn'],
-                model=original_model,
-                val_dl=data_dict['retain'])
-        forget_loss, forget_accuracy = TrainApp().eval_model(
-                criterion=self.unlearn_params['loss_fn'],
-                model=original_model,
-                val_dl=data_dict['forget'])
-        print(f"Pre-unlearning Retain Loss: {retain_loss:.4f}")
-        print(f"Pre-unlearning Retain Accuracy: {retain_accuracy:.2f}%\n")
-        print(f"Pre-unlearning Forget Loss: {forget_loss:.4f}")
-        print(f"Pre-unlearning Forget Accuracy: {forget_accuracy:.2f}%\n")
 
         save_model(original_model,
                    output_dir=self.output_dir,
@@ -254,6 +234,7 @@ class UnlearnApp(InputValidator):
         print('unlearner initialized')
         unlearned_model, losses = unlearner.unlearn(original_model,
                                                     data_dict,
+                                                    self.verbose,
                                                     **self.unlearn_params)
         print('model unlearned')
 
@@ -265,28 +246,6 @@ class UnlearnApp(InputValidator):
                    seed=self.seed,
                    model_type='unlearned',
                    payload=losses)
-
-        # Step 6: Evaluate the model after unlearning
-        # TODO handle case where model has not been trained but evaluate required nonetheless
-        if isinstance(data_dict.get('val', None), torch.utils.data.DataLoader):
-            val_loss, val_accuracy = TrainApp().eval_model(
-                criterion=self.unlearn_params['loss_fn'],
-                model=unlearned_model,
-                val_dl=data_dict['val'])
-            print(f"Post-unlearning Validation Loss: {val_loss:.4f}")
-            print(f"Post-unlearning Validation Accuracy: {val_accuracy:.2f}%\n")
-        retain_loss, retain_accuracy = TrainApp().eval_model(
-                criterion=self.unlearn_params['loss_fn'],
-                model=unlearned_model,
-                val_dl=data_dict['retain'])
-        forget_loss, forget_accuracy = TrainApp().eval_model(
-                criterion=self.unlearn_params['loss_fn'],
-                model=unlearned_model,
-                val_dl=data_dict['forget'])
-        print(f"Pre-unlearning Retain Loss: {retain_loss:.4f}")
-        print(f"Pre-unlearning Retain Accuracy: {retain_accuracy:.2f}%\n")
-        print(f"Pre-unlearning Forget Loss: {forget_loss:.4f}")
-        print(f"Pre-unlearning Forget Accuracy: {forget_accuracy:.2f}%\n")
 
         return unlearned_model
 

@@ -26,6 +26,8 @@ class InputValidator:
         self.model_ckpt_path = model_config['model_ckpt_path']
         self.num_classes = model_config['num_classes']
 
+        self.verbose = config['verbose']
+
         self._validate_unlearner_params()
         self._validate_dataset_params()
         self._validate_forget_params()
