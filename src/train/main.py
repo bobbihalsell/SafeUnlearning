@@ -178,7 +178,7 @@ class TrainApp:
 
         # Step 3: Set up loss function and optimizer
         criterion = torch.nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(model.parameters(), 
+        optimizer = torch.optim.Adam(model.parameters(),
                                      lr=lr,
                                      weight_decay=weight_decay)
 
