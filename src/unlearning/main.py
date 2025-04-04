@@ -56,20 +56,11 @@ class UnlearnApp(InputValidator):
         self.unlearn_params['loss_fn'] = nn.CrossEntropyLoss()
 
         # Process dataset parameters
-        self.dataset_name = config['dataset']['name']
         self.url = config['dataset']['url']
         if self.dataset_name != 'imagenet' and self.url is not None:
             raise Exception('URL download is only supported for ImageNet data.'
                             ' This is automatically handled for '
                             'CIFAR datasets.')
-        self.save_path = config['dataset']['save_path']
-        assert self.save_path is not None  # User must provide this
-        self.proportion = config['dataset']['proportion']
-        assert self.proportion >= 0 and self.proportion <= 1
-        self.val_ratio = config['dataset']['val_ratio']
-        assert self.val_ratio >= 0 and self.val_ratio <= 1
-        self.save_loaders = config['dataset']['save_loaders']
-        self.dataset_cfg = config['dataset']['cfg']
 
         # Process forget method parameters
         self.forget_method = config['forget_method']['name']
@@ -324,4 +315,4 @@ if __name__ == '__main__':
     app = UnlearnApp()
     app.run()
     # Run pip install -e .
-    # Run python src/unlearning/main.py --config_path src/experiments/simple_exp.yaml
+    # Run python src/unlearning/main.py --config_path src/unlearning/experiments/unlearn_simple.yaml

@@ -54,6 +54,11 @@ class UnsupportedModelError(Exception):
         super().__init__(message)
 
 
+class ConfigError(Exception):
+    def __init__(self, message='Configuration .YAML specification error.'):
+        super().__init__(message)
+
+
 def setup_device():
     """ Setup a torch device.
 

@@ -1,9 +1,20 @@
+from unlearning.utils import ConfigError
+
+
 class InputValidator:
     def __init__(self, config):
         assert isinstance(config, dict)
         self.unlearner_name = config['unlearner']['name']
         self.unlearn_params = config['unlearner']['cfg']
+        self.dataset_name = config['dataset']['name']
+        self.save_path = config['dataset']['save_path']
+        self.proportion = config['dataset']['proportion']
+        self.val_ratio = config['dataset']['val_ratio']
+        self.save_loaders = config['dataset']['save_loaders']
+        self.dataset_cfg = config['dataset']['cfg']
+        self.url = config['dataset']['url']
         self._validate_unlearner_params()
+        self._validate_dataset_params()
 
     def _validate_unlearner_params(self):
         """
@@ -64,5 +75,25 @@ class InputValidator:
                     raise ValueError('Missing required parameter '
                                      'reinit_method for EUk unlearner')
 
-    # def _validate_dataset_params(self):
-    #     assert 
+    def _validate_dataset_params(self):
+        valid_dataset_names = ['cifar5',
+                               'cifar10',
+                               'cifar100',
+                               'imagenet']
+        if self.dataset_name not in valid_dataset_names:
+            raise ConfigError('Dataset support only for '
+                              f'{', '.join(valid_dataset_names)}. '
+                              f'Received {self.dataset_name}')
+        if self.save_path is None:
+            raise ConfigError('A path to save the dataset or to '
+                              'load the dataset from must be provided. '
+                              'save_path cannot be empty.')
+        if not (self.proportion >= 0 and self.proportion <= 1):
+            raise ConfigError('proportion must be a float between 0 and 1.')
+        if not (self.val_ratio >= 0 and self.val_ratio <= 1):
+            raise ConfigError('val_ratio must be a float between 0 and 1.')
+
+        if self.dataset_name != 'imagenet' and self.url is not None:
+            raise Exception('URL download is only supported for ImageNet data.'
+                            ' This is automatically handled for '
+                            'CIFAR datasets.')
