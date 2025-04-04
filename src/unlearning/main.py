@@ -7,6 +7,7 @@ import torchvision
 from unlearning.utils import save_model, set_seed, setup_device
 import os
 from datasets.preprocessing import get_all_loaders, save_loaders, load_loaders
+from unlearning.config_validation import InputValidator
 from unlearning.finetune import FinetuneUnlearner
 from unlearning.scrub import SCRUB
 from unlearning.kunlearn import KUnlearn
@@ -18,10 +19,14 @@ from unlearning.eval import plot
 DEFAULT_SEED = 42
 
 
-class UnlearnApp:
+class UnlearnApp(InputValidator):
     def __init__(self):
-        parser = argparse.ArgumentParser(description="Specify path to .yaml file with configurations to run unlearning process.")
-        parser.add_argument("--config_path", type=str, required=True, help="The path to the .yaml file for unlearning configurations.")
+        parser = argparse.ArgumentParser(
+            description="Specify path to unlearning .yaml file.")
+        parser.add_argument("--config_path",
+                            type=str,
+                            required=True,
+                            help="Path to .yaml file")
         args = parser.parse_args()
 
         # Load in the instructions for the unlearning run from a filepath
@@ -31,7 +36,9 @@ class UnlearnApp:
             except FileNotFoundError:
                 print('.yaml file not found.')
 
-        # Get data from the config
+        # Perform input validation first
+        super().__init__(config)
+
         self.device = setup_device()
         print(f'Using device: {self.device}')
         self.seed = config.get('seed', DEFAULT_SEED)
@@ -44,10 +51,9 @@ class UnlearnApp:
         self.pretrained = not bool(self.model_ckpt_path)
         self.num_classes = model_config['num_classes']
         # Process unlearner-specific parameters
-        self.unlearner_name = config['unlearner']['name']
         self.evaluate = config['unlearner']['evaluate']
         self.verbose = config['unlearner']['verbose']
-        self.unlearn_params = config['unlearner']['cfg']
+        self.unlearn_params['loss_fn'] = nn.CrossEntropyLoss()
 
         # Process dataset parameters
         self.dataset_name = config['dataset']['name']
@@ -73,58 +79,6 @@ class UnlearnApp:
         # Output directory
         self.output_dir = config.get('output_dir', 'artifacts/')
         os.makedirs(self.output_dir, exist_ok=True)
-
-    def _extract_unlearner_params(self):
-        """
-        Extract and process parameters specific to each unlearner type.
-        Raises exception if required parameters are missing.
-        """
-        # common parameters for unlearners
-        required_params = ['epochs', 'lr', 'weight_decay', 'use_l2_penalty', 'loss_fn']
-
-        missing_params = []
-        for param in required_params:
-            if param not in self.unlearn_params:
-                if self.unlearner_name == 'scrub' and param == 'epochs':
-                    continue
-                missing_params.append(param)
-            if param == 'loss_fn':
-                if self.unlearn_params['loss_fn'] == 'cross_entropy':
-                    self.unlearn_params['loss_fn'] = nn.CrossEntropyLoss()
-                else:
-                    raise ValueError(f'Only cross_entropy loss_fn is allowed, received '
-                                     f'{self.unlearn_params['loss_fn']}')
-
-        if missing_params:
-            raise ValueError(f"Missing required parameters for unlearning: {', '.join(missing_params)}")
-
-        # Add specific parameters based on unlearner type
-        if self.unlearner_name == 'neggradplus':
-            try:
-                self.unlearn_params['beta']
-            except KeyError:
-                raise ValueError("Missing required parameter 'beta' for NegGradPlus unlearner")
-
-        elif self.unlearner_name == 'scrub':
-            # Check for required SCRUB-specific parameters
-            required_scrub_params = ['min_epochs', 'max_epochs', 'alpha', 'gamma']
-            missing_scrub_params = []
-            for param in required_scrub_params:
-                if param not in self.unlearn_params:
-                    missing_scrub_params.append(param)
-            if missing_scrub_params:
-                raise ValueError(f"Missing required parameters for SCRUB unlearner: {', '.join(missing_scrub_params)}")
-
-        elif self.unlearner_name in ['euk', 'cfk']:
-            # Check for k parameter
-            try:
-                self.unlearn_params['k']
-            except KeyError:
-                raise ValueError(f"Missing required parameter 'k' for {self.unlearner_name.upper()} unlearner")
-            if self.unlearner_name == 'euk':
-                # Check for EUk-specific parameters
-                if 'reinit_method' not in self.unlearn_params:
-                    raise ValueError("Missing required parameter 'reinit_method' for EUk unlearner")
 
     def initialize_model(self):
         """Initialize the model based on model name from user configuration."""
