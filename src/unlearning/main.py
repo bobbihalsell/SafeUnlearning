@@ -13,7 +13,6 @@ from unlearning.scrub import SCRUB
 from unlearning.kunlearn import KUnlearn
 from unlearning.neggrad import NegGrad, NegGradPlus
 from datasets import load_datasets as src_datasets
-from unlearning.eval import plot
 
 
 class UnlearnApp(InputValidator):
@@ -275,9 +274,6 @@ class UnlearnApp(InputValidator):
         print(f"Pre-unlearning Retain Accuracy: {retain_accuracy:.2f}%\n")
         print(f"Pre-unlearning Forget Loss: {forget_loss:.4f}")
         print(f"Pre-unlearning Forget Accuracy: {forget_accuracy:.2f}%\n")
-
-        if self.evaluate:
-            plot(losses)
 
         return unlearned_model
 
