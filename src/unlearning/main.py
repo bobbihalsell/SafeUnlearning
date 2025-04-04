@@ -43,9 +43,6 @@ class UnlearnApp:
         # Check whether to use built-in pretrained weights
         self.pretrained = not bool(self.model_ckpt_path)
         self.num_classes = model_config['num_classes']
-        # Get the training configuration if provided
-        self.train_cfg = model_config.get('train_cfg', None)
-
         # Process unlearner-specific parameters
         self.unlearner_name = config['unlearner']['name']
         self.evaluate = config['unlearner']['evaluate']
