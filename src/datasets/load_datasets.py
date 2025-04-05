@@ -1,5 +1,4 @@
 from torch.utils.data import Subset
-import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from datasets.cifar10 import (get_cifar10_train_transform,
                               get_cifar10_test_transform)
@@ -9,6 +8,7 @@ from datasets.imagenet import (get_imagenet_train_transform,
                                get_imagenet_test_transform)
 import numpy as np
 import os
+from torchvision.transforms import ToPILImage
 import requests
 import tarfile
 
@@ -48,19 +48,19 @@ def load_dataset(dataset_name: str,
     """
     # Select the correct transform
     if dataset_name == 'cifar10':
-        train_transform = get_cifar10_train_transform()
+        train_transform = get_cifar10_test_transform()
         test_transform = get_cifar10_test_transform()
         train_dataset = datasets.CIFAR10(root=dataset_save_path, train=True, download=True, transform=train_transform)
         test_dataset = datasets.CIFAR10(root=dataset_save_path, train=False, download=True, transform=test_transform)
 
     elif dataset_name == 'cifar100':
-        train_transform = get_cifar100_train_transform()
+        train_transform = get_cifar100_test_transform()
         test_transform = get_cifar100_test_transform()
         train_dataset = datasets.CIFAR100(root=dataset_save_path, train=True, download=True, transform=train_transform)
         test_dataset = datasets.CIFAR100(root=dataset_save_path, train=False, download=True, transform=test_transform)
 
     elif dataset_name == 'cifar5':
-        train_transform = get_cifar10_train_transform()
+        train_transform = get_cifar10_test_transform()
         test_transform = get_cifar10_test_transform()
         full_train_dataset = datasets.CIFAR10(root=dataset_save_path, train=True, download=True, transform=train_transform)
         full_test_dataset = datasets.CIFAR10(root=dataset_save_path, train=False, download=True, transform=test_transform)
@@ -73,7 +73,7 @@ def load_dataset(dataset_name: str,
         test_dataset = Subset(full_test_dataset, test_indices)
 
     elif dataset_name == 'imagenet':
-        train_transform = get_imagenet_train_transform()
+        train_transform = get_imagenet_test_transform()
         test_transform = get_imagenet_test_transform()
         # Dataset directory structure must follow the structure required by ImageFolder
         train_dataset_save_path = os.path.join(dataset_save_path, "train")
@@ -96,51 +96,63 @@ def load_dataset(dataset_name: str,
     return train_dataset, test_dataset
 
 
-def download_imagenet_dataset_from_web(url, dataset_save_path):
+def convert_cifar_to_imagefolder(dataset, root_path, name="train"):
     """
-    Download an ImageNet dataset tar file and save it in a specified directory.
-
-    The tar file MUST be of the form used by ImageNet.
-
-    Args:
-        url: The URL to download the dataset.
-        dataset_save_path: Directory to save the extracted dataset.
-
-    Returns:
-        None
+    Converts a CIFAR-style dataset into ImageFolder format.
+    This dataset will be stored under root_path/name/class_x/*.png.
     """
-    # Create save directory if it doesn't exist
-    if not os.path.exists(dataset_save_path):
-        os.makedirs(dataset_save_path)
+    to_pil = ToPILImage()
+    for idx, (image_tensor, label) in enumerate(dataset):
+        class_dir = os.path.join(root_path, name, str(label))
+        os.makedirs(class_dir, exist_ok=True)
+        image = to_pil(image_tensor)
+        image.save(os.path.join(class_dir, f"{idx}.png"))
 
-    # Define the filename
-    filename = url.split("/")[-1]
-    file_path = os.path.join(dataset_save_path, filename)
+# def download_imagenet_dataset_from_web(url, dataset_save_path):
+#     """
+#     Download an ImageNet dataset tar file and save it in a specified directory.
 
-    # Download the dataset
-    if not os.path.exists(file_path):
-        print(f"Downloading {filename}...")
-        response = requests.get(url, stream=True)
-        with open(file_path, "wb") as file:
-            for chunk in response.iter_content(chunk_size=8192):
-                file.write(chunk)
-        print(f"Download complete: {file_path}")
-    else:
-        print(f"{filename} already downloaded.")
+#     The tar file MUST be of the form used by ImageNet.
 
-    # Extract the tar file
-    if tarfile.is_tarfile(file_path):
-        print(f"Extracting {filename}...")
-        with tarfile.open(file_path, "r:gz") as tar:
-            tar.extractall(path=dataset_save_path)
-        print("Extraction complete.")
-    else:
-        raise Exception("The downloaded file is not a valid tar file.")
+#     Args:
+#         url: The URL to download the dataset.
+#         dataset_save_path: Directory to save the extracted dataset.
 
-    # Verify the dataset has correct structure
-    train_dir = os.path.join(dataset_save_path, 'train')
-    test_dir = os.path.join(dataset_save_path, 'val')
+#     Returns:
+#         None
+#     """
+#     # Create save directory if it doesn't exist
+#     if not os.path.exists(dataset_save_path):
+#         os.makedirs(dataset_save_path)
 
-    if not os.path.exists(train_dir) or not os.path.exists(test_dir):
-        raise Exception(f"Train or test directory missing in {dataset_save_path}."
-                        " Please verify the structure.")
+#     # Define the filename
+#     filename = url.split("/")[-1]
+#     file_path = os.path.join(dataset_save_path, filename)
+
+#     # Download the dataset
+#     if not os.path.exists(file_path):
+#         print(f"Downloading {filename}...")
+#         response = requests.get(url, stream=True)
+#         with open(file_path, "wb") as file:
+#             for chunk in response.iter_content(chunk_size=8192):
+#                 file.write(chunk)
+#         print(f"Download complete: {file_path}")
+#     else:
+#         print(f"{filename} already downloaded.")
+
+#     # Extract the tar file
+#     if tarfile.is_tarfile(file_path):
+#         print(f"Extracting {filename}...")
+#         with tarfile.open(file_path, "r:gz") as tar:
+#             tar.extractall(path=dataset_save_path)
+#         print("Extraction complete.")
+#     else:
+#         raise Exception("The downloaded file is not a valid tar file.")
+
+#     # Verify the dataset has correct structure
+#     train_dir = os.path.join(dataset_save_path, 'train')
+#     test_dir = os.path.join(dataset_save_path, 'val')
+
+#     if not os.path.exists(train_dir) or not os.path.exists(test_dir):
+#         raise Exception(f"Train or test directory missing in {dataset_save_path}."
+#                         " Please verify the structure.")

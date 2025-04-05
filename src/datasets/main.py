@@ -1,5 +1,7 @@
 import yaml
 import argparse
+from datasets.load_datasets import (load_dataset,
+                                    _get_stratified_subset)
 
 
 class DatasetInitializer:
@@ -33,7 +35,18 @@ class DatasetInitializer:
         self.forget_method = forget_cfg['method']
         self.forget_params = forget_cfg['parameters']
 
+    def get_train_test_data(self):
+        """ Download and save benchmark datasets with name support.
 
+        This will download respective datasets in the save directory.
+        """
+        train_dataset, test_dataset = load_dataset(
+            dataset_name=self.dataset_name,
+            proportion=self.proportion,
+            dataset_save_path=self.save_dir
+        )
+
+        return train_dataset, test_dataset
 
 if __name__ == '__main__':
     DatasetInitializer()
