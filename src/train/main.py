@@ -28,8 +28,7 @@ class TrainApp:
             try:
                 config = yaml.safe_load(f)
             except FileNotFoundError:
-                print('.yaml file not found.')
-                exit(1)
+                raise FileNotFoundError('.yaml file not found.')
 
         self.seed = config['seed']
         set_seed(self.seed)

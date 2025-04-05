@@ -30,7 +30,7 @@ class UnlearnApp(InputValidator):
             try:
                 config = yaml.safe_load(f)
             except FileNotFoundError:
-                print('.yaml file not found.')
+                raise FileNotFoundError('.yaml file not found.')
 
         # Perform input validation first
         super().__init__(config)
