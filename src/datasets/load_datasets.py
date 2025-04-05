@@ -8,6 +8,7 @@ from datasets.imagenet import (get_imagenet_train_transform,
                                get_imagenet_test_transform)
 import numpy as np
 import os
+import torch
 from torchvision.transforms import ToPILImage
 import requests
 import tarfile
@@ -32,127 +33,70 @@ def _get_stratified_subset(dataset,
 
 def load_dataset(dataset_name: str,
                  proportion: float,
-                 dataset_save_path: str):
-    """ Load and transform a train and test dataset.
+                 dataset_load_dir: str,
+                 dataset_save_dir: str):
+    """ Load, optionally filter, and save dataset in ImageFolder format. """
 
-    Transforms for the dataset must be pre-provided in the code somewhere.
-
-    Args:
-        dataset_name (str): The name of the dataset-of-origin of the images
-        proportion (float): The proportion of the dataset that will be used
-        dataset_save_path (str): The path at which the dataset is saved.
-            If the dataset is from ImageNet, use
-            the parent of the train and val directories.
-    Returns:
-        train_dataset, test_dataset (Tuple[Dataset])
-    """
-    # Select the correct transform
+    # Load raw dataset without transforms to save clean images
     if dataset_name == 'cifar10':
-        train_transform = get_cifar10_test_transform()
-        test_transform = get_cifar10_test_transform()
-        train_dataset = datasets.CIFAR10(root=dataset_save_path, train=True, download=True, transform=train_transform)
-        test_dataset = datasets.CIFAR10(root=dataset_save_path, train=False, download=True, transform=test_transform)
+        raw_train = datasets.CIFAR10(root=dataset_load_dir, train=True, download=True, transform=None)
+        raw_test = datasets.CIFAR10(root=dataset_load_dir, train=False, download=True, transform=None)
 
     elif dataset_name == 'cifar100':
-        train_transform = get_cifar100_test_transform()
-        test_transform = get_cifar100_test_transform()
-        train_dataset = datasets.CIFAR100(root=dataset_save_path, train=True, download=True, transform=train_transform)
-        test_dataset = datasets.CIFAR100(root=dataset_save_path, train=False, download=True, transform=test_transform)
+        raw_train = datasets.CIFAR100(root=dataset_load_dir, train=True, download=True, transform=None)
+        raw_test = datasets.CIFAR100(root=dataset_load_dir, train=False, download=True, transform=None)
 
     elif dataset_name == 'cifar5':
-        train_transform = get_cifar10_test_transform()
-        test_transform = get_cifar10_test_transform()
-        full_train_dataset = datasets.CIFAR10(root=dataset_save_path, train=True, download=True, transform=train_transform)
-        full_test_dataset = datasets.CIFAR10(root=dataset_save_path, train=False, download=True, transform=test_transform)
+        raw_train = datasets.CIFAR10(root=dataset_load_dir, train=True, download=True, transform=None)
+        raw_test = datasets.CIFAR10(root=dataset_load_dir, train=False, download=True, transform=None)
 
-        # Filter classes to keep only 0-4
-        train_indices = [i for i, (_, label) in enumerate(full_train_dataset) if label < 5]
-        test_indices = [i for i, (_, label) in enumerate(full_test_dataset) if label < 5]
-
-        train_dataset = Subset(full_train_dataset, train_indices)
-        test_dataset = Subset(full_test_dataset, test_indices)
+        # Filter for classes 0–4
+        train_indices = [i for i, (_, label) in enumerate(raw_train) if label < 5]
+        test_indices = [i for i, (_, label) in enumerate(raw_test) if label < 5]
+        raw_train = Subset(raw_train, train_indices)
+        raw_test = Subset(raw_test, test_indices)
 
     elif dataset_name == 'imagenet':
+        # Just load and return directly for ImageNet
         train_transform = get_imagenet_test_transform()
         test_transform = get_imagenet_test_transform()
-        # Dataset directory structure must follow the structure required by ImageFolder
-        train_dataset_save_path = os.path.join(dataset_save_path, "train")
-        test_dataset_save_path = os.path.join(dataset_save_path, "val")
-        train_dataset = datasets.ImageFolder(root=train_dataset_save_path,
-                                             transform=train_transform)
-        test_dataset = datasets.ImageFolder(root=test_dataset_save_path,
-                                            transform=test_transform)
+
+        train_dataset = datasets.ImageFolder(
+            root=os.path.join(dataset_load_dir, "train"),
+            transform=train_transform
+        )
+        test_dataset = datasets.ImageFolder(
+            root=os.path.join(dataset_load_dir, "val"),
+            transform=test_transform
+        )
+        return train_dataset, test_dataset
 
     else:
-        # Note: All subsequent custom datasets must follow ImageNet structure
         raise Exception(f'{dataset_name} is an unsupported dataset.')
 
-    # Apply proportional subsampling if needed
     if proportion < 1:
-        train_dataset = _get_stratified_subset(train_dataset,
-                                               proportion)
-        test_dataset = _get_stratified_subset(test_dataset,
-                                              proportion=1)
-    return train_dataset, test_dataset
+        raw_train = _get_stratified_subset(raw_train, proportion)
+        raw_test = _get_stratified_subset(raw_test, proportion=1)  # keep full test set
+
+    # Save to ImageFolder format
+    save_as_imagefolder(raw_train, root_path=dataset_save_dir, name='train')
+    save_as_imagefolder(raw_test, root_path=dataset_save_dir, name='test')
+
+    return None
 
 
-def convert_cifar_to_imagefolder(dataset, root_path, name="train"):
+def save_as_imagefolder(dataset, root_path, name="train"):
     """
-    Converts a CIFAR-style dataset into ImageFolder format.
-    This dataset will be stored under root_path/name/class_x/*.png.
+    Converts a dataset into ImageFolder-style format.
+    Saves images under: root_path/name/class_x/*.png
     """
     to_pil = ToPILImage()
-    for idx, (image_tensor, label) in enumerate(dataset):
+    for idx, (image, label) in enumerate(dataset):
         class_dir = os.path.join(root_path, name, str(label))
         os.makedirs(class_dir, exist_ok=True)
-        image = to_pil(image_tensor)
+
+        # If image is a tensor, convert to PIL
+        if isinstance(image, torch.Tensor):
+            image = to_pil(image)
+
         image.save(os.path.join(class_dir, f"{idx}.png"))
-
-# def download_imagenet_dataset_from_web(url, dataset_save_path):
-#     """
-#     Download an ImageNet dataset tar file and save it in a specified directory.
-
-#     The tar file MUST be of the form used by ImageNet.
-
-#     Args:
-#         url: The URL to download the dataset.
-#         dataset_save_path: Directory to save the extracted dataset.
-
-#     Returns:
-#         None
-#     """
-#     # Create save directory if it doesn't exist
-#     if not os.path.exists(dataset_save_path):
-#         os.makedirs(dataset_save_path)
-
-#     # Define the filename
-#     filename = url.split("/")[-1]
-#     file_path = os.path.join(dataset_save_path, filename)
-
-#     # Download the dataset
-#     if not os.path.exists(file_path):
-#         print(f"Downloading {filename}...")
-#         response = requests.get(url, stream=True)
-#         with open(file_path, "wb") as file:
-#             for chunk in response.iter_content(chunk_size=8192):
-#                 file.write(chunk)
-#         print(f"Download complete: {file_path}")
-#     else:
-#         print(f"{filename} already downloaded.")
-
-#     # Extract the tar file
-#     if tarfile.is_tarfile(file_path):
-#         print(f"Extracting {filename}...")
-#         with tarfile.open(file_path, "r:gz") as tar:
-#             tar.extractall(path=dataset_save_path)
-#         print("Extraction complete.")
-#     else:
-#         raise Exception("The downloaded file is not a valid tar file.")
-
-#     # Verify the dataset has correct structure
-#     train_dir = os.path.join(dataset_save_path, 'train')
-#     test_dir = os.path.join(dataset_save_path, 'val')
-
-#     if not os.path.exists(train_dir) or not os.path.exists(test_dir):
-#         raise Exception(f"Train or test directory missing in {dataset_save_path}."
-#                         " Please verify the structure.")
