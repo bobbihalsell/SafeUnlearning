@@ -1,6 +1,9 @@
 """Mechanisms for image reconstruction from parameter gradients."""
 
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import copy
 from collections import defaultdict, OrderedDict
 from .modules import MetaMonkey
 
@@ -58,7 +61,8 @@ class GradientReconstructor():
         if self.config['scoring_choice'] == 'inception':
             self.inception = InceptionScore(batch_size=1, setup=self.setup)
 
-        self.loss_fn = torch.nn.CrossEntropyLoss(reduction='mean')
+        self.loss_fn_ce = torch.nn.CrossEntropyLoss(reduction='mean')
+        self.loss_fn = DistillKL(2)
         self.iDLG = True
 
     def reconstruct(self, input_data, labels, img_shape=(3, 32, 32), dryrun=False, eval=True, tol=None):
@@ -86,7 +90,8 @@ class GradientReconstructor():
                 def loss_fn(pred, labels):
                     labels = torch.nn.functional.softmax(labels, dim=-1)
                     return torch.mean(torch.sum(- labels * torch.nn.functional.log_softmax(pred, dim=-1), 1))
-                self.loss_fn = loss_fn
+                self.loss_fn_ce = loss_fn
+                self.loss_fn = DistillKL(2)
         else:
             assert labels.shape[0] == self.num_images
             self.reconstruct_label = False
@@ -165,6 +170,7 @@ class GradientReconstructor():
 
                                                                          max_iterations // 1.142], gamma=0.1)   # 3/8 5/8 7/8
         try:
+            self.model_copy = copy.deepcopy(self.model)
             for iteration in range(max_iterations):
                 closure = self._gradient_closure(optimizer, x_trial, input_data, labels)
                 rec_loss = optimizer.step(closure)
@@ -199,7 +205,10 @@ class GradientReconstructor():
         def closure():
             optimizer.zero_grad()
             self.model.zero_grad()
-            loss = self.loss_fn(self.model(x_trial), label)
+            loss_ce = self.loss_fn_ce(self.model(x_trial), label)
+            loss_kl = self.loss_fn(self.model(x_trial), self.model_copy(x_trial))
+            loss = loss_ce + loss_kl
+
             gradient = torch.autograd.grad(loss, self.model.parameters(), create_graph=True)
             rec_loss = reconstruction_costs([gradient], input_gradient,
                                             cost_fn=self.config['cost_fn'], indices=self.config['indices'],
@@ -217,7 +226,10 @@ class GradientReconstructor():
         if self.config['scoring_choice'] == 'loss':
             self.model.zero_grad()
             x_trial.grad = None
-            loss = self.loss_fn(self.model(x_trial), label)
+            loss_ce = self.loss_fn_ce(self.model(x_trial), label)
+            loss_kl = self.loss_fn(self.model(x_trial), self.model_copy(x_trial))
+            loss =  loss_ce + loss_kl
+
             gradient = torch.autograd.grad(loss, self.model.parameters(), create_graph=False)
             return reconstruction_costs([gradient], input_gradient,
                                         cost_fn=self.config['cost_fn'], indices=self.config['indices'],
@@ -252,6 +264,18 @@ class GradientReconstructor():
         return x_optimal, stats
 
 
+class DistillKL(nn.Module):
+    """Distilling the Knowledge in a Neural Network"""
+
+    def __init__(self, T):
+        super(DistillKL, self).__init__()
+        self.T = T
+
+    def forward(self, y_s, y_t):
+        p_s = F.log_softmax(y_s / self.T, dim=1)
+        p_t = F.softmax(y_t / self.T, dim=1)
+        loss = F.kl_div(p_s, p_t, size_average=False) * (self.T**2) / y_s.shape[0]
+        return loss
 
 class FedAvgReconstructor(GradientReconstructor):
     """Reconstruct an image from weights after n gradient descent steps."""
@@ -313,7 +337,8 @@ def loss_steps(model, inputs, labels, loss_fn=torch.nn.CrossEntropyLoss(), lr=1e
             idx = i % (inputs.shape[0] // batch_size)
             outputs = patched_model(inputs[idx * batch_size:(idx + 1) * batch_size], patched_model.parameters)
             labels_ = labels[idx * batch_size:(idx + 1) * batch_size]
-        loss = loss_fn(outputs, labels_).sum()
+        loss_ce = loss_fn(outputs, labels_).sum()
+    
         grad = torch.autograd.grad(loss, patched_model.parameters.values(),
                                    retain_graph=True, create_graph=True, only_inputs=True)
 
