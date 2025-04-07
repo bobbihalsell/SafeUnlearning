@@ -10,12 +10,26 @@ import os
 class SaveImage:
     def __init__(self, 
                  attack_name: str,
+                 seed: str,
+                 experiment_name: str,
                  image_mean: Optional[list] = None, 
                  image_std: Optional[list] = None, 
-                 output_dir: str = "saved_images",
-                 
+                 output_dir: str = "artifacts/reconstructed",
                  ):
-        
+        """Class to save images and tensors.
+        Args:
+            attack_name (str): Name of the attack.
+            seed (str): Seed for reproducibility.
+            experiment_name (str): Name of the experiment.
+            image_mean (list, optional): Mean for normalization. Defaults to None.
+            image_std (list, optional): Std for normalization. Defaults to None.
+            output_dir (str, optional): Directory to save images. Defaults to "artifacts/reconstructed".
+        """
+        self.attack_name = attack_name
+        self.seed = seed
+        self.experiment_name = experiment_name
+        self.device = 'cpu'
+    
         # Default if not provided
         if image_mean is None:
             image_mean = [0.0]  
@@ -32,63 +46,103 @@ class SaveImage:
         os.makedirs(self.directory, exist_ok=True)  # Ensure the directory exists
 
 
-        self.device = setup_device() 
+
 
 
     def save_png(self, 
                  images: list, 
-                 filename: Optional[str] = None, 
+                 filepath: Optional[str] = None, 
                  fig_size: Optional[tuple] = None,
                  n_cols: Optional[int] = None,
-                 n_rows: Optional[int] = None, 
-                 normalise: Optional[bool] = True
+                 normalize: Optional[bool] = True
                  ): 
+        """
+        Save images as PNG files with a specified layout.
+        Args:
+            images (list): List of images to save.
+            filepath (str, optional): Path to save the image. Defaults to None.
+            fig_size (tuple, optional): Figure size. Defaults to None.
+            n_cols (int, optional): Number of columns. Defaults to None.
+            normalize (bool, optional): Whether to normalize the images. Defaults to True.
+        
+        Returns:
+            None
+        """
         self.num_images = len(images)
 
         images = images.clone().detach()
 
-        if normalise:
+        if normalize:
             images.mul_(self.image_std).add_(self.image_mean).clamp_(0, 1) 
 
-        if fig_size is None:
-            fig_size = (40, self.num_images*12)
 
         if self.num_images == 1:
-            # plt.title(f"Loss: {loss:.2f}") 
             plt.imshow(images[0].permute(1, 2, 0).cpu())
             plt.axis('off')
         else:
-            fig, axes = plt.subplots(1, self.num_images, figsize=(40, self.num_images*12))
+            if n_cols is None:
+                n_cols = int(np.ceil(self.num_images / 2))
+            n_rows = int(np.ceil(self.num_images / n_cols))
+
+            if fig_size is None:
+                _, h, w = images[0].shape
+                scale = 1.5
+                fig_width = (w * n_cols * scale) / 100
+                fig_height = (h * n_rows * scale) / 100
+                fig_size = (fig_width, fig_height)
+
+            fig, axes = plt.subplots(n_rows, n_cols, figsize=fig_size,
+                                    dpi=300)
             for i, im in enumerate(images):
-                axes[i].imshow(im.permute(1, 2, 0).cpu())
-                # axes[i].set_title(f"Loss: {loss:.2f}", fontsize=40) #TODO: optional annotations
+                row = i // n_cols
+                col = i % n_cols
+                axes[row, col].imshow(im.permute(1, 2, 0).cpu())
+                axes[row, col].axis('off')
+                if i >= n_rows * n_cols:
+                    break
+            # Hide any unused subplots
+            for j in range(i + 1, n_rows * n_cols):
+                row = j // n_cols
+                col = j % n_cols
+                axes[row, col].axis('off')
 
-        if filename is None:
-            filename = f'{}'#TODO: follow naming convention with attack, seed, exp num
+        if filepath is None:
+            filepath = os.path.join(self.directory, f'{self.attack_name}_{self.seed}_{self.experiment_name}.png')
 
-        filepath = os.path.join(directory, f'{model_name}_{seed}_{model_type}.pt')
-
-        plt.savefig(self.base_save_path / filename, bbox_inches='tight')
-
-        print(f"Image saved at {self.base_save_path / filename}")
-    
+        plt.tight_layout()
+        plt.savefig(filepath, bbox_inches='tight')
+        print(f"Image saved at {filepath}")
         plt.show()
 
 
 
     def save_tensor(self, images: list, 
-                    filename: str):
-        
-        if filename is None:
-            filename = f'{}'
-        
-        torch.save(images, self.base_save_path / filename)
+                    filepath: str):
+        """Save images as a tensor.
+        Args:
+            images (list): List of images to save.
+            filepath (str): Path to save the tensor.
 
-        print(f"Image saved at {self.base_save_path / filename}")
+        Returns:
+            None
+        """
+        
+        if filepath is None:
+            filepath = os.path.join(self.directory, f'{self.attack_name}_{self.seed}_{self.experiment_name}.pt')
+
+        torch.save(images, filepath)
+
+        print(f"Image saved as a tensor at {filepath}")
 
 
     def load_tensor(self, 
                     filepath: str):
+        """Load images from a tensor file.
+        Args:
+            filepath (str): Path to the tensor file.
+        Returns:
+            list: Loaded images.
+        """
         
         return torch.load(filepath)
     
@@ -116,4 +170,24 @@ def set_seed(seed: int = 42):
     torch.backends.cudnn.benchmark = False  # Ensure deterministic behavior
 
 
-#test with 1, 5, 10, 64 imgs
+
+if __name__ == "__main__":
+    # Example usage
+    save_image = SaveImage(attack_name="example_attack", 
+                           seed="1234", 
+                           experiment_name="example_experiment")
+    
+    # Create a dummy tensor of images
+    images = torch.randn(50, 3, 64, 64)  
+
+    # Save the images with custom parameters
+
+    save_image.save_tensor(images,
+                           filepath="example_tensor.pt")
+    
+    loaded_images = save_image.load_tensor(filepath="example_tensor.pt")    
+    print(f"Loaded images shape: {loaded_images.shape}")
+
+    save_image.save_png(loaded_images, 
+                         n_cols=10, 
+                         normalise=True)
