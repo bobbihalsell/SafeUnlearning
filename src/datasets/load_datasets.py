@@ -1,18 +1,15 @@
 from torch.utils.data import Subset
 import torchvision.datasets as datasets
-from datasets.cifar10 import get_cifar10_test_transform
-from datasets.cifar100 import get_cifar100_test_transform
-from datasets.imagenet import get_imagenet_test_transform
 import numpy as np
 import os
 import torch
 from torchvision.transforms import ToPILImage
 
 
-def _get_stratified_split(dataset:torch.utils.data.Dataset,
+def _get_stratified_split(dataset: torch.utils.data.Dataset,
                           proportion: float):
     """ Get a stratified split of a dataset into 2 subsets. 
-    
+
     This will retain class distributions.
     """
     targets = np.array(dataset.targets)
@@ -31,11 +28,11 @@ def _get_stratified_split(dataset:torch.utils.data.Dataset,
     return Subset(dataset, indices), Subset(dataset, remainder_indices)
 
 
-def load_dataset(dataset_name: str,
-                 proportion: float,
-                 val_ratio: float,
-                 dataset_load_dir: str,
-                 dataset_save_dir: str):
+def load_train_val_test_datasets(dataset_name: str,
+                                 proportion: float,
+                                 val_ratio: float,
+                                 dataset_load_dir: str,
+                                 dataset_save_dir: str):
     """ Load, optionally filter, and save dataset in ImageFolder format. """
 
     # For CIFAR datasets, download if necessary and filter
@@ -43,31 +40,31 @@ def load_dataset(dataset_name: str,
         raw_train = datasets.CIFAR10(root=dataset_load_dir,
                                      train=True,
                                      download=True,
-                                     transform=get_cifar10_test_transform())
+                                     transform=None)
         raw_test = datasets.CIFAR10(root=dataset_load_dir,
                                     train=False,
                                     download=True,
-                                    transform=get_cifar10_test_transform())
+                                    transform=None)
 
     elif dataset_name == 'cifar100':
         raw_train = datasets.CIFAR100(root=dataset_load_dir,
                                       train=True,
                                       download=True,
-                                      transform=get_cifar100_test_transform())
+                                      transform=None)
         raw_test = datasets.CIFAR100(root=dataset_load_dir,
                                      train=False,
                                      download=True,
-                                     transform=get_cifar100_test_transform())
+                                     transform=None)
 
     elif dataset_name == 'cifar5':
         raw_train = datasets.CIFAR10(root=dataset_load_dir,
                                      train=True,
                                      download=True,
-                                     transform=get_cifar10_test_transform())
+                                     transform=None)
         raw_test = datasets.CIFAR10(root=dataset_load_dir,
                                     train=False,
                                     download=True,
-                                    transform=get_cifar10_test_transform())
+                                    transform=None)
 
         # Filter for classes 0–4
         train_indices = [i for i, (_, label) in
@@ -81,27 +78,34 @@ def load_dataset(dataset_name: str,
         # Load in the dataset for filtering by proportion
         raw_train = datasets.ImageFolder(
             root=os.path.join(dataset_load_dir, "train"),
-            transform=get_imagenet_test_transform()
+            transform=None
         )
         raw_test = datasets.ImageFolder(
             root=os.path.join(dataset_load_dir, "val"),
-            transform=get_imagenet_test_transform()
+            transform=None
         )
 
     else:
         raise Exception(f'{dataset_name} is an unsupported dataset.')
 
     if proportion < 1:
-        raw_train = _get_stratified_subset(raw_train, proportion)
-        raw_test = _get_stratified_subset(raw_test, proportion=1)
+        raw_train, _ = _get_stratified_split(raw_train, proportion)
+        raw_test, _ = _get_stratified_split(raw_test, proportion=1)
 
     # Perform train/val split
-    raw_train_subset = _get_stratified_subset(raw_train, 1 - val_ratio)
-    # raw_val = 
+    raw_train_subset, raw_val_subset = _get_stratified_split(raw_train,
+                                                             1 - val_ratio)
 
-    # Save to ImageFolder format
-    _save_as_imagefolder(raw_train, root_path=dataset_save_dir, name='train')
-    _save_as_imagefolder(raw_test, root_path=dataset_save_dir, name='test')
+    # Save datasets to ImageFolder format
+    _save_as_imagefolder(raw_train_subset,
+                         root_path=dataset_save_dir,
+                         name='train')
+    _save_as_imagefolder(raw_val_subset,
+                         root_path=dataset_save_dir,
+                         name='val')
+    _save_as_imagefolder(raw_test,
+                         root_path=dataset_save_dir,
+                         name='test')
 
     return None
 

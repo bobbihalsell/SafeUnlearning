@@ -1,8 +1,9 @@
 import yaml
 import argparse
-from datasets.load_datasets import (load_dataset,
-                                    _get_stratified_split)
+from datasets.load_datasets import load_train_val_test_datasets
 import numpy as np
+import os
+from torchvision.datasets import ImageFolder
 
 
 class DatasetInitializer:
@@ -24,31 +25,75 @@ class DatasetInitializer:
 
         dataset_cfg = config['dataset']
         self.dataset_name = dataset_cfg['name']
+        self.init_dir = dataset_cfg['init_dir']
         self.save_dir = dataset_cfg['save_dir']
         self.proportion = dataset_cfg['proportion']
         self.val_ratio = dataset_cfg['val_ratio']
-        self.dataset_cfg = dataset_cfg['cfg']
 
         forget_cfg = config['forget']
         self.forget_method = forget_cfg['method']
-        self.forget_params = forget_cfg['parameters']
+        self.forget_idx = forget_cfg['forget_idx']
 
         seed = config.get('seed', 42)
         np.random.seed(seed)
 
-    def get_train_test_data(self):
+    def load_datasets(self):
         """ Download and save benchmark datasets with name support.
 
-        This will download respective datasets in the save directory.
+        This will download train/val/test datasets in the save directory.
         """
-        load_dataset(
+        load_train_val_test_datasets(
             dataset_name=self.dataset_name,
             proportion=self.proportion,
-            dataset_save_path=self.save_dir
+            val_ratio=self.val_ratio,
+            dataset_load_dir=self.init_dir,
+            dataset_save_dir=self.save_dir,
         )
+
+        # Create symlinks for desired retain and forget set images
+        self.create_symlink_subsets(
+            train_dir=self.save_dir + '/train',
+            output_dir=self.save_dir,
+            forget_indices=self.forget_idx,
+        )
+
+    def create_symlink_subsets(self,
+                               train_dir: str,
+                               output_dir: str,
+                               forget_indices: list,
+                               retain_indices: list = None,
+                               ):
+        """ Create symlink forget and retain subsets"""
+        train_dataset = ImageFolder(root=train_dir)
+
+        # If retain_indices is None, use all indices except the forget_indices
+        if retain_indices is None:
+            all_indices = set(range(len(train_dataset)))
+            retain_indices = list(all_indices - set(forget_indices))
+
+        def symlink_subset(subset_name, subset_indices):
+            subset_dir = os.path.join(output_dir, subset_name)
+            os.makedirs(subset_dir, exist_ok=True)
+
+            for idx in subset_indices:
+                img_path, label = train_dataset.samples[idx]
+                print(img_path, label)
+                class_name = train_dataset.classes[label]
+                target_dir = os.path.join(subset_dir, class_name)
+                os.makedirs(target_dir, exist_ok=True)
+
+                filename = os.path.basename(img_path)
+                link_path = os.path.join(target_dir, filename)
+
+                # Create symlink
+                if not os.path.exists(link_path):
+                    os.symlink(os.path.abspath(img_path), link_path)
+
+        symlink_subset('forget', forget_indices)
+        symlink_subset('retain', retain_indices)
 
 
 if __name__ == '__main__':
-    DatasetInitializer()
+    DatasetInitializer().load_datasets()
     # DatasetInitializer().get_train_test_data()
     # python src/datasets/main.py --config_path src/datasets/experiments/prep_simple.yaml
