@@ -90,6 +90,24 @@ class UnlearnApp(InputValidator):
 
         return model
 
+    def load_model_from_disk(self, model_path):
+        """Load model from disk."""
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model file {model_path} not found.")
+
+        try:
+            # Initialize appropriate model architecture
+            model = self.initialize_model()
+            # Load state dict
+            checkpoint = torch.load(model_path, map_location=self.device)
+            model.load_state_dict(checkpoint)
+            model = model.to(self.device)
+            print(f"Loaded model from {model_path}")
+            return model
+
+        except Exception as e:
+            raise Exception(f'Error loading model: {e}')
+
     def initialize_unlearner(self):
         """ Initialize the correct unlearner from user specification."""
         if self.unlearner_name == 'finetune':
@@ -128,53 +146,12 @@ class UnlearnApp(InputValidator):
 
     def initialize_dataset(self):
         """ Initialize the entire dataset based on dataset name."""
-        if self.dataset_name == 'imagenet' and self.url is not None:
-            # Download and save ImageNet
-            src_datasets.download_imagenet_dataset_from_web(
-                url=self.url,
-                dataset_save_path=self.save_path)
-
         train_dataset, test_dataset = src_datasets.load_dataset(
             dataset_name=self.dataset_name,
             proportion=self.proportion,
             dataset_save_path=self.save_path)
 
         return train_dataset, test_dataset
-
-    def save_loaders_to_disk(self, loaders_dict):
-        """Save all dataloaders to disk."""
-        loaders_dir = os.path.join(self.output_dir, 'loaders')
-        os.makedirs(loaders_dir, exist_ok=True)
-        save_loaders(path=loaders_dir, **loaders_dict)
-        print(f"Saved loaders to {loaders_dir}")
-
-    def load_loaders_from_disk(self):
-        """Load dataloaders from disk if available."""
-        loaders_dir = os.path.join(self.output_dir, 'loaders')
-        try:
-            loaders = load_loaders(loaders_dir)
-            print(f"Loaded loaders from {loaders_dir}")
-            return loaders
-        except Exception as e:
-            raise Exception(f"Error loading loaders: {e}")
-
-    def load_model_from_disk(self, model_path):
-        """Load model from disk."""
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(f"Model file {model_path} not found.")
-
-        try:
-            # Initialize appropriate model architecture
-            model = self.initialize_model()
-            # Load state dict
-            checkpoint = torch.load(model_path, map_location=self.device)
-            model.load_state_dict(checkpoint)
-            model = model.to(self.device)
-            print(f"Loaded model from {model_path}")
-            return model
-
-        except Exception as e:
-            raise Exception(f'Error loading model: {e}')
 
     def run(self):
         print('running...')

@@ -7,7 +7,6 @@ unlearner:
   evaluate: true
   cfg:
     # Common parameters for all unlearners
-    loss_fn: cross_entropy
     lr: 0.01
     weight_decay: 0
     use_l2_penalty: false
@@ -23,27 +22,15 @@ unlearner:
     reinit_method: randn  # For euk (randn or zero or xaiver)
 dataset:
   name: cifar10  # Options: cifar10, cifar5, cifar100, imagenet
-  url: # must end in .tar or .tar.gz
   save_path: ./data # the directory filepath where the dataset should be saved OR is saved and should be loaded in from. 
-  proportion: 0.001 # Choose 1 to get all data. Data will always be balanced.
-  val_ratio: 0.2
-  save_loaders: true
   cfg:
     batch_sizes:
       retain: 32
       forget: 32
       val: 32
-      train: 64
-      test: 64
-    shuffle_settings:
-      retain: true
-      forget: true
-      train: true
-      val: false
-      test: false
     num_workers: 1
 forget_method:
-  name: class_instances  # Options: instances (select indices), class_instances (random N from class(es)), classes (remove entire class(es))
+  name: class  # Options: instance (select indices) class (remove entire class(es))
   parameters:
     # Specify only the relevant parameters for your chosen method
     # forget_set_indices: [0, 1, 2]  # For 'instances' method
