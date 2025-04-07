@@ -421,6 +421,8 @@ if __name__ == "__main__":
     use_tanh = config['Reconstructor']['use_tanh']
 
     print('yaml file read')
+
+    # parameters specific to scrub
     alpha = config['Unlearner'].get('alpha', None)
     gamma = config['Unlearner'].get('gamma', None)
     min_epochs = config['Unlearner'].get('min_epochs', None)
