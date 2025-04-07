@@ -6,7 +6,6 @@ import torch.nn as nn
 import torchvision
 from unlearning.utils import save_model, set_seed, setup_device
 import os
-from datasets.preprocessing import get_all_loaders, save_loaders, load_loaders
 from unlearning.config_validation import InputValidator
 from unlearning.finetune import FinetuneUnlearner
 from unlearning.scrub import SCRUB
@@ -146,57 +145,16 @@ class UnlearnApp(InputValidator):
 
     def initialize_dataset(self):
         """ Initialize the entire dataset based on dataset name."""
-        train_dataset, test_dataset = src_datasets.load_dataset(
-            dataset_name=self.dataset_name,
-            proportion=self.proportion,
-            dataset_save_path=self.save_path)
-
-        return train_dataset, test_dataset
+        pass
 
     def run(self):
         print('running...')
-        # Step 1: Initialize and prepare datasets
-        train_dataset, test_dataset = self.initialize_dataset()
-        print('datasets initialized')
+        # Step 1: Load in datasets
 
-        # Step 2: Check if loaders are already saved and should be loaded
-        data_dict = None
-        if self.save_loaders:
-            data_dict = self.load_loaders_from_disk()
-            print('loaders loaded')
+        # Prepare dataloaders
 
-        # If loaders weren't loaded, create them
-        if data_dict is None:
-            print('loaders not loaded... creating loaders')
-            # Extract loader configurations
-            batch_sizes = self.dataset_cfg['batch_sizes']
-            shuffle_settings = self.dataset_cfg['shuffle_settings']
 
-            # Create dataloaders
-            forget_loader, retain_loader, train_loader, val_loader, test_loader = get_all_loaders(
-                train_dataset,
-                test_dataset,
-                method=self.forget_method,
-                batch_sizes=batch_sizes,
-                shuffle_settings=shuffle_settings,
-                val_ratio=self.val_ratio,
-                **self.forget_params
-            )
-            data_dict = {
-                'forget': forget_loader,
-                'retain': retain_loader,
-                'train': train_loader,
-                'val': val_loader,
-                'test': test_loader
-                }
-
-            print(data_dict.keys())
-            # Save loaders if configured to do so
-            if self.save_loaders:
-                self.save_loaders_to_disk(data_dict)
-                print('loaders saved')
-
-        # Step 3: Initialize the pretrained model, and evaluate
+        # Step 3: Initialize the pretrained model
         original_model = self.load_model_from_disk(self.model_ckpt_path)
 
         save_model(original_model,
