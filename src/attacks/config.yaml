@@ -4,17 +4,48 @@ dataset_name: "imagenet"  #name of dataset
 reconstructor_name: ggl
 
 reconstructor:
+## common params
+  experiment_name: "test_config" # i use this when saving image, could be useful when integrating with WANDB
+  seed: 42 # potentially used for both?
+  lr: 0.001
+  labels: [13]  # Can we pass as a list?
+  save_img: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/artifacts/test_config.png" #save reconstructed image
+
+  # InverseGrad params
+  image_mean:
+  - 0.5
+  - 0.5
+  - 0.5
+  image_shape:
+  - 3
+  - 32
+  - 32
+  image_std: 
+  - 0.5
+  - 0.5
+  - 0.5
+  grad_lr: 0.01
+  rec_experiments: 1
+  rec_epochs: 10000
+  boxed: True,
+  cost_fn: sim
+  indices: def
+  weights: equal
+  optim: adamw
+  total_variation: 1e-1
+  init: 'randn'
+  lr_decay: True
+  scoring_choice: loss
+
+
   num_classes: 1000
   num_updates: 1
-  lr: 0.001
   unlearning_method: neggrad
   alpha: None
   gamma: None
   min_epochs: None
   max_epochs: None
-  label: 13
   batch_size: 1
-  save_img: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/artifacts/test_config.png" #save reconstructed image
   save_z: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/artifacts/test_config.npy" #save latent vector from reconstruction
   loss_models: "l2"  # 'l1', 'l2', 'weighted', or 'interpolated'
   budget: 500  # Budget for Bayesian Optimization
