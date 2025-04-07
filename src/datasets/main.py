@@ -4,6 +4,7 @@ from datasets.load_datasets import load_train_val_test_datasets
 import numpy as np
 import os
 from torchvision.datasets import ImageFolder
+from unlearning.utils import ConfigError
 
 
 class DatasetInitializer:
@@ -51,18 +52,28 @@ class DatasetInitializer:
         )
 
         # Create symlinks for desired retain and forget set images
-        self.create_symlink_subsets(
-            train_dir=self.save_dir + '/train',
-            output_dir=self.save_dir,
-            forget_indices=self.forget_idx,
-        )
+        if self.forget_method == 'instance':
+            self.create_symlink_subsets_by_indices(
+                train_dir=self.save_dir + '/train',
+                output_dir=self.save_dir,
+                forget_indices=self.forget_idx,
+            )
+        elif self.forget_method == 'class':
+            self.create_symlink_subsets_by_classes(
+                train_dir=self.save_dir + '/train',
+                output_dir=self.save_dir,
+                forget_classes=self.forget_idx
+            )
+        else:
+            raise ConfigError('Unsupported forget_method, '
+                              f'received {self.forget_method}.')
 
-    def create_symlink_subsets(self,
-                               train_dir: str,
-                               output_dir: str,
-                               forget_indices: list,
-                               retain_indices: list = None,
-                               ):
+    def create_symlink_subsets_by_indices(self,
+                                          train_dir: str,
+                                          output_dir: str,
+                                          forget_indices: list,
+                                          retain_indices: list = None,
+                                          ):
         """ Create symlink forget and retain subsets"""
         train_dataset = ImageFolder(root=train_dir)
 
@@ -77,7 +88,6 @@ class DatasetInitializer:
 
             for idx in subset_indices:
                 img_path, label = train_dataset.samples[idx]
-                print(img_path, label)
                 class_name = train_dataset.classes[label]
                 target_dir = os.path.join(subset_dir, class_name)
                 os.makedirs(target_dir, exist_ok=True)
@@ -91,6 +101,39 @@ class DatasetInitializer:
 
         symlink_subset('forget', forget_indices)
         symlink_subset('retain', retain_indices)
+
+    def create_symlink_subsets_by_classes(self,
+                                          train_dir: str,
+                                          output_dir: str,
+                                          forget_classes: list
+                                          ):
+        """ Create symlinks if the user wanted to forget an entire class."""
+        subdirs = [name for name in os.listdir(train_dir) if
+                   os.path.isdir(os.path.join(train_dir, name))]
+        forget_classes = [str(label) for label in forget_classes]
+
+        def create_class_symlink(subset_name, label):
+            if isinstance(label, int):
+                label = str(label)
+            subset_dir = os.path.join(output_dir, subset_name, label)
+            origin_dir = os.path.join(train_dir, label)
+            # Remove existing directory/symlink if it exists
+            if os.path.exists(subset_dir):
+                if os.path.islink(subset_dir):
+                    os.unlink(subset_dir)  # Remove existing symlink
+                else:
+                    os.rmdir(subset_dir)  # Remove empty directory
+            # Ensure parent directory exists
+            os.makedirs(os.path.dirname(subset_dir), exist_ok=True)
+            # Create the symlink
+            os.symlink(origin_dir, subset_dir, target_is_directory=True)
+
+        for label in forget_classes:
+            create_class_symlink('forget', label)
+
+        retain_classes = list(set(subdirs) - set(forget_classes))
+        for label in retain_classes:
+            create_class_symlink('retain', label)
 
 
 if __name__ == '__main__':
