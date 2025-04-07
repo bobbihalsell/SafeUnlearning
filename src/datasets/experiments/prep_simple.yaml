@@ -6,6 +6,6 @@ dataset:
   proportion: 1 # Choose 1 to use all data. Data will always be balanced.
   val_ratio: 0.2
 forget:
-  method: class
+  method: class # instance or class only
   forget_idx: [1, 2, 3]
 seed: 42

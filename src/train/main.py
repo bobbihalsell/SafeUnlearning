@@ -42,13 +42,9 @@ class TrainApp:
 
         dataset_cfg = config['dataset']
         self.dataset_name = dataset_cfg['name']
-        self.url = dataset_cfg['url']
-        self.dataset_save_dir = dataset_cfg['save_dir']
-        self.proportion = dataset_cfg['proportion']
-        self.val_ratio = dataset_cfg['val_ratio']
+        self.dataset_save_dir = dataset_cfg['load_dir']
 
         self.batch_sizes = dataset_cfg['batch_sizes']
-        self.num_workers = dataset_cfg['num_workers']
 
         self.train_cfg = model_cfg['train_cfg']
 
@@ -99,32 +95,8 @@ class TrainApp:
         return model
 
     def initialize_datasets(self):
-        """ Initialize the datasets based on dataset name."""
-        if self.dataset_name == 'imagenet' and self.url is not None:
-            # Download and save ImageNet
-            src_datasets.download_imagenet_dataset_from_web(
-                url=self.url,
-                dataset_save_path=self.dataset_save_dir)
-
-        train_dataset, test_dataset = src_datasets.load_dataset(
-            dataset_name=self.dataset_name,
-            proportion=self.proportion,
-            dataset_save_path=self.dataset_save_dir)
-        # Perform train/val split
-        train_subset, val_dataset = preprocessing.train_val_split(
-            train_dataset=train_dataset,
-            val_ratio=self.val_ratio
-        )
-        self._validate_split(train_subset, val_dataset)
-
-        return train_subset, val_dataset, test_dataset
-
-    def _validate_split(self, train_set, val_set):
-        """ Debugger to check no dataset leakage"""
-        train_set_indices = set(train_set.indices)
-        val_set_indices = set(val_set.indices)
-
-        assert len(train_set_indices & val_set_indices) == 0
+        """ Load in the dataset from the folder"""
+        if 
 
     def convert_to_dataloaders(self,
                                train_dataset,
