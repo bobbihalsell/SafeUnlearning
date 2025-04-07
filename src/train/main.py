@@ -1,11 +1,14 @@
 import argparse
 import yaml
 import torchvision
+from torchvision.datasets import ImageFolder
 import torch
 from torch.utils.data import DataLoader
 import timm
-from datasets import load_datasets as src_datasets
-from datasets import preprocessing
+from datasets.cifar10 import get_cifar10_test_transform
+from datasets.cifar100 import get_cifar100_test_transform
+from datasets.imagenet import get_imagenet_test_transform
+from unlearning.utils import ConfigError
 from train.utils import setup_device, set_seed
 import wandb
 import os
@@ -45,6 +48,7 @@ class TrainApp:
         self.dataset_save_dir = dataset_cfg['load_dir']
 
         self.batch_sizes = dataset_cfg['batch_sizes']
+        self.num_workers = dataset_cfg.get('num_workers', 1)
 
         self.train_cfg = model_cfg['train_cfg']
 
@@ -94,30 +98,42 @@ class TrainApp:
 
         return model
 
-    def initialize_datasets(self):
-        """ Load in the dataset from the folder"""
-        if 
+    def get_transform(self):
+        if self.dataset_name == 'cifar10':
+            return get_cifar10_test_transform()
+        elif self.dataset_name == 'cifar100':
+            return get_cifar100_test_transform()
+        elif self.dataset_name == 'imagenet':
+            return get_imagenet_test_transform()
+        else:
+            raise ConfigError(f'dataset_name {self.dataset_name} '
+                              ' not supported.')
 
-    def convert_to_dataloaders(self,
-                               train_dataset,
-                               val_dataset,
-                               test_dataset):
-        """ Convert the datasets to dataloaders before training."""
-        train_batch_size = self.batch_sizes['train']
-        val_batch_size = self.batch_sizes['val']
-        test_batch_size = self.batch_sizes['test']
+    def initialize_dataloaders(self):
+        """ Initialize dataloaders from the ImageNet dataset folder."""
+        transform = self.get_transform()
 
-        train_dl = DataLoader(train_dataset,
-                              batch_size=train_batch_size,
-                              shuffle=True)
-        val_dl = DataLoader(val_dataset,
-                            batch_size=val_batch_size,
-                            shuffle=False)
-        test_dl = DataLoader(test_dataset,
-                             batch_size=test_batch_size,
-                             shuffle=False)
+        # Load datasets for each split
+        splits = ['train', 'val']
+        dataloaders = {}
 
-        return train_dl, val_dl, test_dl
+        for split in splits:
+            batch_size = self.batch_sizes[split]
+            split_dir = os.path.join(self.dataset_save_dir, split)
+            if not os.path.exists(split_dir):
+                raise Exception(f'{split_dir} does not exist. Is the dataset '
+                                'in ImageFolder format?')
+
+            dataset = ImageFolder(root=split_dir, transform=transform)
+            dataloaders[split] = DataLoader(
+                dataset,
+                batch_size=batch_size,
+                shuffle=(split == 'train'),  # Only shuffle train set
+                num_workers=self.num_workers,
+                pin_memory=True
+            )
+
+        return dataloaders
 
     def pretrain(self):
         """ Perform pretraining of a model on a dataset."""
@@ -142,10 +158,9 @@ class TrainApp:
         model.to(device)
 
         # Step 2: Load datasets and dataloaders
-        train_dataset, val_dataset, test_dataset = self.initialize_datasets()
-        train_dl, val_dl, _ = self.convert_to_dataloaders(train_dataset,
-                                                          val_dataset,
-                                                          test_dataset)
+        dataloaders = self.initialize_dataloaders()
+        train_dl = dataloaders['train']
+        val_dl = dataloaders['val']
 
         # Step 3: Set up loss function and optimizer
         criterion = torch.nn.CrossEntropyLoss()

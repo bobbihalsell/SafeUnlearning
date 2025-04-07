@@ -4,9 +4,9 @@ model:
   num_classes: 10
   save_dir: ./artifacts/models # directory to save the trained model
   train_cfg:  # Will use Adam only for now
-    epochs: 10
+    epochs: 15
     lr: 0.01
-    weight_decay: 0
+    weight_decay: 0.0001
 dataset:
   name: cifar10
   load_dir: ./data # directory to the ImageFolder-format dataset
@@ -14,4 +14,5 @@ dataset:
     train: 64
     val: 64
     test: 64
+  num_workers: 4
 seed: 42
