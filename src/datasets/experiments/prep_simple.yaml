@@ -16,3 +16,4 @@ dataset:
 forget:
   method: instances
   parameters: [1]
+seed: 42
