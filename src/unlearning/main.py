@@ -4,14 +4,16 @@ import timm
 import torch
 import torch.nn as nn
 import torchvision
-from unlearning.utils import save_model, set_seed, setup_device
+from unlearning.utils import save_model, set_seed, setup_device, ConfigError
 import os
+from datasets.cifar10 import get_cifar10_test_transform
+from datasets.cifar100 import get_cifar100_test_transform
+from datasets.imagenet import get_imagenet_test_transform
 from unlearning.config_validation import InputValidator
 from unlearning.finetune import FinetuneUnlearner
 from unlearning.scrub import SCRUB
 from unlearning.kunlearn import KUnlearn
 from unlearning.neggrad import NegGrad, NegGradPlus
-from datasets import load_datasets as src_datasets
 
 
 class UnlearnApp(InputValidator):
@@ -142,6 +144,17 @@ class UnlearnApp(InputValidator):
                              ' not supported.')
         self.unlearner = unlearner
         return unlearner
+
+    def get_transform(self):
+        if self.dataset_name == 'cifar10':
+            return get_cifar10_test_transform()
+        elif self.dataset_name == 'cifar100':
+            return get_cifar100_test_transform()
+        elif self.dataset_name == 'imagenet':
+            return get_imagenet_test_transform()
+        else:
+            raise ConfigError(f'dataset_name {self.dataset_name} '
+                              ' not supported.')
 
     def initialize_dataset(self):
         """ Initialize the entire dataset based on dataset name."""

@@ -12,11 +12,7 @@ class InputValidator:
 
         self.dataset_name = config['dataset']['name']
         self.save_path = config['dataset']['save_path']
-        self.proportion = config['dataset']['proportion']
-        self.val_ratio = config['dataset']['val_ratio']
-        self.save_loaders = config['dataset']['save_loaders']
         self.dataset_cfg = config['dataset']['cfg']
-        self.url = config['dataset']['url']
 
         self.forget_method = config['forget_method']['name']
         self.forget_params = config['forget_method']['parameters']
@@ -102,18 +98,9 @@ class InputValidator:
                               f'{', '.join(valid_dataset_names)}. '
                               f'Received {self.dataset_name}')
         if self.save_path is None:
-            raise ConfigError('A path to save the dataset or to '
+            raise ConfigError('A path to '
                               'load the dataset from must be provided. '
                               'save_path cannot be empty.')
-        if not (self.proportion >= 0 and self.proportion <= 1):
-            raise ConfigError('proportion must be a float between 0 and 1.')
-        if not (self.val_ratio >= 0 and self.val_ratio <= 1):
-            raise ConfigError('val_ratio must be a float between 0 and 1.')
-
-        if self.dataset_name != 'imagenet' and self.url is not None:
-            raise ConfigError('URL download is only supported for ImageNet data.'
-                              ' This is automatically handled for '
-                              'CIFAR datasets.')
 
     def _validate_forget_params(self):
         valid_forget_methods = {'instances', 'class_instances', 'classes'}
