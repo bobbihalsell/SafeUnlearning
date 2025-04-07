@@ -29,13 +29,6 @@ dataset:
       forget: 32
       val: 32
     num_workers: 1
-forget_method:
-  name: class  # Options: instance (select indices) class (remove entire class(es))
-  parameters:
-    # Specify only the relevant parameters for your chosen method
-    # forget_set_indices: [0, 1, 2]  # For 'instances' method
-    forget_labels: [5]  # For 'classes' and 'class_instances' method
-    num_to_forget: 100  # For 'class_instances' method (with forget_labels)
 seed: 42
 output_dir: artifacts/
 verbose: true

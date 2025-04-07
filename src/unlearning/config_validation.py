@@ -11,11 +11,10 @@ class InputValidator:
         self.unlearn_params = config['unlearner']['cfg']
 
         self.dataset_name = config['dataset']['name']
-        self.save_path = config['dataset']['save_path']
+        self.dataset_save_dir = config['dataset']['save_path']
         self.dataset_cfg = config['dataset']['cfg']
-
-        self.forget_method = config['forget_method']['name']
-        self.forget_params = config['forget_method']['parameters']
+        self.num_workers = self.dataset_cfg['num_workers']
+        self.batch_sizes = self.dataset_cfg['batch_sizes']
 
         model_config = config['model']
         self.model_name = model_config['name']

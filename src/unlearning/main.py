@@ -4,6 +4,8 @@ import timm
 import torch
 import torch.nn as nn
 import torchvision
+from torchvision.datasets import ImageFolder
+from torch.utils.data import DataLoader
 from unlearning.utils import save_model, set_seed, setup_device, ConfigError
 import os
 from datasets.cifar10 import get_cifar10_test_transform
@@ -156,9 +158,31 @@ class UnlearnApp(InputValidator):
             raise ConfigError(f'dataset_name {self.dataset_name} '
                               ' not supported.')
 
-    def initialize_dataset(self):
-        """ Initialize the entire dataset based on dataset name."""
-        pass
+    def initialize_dataloaders(self):
+        """ Initialize dataloaders from the ImageNet dataset folder."""
+        transform = self.get_transform()
+
+        # Load datasets for each split
+        splits = ['train', 'val']
+        dataloaders = {}
+
+        for split in splits:
+            batch_size = self.batch_sizes[split]
+            split_dir = os.path.join(self.dataset_save_dir, split)
+            if not os.path.exists(split_dir):
+                raise Exception(f'{split_dir} does not exist. Is the dataset '
+                                'in ImageFolder format?')
+
+            dataset = ImageFolder(root=split_dir, transform=transform)
+            dataloaders[split] = DataLoader(
+                dataset,
+                batch_size=batch_size,
+                shuffle=(split == 'train'),  # Only shuffle train set
+                num_workers=self.num_workers,
+                pin_memory=True
+            )
+
+        return dataloaders
 
     def run(self):
         print('running...')
