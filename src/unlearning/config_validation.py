@@ -25,7 +25,6 @@ class InputValidator:
 
         self._validate_unlearner_params()
         self._validate_dataset_params()
-        self._validate_forget_params()
         self._validate_model_params()
 
     def _validate_unlearner_params(self):
@@ -33,15 +32,12 @@ class InputValidator:
         Validate parameters required by each unlearner type.
         Raises exception if required parameters are missing.
         """
-        if not (self.unlearn_params['loss_fn'] == 'cross_entropy'):
-            raise ConfigError('loss_fn must be cross_entropy, '
-                              f'received {self.unlearn_params['loss_fn']}')
         # common parameters for unlearners
         required_params = ['epochs',
                            'lr',
                            'weight_decay',
                            'use_l2_penalty',
-                           'loss_fn']
+                           ]
 
         missing_params = []
         for param in required_params:
@@ -96,22 +92,10 @@ class InputValidator:
             raise ConfigError('Dataset support only for '
                               f'{', '.join(valid_dataset_names)}. '
                               f'Received {self.dataset_name}')
-        if self.save_path is None:
+        if self.dataset_save_dir is None:
             raise ConfigError('A path to '
                               'load the dataset from must be provided. '
-                              'save_path cannot be empty.')
-
-    def _validate_forget_params(self):
-        valid_forget_methods = {'instances', 'class_instances', 'classes'}
-        if not isinstance(self.forget_params, dict):
-            raise ConfigError('Error unpacking forget_method parameters. '
-                              'Please ensure you have appropriately '
-                              'indented and declared them.')
-
-        if self.forget_method not in valid_forget_methods:
-            raise ConfigError('Dataset support only for '
-                              f'{', '.join(list(valid_forget_methods))}. '
-                              f'Received {self.forget_method}')
+                              'dataset_save_dir cannot be empty.')
 
     def _validate_model_params(self):
         """ Check some of the model-related config params from the YAML file.

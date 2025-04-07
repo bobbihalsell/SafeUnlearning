@@ -163,7 +163,7 @@ class UnlearnApp(InputValidator):
         transform = self.get_transform()
 
         # Load datasets for each split
-        splits = ['train', 'val']
+        splits = ['retain', 'forget', 'val']
         dataloaders = {}
 
         for split in splits:
@@ -186,10 +186,8 @@ class UnlearnApp(InputValidator):
 
     def run(self):
         print('running...')
-        # Step 1: Load in datasets
-
-        # Prepare dataloaders
-
+        # Step 1: Load in datasets as datalaoders
+        dataloaders = self.initialize_dataloaders()
 
         # Step 3: Initialize the pretrained model
         original_model = self.load_model_from_disk(self.model_ckpt_path)
@@ -205,8 +203,8 @@ class UnlearnApp(InputValidator):
         unlearner = self.initialize_unlearner()
         print('unlearner initialized')
         unlearned_model, losses = unlearner.unlearn(original_model,
-                                                    data_dict,
-                                                    self.verbose,
+                                                    data_dict=dataloaders,
+                                                    verbose=self.verbose,
                                                     **self.unlearn_params)
         print('model unlearned')
 
