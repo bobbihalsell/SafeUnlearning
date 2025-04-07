@@ -4,13 +4,16 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import torch
 from typing import Optional
+import os
 
 
 class SaveImage:
     def __init__(self, 
+                 attack_name: str,
                  image_mean: Optional[list] = None, 
                  image_std: Optional[list] = None, 
-                 base_save_path: str = "saved_images"
+                 output_dir: str = "saved_images",
+                 
                  ):
         
         # Default if not provided
@@ -22,8 +25,12 @@ class SaveImage:
         self.image_mean = torch.as_tensor(image_mean, device = self.device)[:, None, None]
         self.image_std = torch.as_tensor(image_std, device = self.device)[:, None, None]
 
-        self.base_save_path = Path(base_save_path)
+        self.base_save_path = Path(output_dir)
         self.base_save_path.mkdir(parents=True, exist_ok=True)
+
+        self.directory = f'{output_dir}/reconstruction/{attack_name}'
+        os.makedirs(self.directory, exist_ok=True)  # Ensure the directory exists
+
 
         self.device = setup_device() 
 
@@ -58,6 +65,8 @@ class SaveImage:
 
         if filename is None:
             filename = f'{}'#TODO: follow naming convention with attack, seed, exp num
+
+        filepath = os.path.join(directory, f'{model_name}_{seed}_{model_type}.pt')
 
         plt.savefig(self.base_save_path / filename, bbox_inches='tight')
 
