@@ -13,6 +13,7 @@ from datasets.cifar100 import get_cifar100_test_transform
 from datasets.imagenet import get_imagenet_test_transform
 from attacks.config_validation import InputValidator #change this later 
 from attacks.GGL.final_ggl import GGLReconstructor
+from pytorch_pretrained_biggan import BigGAN, BigGANConfig
 #from attacks.DGL.dgl import DGLReconstructor
 #from attacks.InverseGrad.inversegrad import InverseGradReconstructor
 
@@ -110,11 +111,17 @@ class ReconstructorApp(InputValidator):
         except Exception as e:
             raise Exception(f'Error loading model: {e}')
 
-    def initialize_reconstructor(self):
+    def initialize_reconstructor(self, unlearned_model, original_model):
         """ Initialize the correct unlearner from user specification."""
+        generator = BigGAN.from_pretrained("biggan-deep-256")  
+        generator.eval()  # Set to evaluation mode
+        loss_fn = nn.CrossEntropyLoss()
         if self.reconstructor_name == 'ggl':
             reconstructor = GGLReconstructor(
-                self.device,
+                original_model = original_model,
+                target_model=unlearned_model, 
+                generator = generator,
+                loss_fn = loss_fn,
                 **self.reconstructor_params
             )
         elif self.unlearner_name == 'dgl':
@@ -140,6 +147,9 @@ class ReconstructorApp(InputValidator):
     def save_results(self):
         pass
 
+    def calculate_metrics(self):
+        pass
+
     def run(self):
         print('running...')
         # Step 1 : read yaml files
@@ -151,7 +161,7 @@ class ReconstructorApp(InputValidator):
 
 
         # Step 4: Reconstruction
-        reconstructor = self.initialize_reconstructor()
+        reconstructor = self.initialize_reconstructor(unlearned_model, original_model )
         print('unlearner initialized')
         #reconstruction, losses = reconstructor.reconstruct(original_model, 
                                                     #unlearned_model,
@@ -161,6 +171,8 @@ class ReconstructorApp(InputValidator):
 
         # Step 5: Save the unlearned model
         self.save_results()
+
+        self.calculate_metrics()
 
         return unlearned_model
 

@@ -1,8 +1,18 @@
+device: "cuda"  # or "cpu"
+data_root: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/unlearning/test_samples3" #root directory for unlearned dataset
+dataset_name: "imagenet"  #name of dataset
+reconstructor_name: ggl
+
 reconstructor:
+  num_classes: 1000
+  num_updates: 1
+  lr: 0.001
+  unlearning_method: neggrad
+  alpha: None
+  gamma: None
+  min_epochs: None
+  max_epochs: None
   label: 13
-  device: "cuda"  # or "cpu"
-  data_root: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/unlearning/test_samples3" #root directory for unlearned dataset
-  dataset_name: "imagenet"  #name of dataset
   batch_size: 1
   save_img: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/artifacts/test_config.png" #save reconstructed image
   save_z: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/artifacts/test_config.npy" #save latent vector from reconstruction
@@ -11,10 +21,10 @@ reconstructor:
   search_dim: 128  # Dimension of the latent space
   use_tanh: false  # Whether to apply tanh activation to the latent vector
 model:
-  name: mobilenet_v2
-  num_classes: 10
-  unlearned_model_ckpt_path: /vol/bitbucket/oap24/final_project/safe-unlearning/src/artifacts/unlearned/mobilenet_unlearned_gascent_mobilenet_v2_42_1_1_01.pth  # You must specify a path to the original model.
-  original_model_ckpt_path: /vol/bitbucket/oap24/final_project/safe-unlearning/src/artifacts/models/mobilenet_80ep_imagenet.pth
+  name: resnet18
+  num_classes: 1000
+  unlearned_model_ckpt_path: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/artifacts/unlearned/resnet18_unlearned_gascent_seed42_epoch1_sample1_01.pth" #path for the unlearned model 
+  original_model_ckpt_path: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/artifacts/unlearned/resnet18_unlearned_gascent_seed42_epoch1_sample1_01.pth" #placeholer, put eg pretrained resnet18
 unlearner:
   name: neggrad  # Options: neggrad, neggradplus, scrub, euk, cfk, finetune
   evaluate: true
@@ -34,7 +44,7 @@ unlearner:
     method: CFk  # For kunlearn (CFk or EUk)
     reinit_method: randn  # For euk (randn or zero or xaiver)
 dataset:
-  name: cifar10  # Options: cifar10, cifar5, cifar100, imagenet
+  name: imagenet  # Options: cifar10, cifar5, cifar100, imagenet
   save_path: ./data # the directory filepath where the dataset should be saved OR is saved and should be loaded in from. 
   cfg:
     batch_sizes:

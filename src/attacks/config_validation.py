@@ -8,7 +8,9 @@ class InputValidator:
         assert isinstance(config, dict)
 
         self.unlearner_name = config['unlearner']['name']
+        self.reconstructor_name = config["reconstructor_name"]
         self.unlearn_params = config['unlearner']['cfg']
+        self.reconstructor_params = config["reconstructor"]
 
         self.dataset_name = config['dataset']['name']
         self.dataset_save_dir = config['dataset']['save_path']
