@@ -36,7 +36,6 @@ class InputValidator:
             reconstructor = config['Reconstructor']['InverseGrad']
             self.reconstructor_params = config["Reconstructor"]['InverseGrad']
 
-
         self.unlearner_name = config['Unlearner']['name']
         self.unlearn_params = config['Unlearner']['cfg']
         

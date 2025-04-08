@@ -6,17 +6,17 @@ import torch.nn as nn
 import torchvision
 from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
-from attacks.utils import set_seed, setup_device
+from attacks.utils import set_seed, setup_device, safe_dataclass_load
 import os
 from datasets.cifar10 import get_cifar10_test_transform
 from datasets.cifar100 import get_cifar100_test_transform
 from datasets.imagenet import get_imagenet_test_transform
 from attacks.config_validation import InputValidator #change this later 
-from attacks.GGL.final_ggl import GGLReconstructor
-from pytorch_pretrained_biggan import BigGAN, BigGANConfig
-#from attacks.DGL.dgl import DGLReconstructor
-#from attacks.InverseGrad.inversegrad import InverseGradReconstructor
+# from attacks.GGL.final_ggl import GGLReconstructor
+# from pytorch_pretrained_biggan import BigGAN, BigGANConfig
+from attacks.InverseGrad.reconstructor import InverseGradReconstructor,InverseGradConfig
 
+DEFAULT_SEED = 42
 
 class ReconstructorApp(InputValidator):
     def __init__(self):
@@ -125,14 +125,17 @@ class ReconstructorApp(InputValidator):
             )
 
         elif self.reconstructor_name == 'inversegrad':
+            # print(self.inverse_grad_config)
+            # print(original_model)
             reconstructor = InverseGradReconstructor(
                 self.device,
                 lr = self.reconstructor_lr,
-                exp_name = self.experiment_name,
-                original_model = original_model,
-                target_model=unlearned_model,
-                loss_fn = loss_fn, #not sure if you're using the sae loss?
-                **self.reconstructor_params #reconstructor specific parameters
+                # exp_name = self.experiment_name,
+                model = original_model,
+                config = safe_dataclass_load(InverseGradConfig, self.reconstructor_params),
+                # target_model=unlearned_model,
+                # loss_fn = loss_fn, #not sure if you're using the sae loss?
+                # **self.reconstructor_params #reconstructor specific parameters
                 ### you can add any parameters defined in config_validation here, I think if we need unlearning params then we can also use **self.unlearning_params
             )
         else:
@@ -160,7 +163,6 @@ class ReconstructorApp(InputValidator):
         # Step 3: Initialize the pretrained model
         original_model = self.load_model_from_disk(self.oiginal_weights)
 
-
         # Step 4: Reconstruction
         reconstructor = self.initialize_reconstructor(unlearned_model, original_model )
         print('unlearner initialized')
@@ -182,4 +184,4 @@ if __name__ == '__main__':
     app = ReconstructorApp()
     app.run()
     # Run pip install -e .
-    # Run python src/unlearning/main.py --config_path src/unlearning/experiments/unlearn_simple.yaml
+    # Run python src/unlearning/main_reconstructor.py --config_path src/unlearning/experiments/config.yaml

@@ -11,6 +11,7 @@ paths:
 data:
   labels: [13]
   dataset_name: imagenet
+  num_classes: 1000 
   data_root: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/unlearning/test_samples3"
   image_mean: [0.5, 0.5, 0.5]
   image_std: [0.5, 0.5, 0.5]
@@ -19,7 +20,7 @@ data:
   num_workers: 1
 
 Reconstructor:
-  type: ggl
+  type: inversegrad  # Options: ggl, inversegrad
   lr: 0.01
   GGL:
     num_classes: 1000 # think it would be good if we both have this parameter? 
@@ -36,13 +37,15 @@ Reconstructor:
     use_tanh: false  # Whether to apply tanh activation to the latent vector
   InverseGrad:
     grad_lr: 0.01
-    rec_experiments: 1
     rec_epochs: 10000
-    boxed: True,
+    num_images: 1
+    signed: True
+    boxed: False
     cost_fn: sim
     indices: def
     weights: equal
     optim: adamw
+    num_runs: 1
     total_variation: 1e-1
     init: 'randn'
     lr_decay: True
