@@ -80,17 +80,22 @@ def load_train_val_test_datasets(dataset_name: str,
             root=os.path.join(dataset_load_dir, "train"),
             transform=None
         )
-        raw_test = datasets.ImageFolder(
-            root=os.path.join(dataset_load_dir, "val"),
-            transform=None
-        )
+        # TODO custom dataset handling. val should be optional, if path does not exist, then do not save a test set
+        if os.path.exists(os.path.join(dataset_load_dir, "val")):
+            raw_test = datasets.ImageFolder(
+                root=os.path.join(dataset_load_dir, "val"),
+                transform=None
+            )
+        else:
+            raw_test = None
 
     else:
         raise Exception(f'{dataset_name} is an unsupported dataset.')
 
     if proportion < 1:
         raw_train, _ = _get_stratified_split(raw_train, proportion)
-        raw_test, _ = _get_stratified_split(raw_test, proportion=1)
+        if raw_test is not None:
+            raw_test, _ = _get_stratified_split(raw_test, proportion=1)
 
     # Perform train/val split
     raw_train_subset, raw_val_subset = _get_stratified_split(raw_train,
@@ -103,9 +108,10 @@ def load_train_val_test_datasets(dataset_name: str,
     _save_as_imagefolder(raw_val_subset,
                          root_path=dataset_save_dir,
                          name='val')
-    _save_as_imagefolder(raw_test,
-                         root_path=dataset_save_dir,
-                         name='test')
+    if raw_test is not None:
+        _save_as_imagefolder(raw_test,
+                             root_path=dataset_save_dir,
+                             name='test')
 
     return None
 

@@ -22,7 +22,7 @@ unlearner:
     reinit_method: randn  # For euk (randn or zero or xaiver)
 dataset:
   name: cifar10  # Options: cifar10, cifar5, cifar100, imagenet
-  save_path: ./data # the directory filepath where the dataset should be saved OR is saved and should be loaded in from. 
+  save_path: ./imagenet_data # the directory filepath where the dataset should be saved OR is saved and should be loaded in from. 
   cfg:
     batch_sizes:
       retain: 32
