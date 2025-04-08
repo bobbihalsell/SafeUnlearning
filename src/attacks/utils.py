@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import torch
 from typing import Optional
 import os
+from dataclasses import fields
 
 
 class SaveImage:
@@ -149,6 +150,12 @@ class SaveImage:
 class ConfigError(Exception):
     def __init__(self, message='Configuration .YAML specification error.'):
         super().__init__(message)
+
+def safe_dataclass_load(dataclass_type, config_dict):
+    field_names = {f.name for f in fields(dataclass_type)}
+    filtered_dict = {k: v for k, v in config_dict.items() if k in field_names}
+    return dataclass_type(**filtered_dict)
+
 
 
 def setup_device():
