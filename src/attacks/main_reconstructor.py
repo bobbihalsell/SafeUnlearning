@@ -139,7 +139,7 @@ class ReconstructorApp(InputValidator):
                 ### you can add any parameters defined in config_validation here, I think if we need unlearning params then we can also use **self.unlearning_params
             )
         else:
-            raise ValueError(f'unlearner_name {self.unlearner_name}'
+            raise ValueError(f'reconstructor {self.reconstructor_name}'
                              ' not supported.')
         self.reconstructor = reconstructor
         return reconstructor
@@ -165,7 +165,7 @@ class ReconstructorApp(InputValidator):
 
         # Step 4: Reconstruction
         reconstructor = self.initialize_reconstructor(unlearned_model, original_model )
-        print('unlearner initialized')
+        print('reconstructor initialized')
         #reconstruction, losses = reconstructor.reconstruct(original_model, 
                                                     #unlearned_model,
                                                     #verbose=self.verbose,
