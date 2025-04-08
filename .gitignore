@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 data/**
+raw/**
+imagenet/**
+tiny-imagenet-200/**
+
 # *.pt
 # *.pth
 **/artifacts/**

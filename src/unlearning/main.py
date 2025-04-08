@@ -4,19 +4,18 @@ import timm
 import torch
 import torch.nn as nn
 import torchvision
-from unlearning.utils import save_model, set_seed, setup_device
+from torchvision.datasets import ImageFolder
+from torch.utils.data import DataLoader
+from unlearning.utils import save_model, set_seed, setup_device, ConfigError
 import os
-from datasets.preprocessing import get_all_loaders, save_loaders, load_loaders
+from datasets.cifar10 import get_cifar10_test_transform
+from datasets.cifar100 import get_cifar100_test_transform
+from datasets.imagenet import get_imagenet_test_transform
 from unlearning.config_validation import InputValidator
 from unlearning.finetune import FinetuneUnlearner
 from unlearning.scrub import SCRUB
 from unlearning.kunlearn import KUnlearn
 from unlearning.neggrad import NegGrad, NegGradPlus
-from unlearning.trainer import Trainer
-from datasets import load_datasets as src_datasets
-from unlearning.eval import plot
-
-DEFAULT_SEED = 42
 
 
 class UnlearnApp(InputValidator):
@@ -34,39 +33,17 @@ class UnlearnApp(InputValidator):
             try:
                 config = yaml.safe_load(f)
             except FileNotFoundError:
-                print('.yaml file not found.')
+                raise FileNotFoundError('.yaml file not found.')
 
         # Perform input validation first
         super().__init__(config)
 
         self.device = setup_device()
         print(f'Using device: {self.device}')
-        self.seed = config.get('seed', DEFAULT_SEED)
+        self.seed = config['seed']
         set_seed(self.seed)
 
-        model_config = config['model']
-        self.model_name = model_config['name']
-        self.model_ckpt_path = model_config.get('model_ckpt_path', None)
-        # Check whether to use built-in pretrained weights
-        self.pretrained = not bool(self.model_ckpt_path)
-        self.num_classes = model_config['num_classes']
-        # Process unlearner-specific parameters
-        self.evaluate = config['unlearner']['evaluate']
-        self.verbose = config['unlearner']['verbose']
         self.unlearn_params['loss_fn'] = nn.CrossEntropyLoss()
-
-        # Process dataset parameters
-        self.url = config['dataset']['url']
-        if self.dataset_name != 'imagenet' and self.url is not None:
-            raise Exception('URL download is only supported for ImageNet data.'
-                            ' This is automatically handled for '
-                            'CIFAR datasets.')
-
-        # Process forget method parameters
-        self.forget_method = config['forget_method']['name']
-        self.forget_params = config['forget_method']['parameters']
-        assert self.forget_params is not None  # TODO add YAML validation.
-
         # Output directory
         self.output_dir = config.get('output_dir', 'artifacts/')
         os.makedirs(self.output_dir, exist_ok=True)
@@ -76,122 +53,45 @@ class UnlearnApp(InputValidator):
         if hasattr(torchvision.models, self.model_name):
             model = torchvision.models.get_model(
                 self.model_name,
-                weights="DEFAULT" if self.pretrained else None,
+                weights=None,
             )
 
             # Adjust the last layer based on model type
             if hasattr(model, "fc"):  # ResNet-style
-                model.fc = torch.nn.Linear(model.fc.in_features, self.num_classes)
+                model.fc = torch.nn.Linear(
+                    model.fc.in_features, self.num_classes
+                )
             elif hasattr(model, "classifier"):  # MobileNet, EfficientNet, VGG, DenseNet
-                if isinstance(model.classifier, torch.nn.Sequential):  
+                if isinstance(model.classifier, torch.nn.Sequential):
                     # Handle cases like MobileNet where classifier is Sequential
                     last_layer_idx = len(model.classifier) - 1
                     model.classifier[last_layer_idx] = torch.nn.Linear(
-                        model.classifier[last_layer_idx].in_features, self.num_classes
+                        model.classifier[last_layer_idx].in_features,
+                        self.num_classes
                     )
                 else:
-                    model.classifier = torch.nn.Linear(model.classifier.in_features, self.num_classes)
+                    model.classifier = torch.nn.Linear(
+                        model.classifier.in_features, self.num_classes
+                    )
             else:
-                raise AttributeError(f"Unknown classification layer for {self.model_name}")
+                raise AttributeError(
+                    f"Unknown classification layer for {self.model_name}"
+                )
 
         else:
-            print(f"Couldn't find {self.model_name} in torchvision. Looking in timm")
+            print(f"Couldn't find {self.model_name} in torchvision. "
+                  "Looking in timm.")
             try:
                 model = timm.create_model(
                     self.model_name,
-                    pretrained=self.pretrained,
                     num_classes=self.num_classes,
                 )
             except Exception:
-                raise AttributeError(f"{self.model_name} not found in torchvision or timm.")
-
-        if self.model_ckpt_path:
-            checkpoint = torch.load(self.model_ckpt_path, map_location="cpu")
-            checkpoint = checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint
-            model.load_state_dict(checkpoint)
+                raise AttributeError(
+                    f"{self.model_name} not found in torchvision or timm."
+                )
 
         return model
-
-    def initialize_unlearner(self):
-        """ Initialize the correct unlearner from user specification."""
-        if self.unlearner_name == 'finetune':
-            unlearner = FinetuneUnlearner(
-                self.device,
-                self.evaluate,
-            )
-        elif self.unlearner_name == 'neggrad':
-            unlearner = NegGrad(
-                self.device,
-                self.evaluate,
-            )
-        elif self.unlearner_name == 'neggradplus':
-            unlearner = NegGradPlus(
-                self.device,
-                self.evaluate,
-            )
-        elif self.unlearner_name == 'scrub':
-            unlearner = SCRUB(
-                self.device,
-                self.evaluate,
-            )
-        elif self.unlearner_name == 'euk':
-            unlearner = KUnlearn(
-                k=self.unlearn_params['k'],
-                method=self.unlearner_name,
-                device=self.device,
-                evaluate=self.evaluate,
-                )
-        elif self.unlearner_name == 'cfk':
-            unlearner = KUnlearn(
-                k=self.unlearn_params['k'],
-                method=self.unlearner_name,
-                device=self.device,
-                evaluate=self.evaluate
-                )
-        else:
-            raise ValueError(f'unlearner_name {self.unlearner_name}'
-                             ' not supported.')
-        self.unlearner = unlearner
-        return unlearner
-
-    def initialize_dataset(self):
-        """ Initialize the entire dataset based on dataset name."""
-        if self.dataset_name == 'imagenet' and self.url is not None:
-            # Download and save ImageNet
-            src_datasets.download_imagenet_dataset_from_web(
-                url=self.url,
-                dataset_save_path=self.save_path)
-
-        train_dataset, test_dataset = src_datasets.load_dataset(
-            dataset_name=self.dataset_name,
-            proportion=self.proportion,
-            dataset_save_path=self.save_path)
-
-        return train_dataset, test_dataset
-
-    def save_loaders_to_disk(self, loaders_dict):
-        """Save all dataloaders to disk."""
-        if not self.save_loaders:
-            return
-
-        loaders_dir = os.path.join(self.output_dir, 'loaders')
-        os.makedirs(loaders_dir, exist_ok=True)
-
-        save_loaders(path=loaders_dir, **loaders_dict)
-        print(f"Saved loaders to {loaders_dir}")
-
-    def load_loaders_from_disk(self):
-        """Load dataloaders from disk if available."""
-        loaders_dir = os.path.join(self.output_dir, 'loaders')
-        if not os.path.exists(loaders_dir):
-            return None
-
-        try:
-            loaders = load_loaders(loaders_dir)
-            print(f"Loaded loaders from {loaders_dir}")
-            return loaders
-        except Exception as e:
-            raise Exception(f"Error loading loaders: {e}")
 
     def load_model_from_disk(self, model_path):
         """Load model from disk."""
@@ -199,11 +99,11 @@ class UnlearnApp(InputValidator):
             raise FileNotFoundError(f"Model file {model_path} not found.")
 
         try:
-            checkpoint = torch.load(model_path, map_location=self.device)
             # Initialize appropriate model architecture
             model = self.initialize_model()
             # Load state dict
-            model.load_state_dict(checkpoint['state_dict'])
+            checkpoint = torch.load(model_path, map_location=self.device)
+            model.load_state_dict(checkpoint)
             model = model.to(self.device)
             print(f"Loaded model from {model_path}")
             return model
@@ -211,75 +111,100 @@ class UnlearnApp(InputValidator):
         except Exception as e:
             raise Exception(f'Error loading model: {e}')
 
+    def initialize_unlearner(self):
+        """ Initialize the correct unlearner from user specification."""
+        if self.unlearner_name == 'finetune':
+            unlearner = FinetuneUnlearner(
+                self.device,
+            )
+        elif self.unlearner_name == 'neggrad':
+            unlearner = NegGrad(
+                self.device,
+            )
+        elif self.unlearner_name == 'neggradplus':
+            unlearner = NegGradPlus(
+                self.device,
+            )
+        elif self.unlearner_name == 'scrub':
+            unlearner = SCRUB(
+                self.device,
+            )
+        elif self.unlearner_name == 'euk':
+            unlearner = KUnlearn(
+                k=self.unlearn_params['k'],
+                method=self.unlearner_name,
+                device=self.device,
+                )
+        elif self.unlearner_name == 'cfk':
+            unlearner = KUnlearn(
+                k=self.unlearn_params['k'],
+                method=self.unlearner_name,
+                device=self.device,
+                )
+        else:
+            raise ValueError(f'unlearner_name {self.unlearner_name}'
+                             ' not supported.')
+        self.unlearner = unlearner
+        return unlearner
+
+    def get_transform(self):
+        if self.dataset_name == 'cifar10':
+            return get_cifar10_test_transform()
+        elif self.dataset_name == 'cifar100':
+            return get_cifar100_test_transform()
+        elif self.dataset_name == 'imagenet':
+            return get_imagenet_test_transform()
+        else:
+            raise ConfigError(f'dataset_name {self.dataset_name} '
+                              ' not supported.')
+
+    def initialize_dataloaders(self):
+        """ Initialize dataloaders from the ImageNet dataset folder."""
+        transform = self.get_transform()
+
+        # Load datasets for each split
+        splits = ['retain', 'forget', 'val']
+        dataloaders = {}
+
+        for split in splits:
+            batch_size = self.batch_sizes[split]
+            split_dir = os.path.join(self.dataset_save_dir, split)
+            if not os.path.exists(split_dir):
+                raise Exception(f'{split_dir} does not exist. Is the dataset '
+                                'in ImageFolder format?')
+
+            dataset = ImageFolder(root=split_dir, transform=transform)
+            dataloaders[split] = DataLoader(
+                dataset,
+                batch_size=batch_size,
+                shuffle=(split == 'train'),  # Only shuffle train set
+                num_workers=self.num_workers,
+                pin_memory=True
+            )
+
+        return dataloaders
+
     def run(self):
         print('running...')
-        # Step 1: Initialize and prepare datasets
-        train_dataset, test_dataset = self.initialize_dataset()
-        print('datasets initialized')
+        # Step 1: Load in datasets as datalaoders
+        dataloaders = self.initialize_dataloaders()
 
-        # Step 2: Check if loaders are already saved and should be loaded
-        data_dict = None
-        if self.save_loaders:
-            data_dict = self.load_loaders_from_disk()
-            print('loaders loaded')
-
-        # If loaders weren't loaded, create them
-        if data_dict is None:
-            print('loaders not loaded... creating loaders')
-            # Extract loader configurations
-            batch_sizes = self.dataset_cfg['batch_sizes']
-            shuffle_settings = self.dataset_cfg['shuffle_settings']
-
-            # Create dataloaders
-            forget_loader, retain_loader, train_loader, val_loader, test_loader = get_all_loaders(
-                train_dataset,
-                test_dataset,
-                method=self.forget_method,
-                batch_sizes=batch_sizes,
-                shuffle_settings=shuffle_settings,
-                val_ratio=self.val_ratio,
-                **self.forget_params
-            )
-            data_dict = {
-                'forget': forget_loader,
-                'retain': retain_loader,
-                'train': train_loader,
-                'val': val_loader,
-                'test': test_loader
-                }
-
-            print(data_dict.keys())
-            # Save loaders if configured to do so
-            if self.save_loaders:
-                self.save_loaders_to_disk(data_dict)
-                print('loaders saved')
-
-        # Step 3: Initialize or load a pre-trained model, evaluate and save.
-        original_model = self.initialize_model()
-        if isinstance(data_dict.get('val', None), torch.utils.data.DataLoader):
-            val_loss, val_accuracy = Trainer(original_model).evaluate_model(data_dict['val'])
-            print(f"Pre-unlearning Validation Loss: {val_loss:.4f}")
-            print(f"Pre-unlearning Validation Accuracy: {val_accuracy:.2f}%\n")
-        retain_loss, retain_accuracy = Trainer(original_model).evaluate_model(data_dict['retain'])
-        forget_loss, forget_accuracy = Trainer(original_model).evaluate_model(data_dict['forget'])
-        print(f"Pre-unlearning Retain Loss: {retain_loss:.4f}")
-        print(f"Pre-unlearning Retain Accuracy: {retain_accuracy:.2f}%\n")
-        print(f"Pre-unlearning Forget Loss: {forget_loss:.4f}")
-        print(f"Pre-unlearning Forget Accuracy: {forget_accuracy:.2f}%\n")
+        # Step 3: Initialize the pretrained model
+        original_model = self.load_model_from_disk(self.model_ckpt_path)
 
         save_model(original_model,
                    output_dir=self.output_dir,
                    unlearning_algorithm=self.unlearner_name,
                    model_name=self.model_name,
-                   seed=self.seed, 
+                   seed=self.seed,
                    model_type='original')
 
         # Step 4: Unlearning
         unlearner = self.initialize_unlearner()
         print('unlearner initialized')
-        self._extract_unlearner_params()
         unlearned_model, losses = unlearner.unlearn(original_model,
-                                                    data_dict,
+                                                    data_dict=dataloaders,
+                                                    verbose=self.verbose,
                                                     **self.unlearn_params)
         print('model unlearned')
 
@@ -291,22 +216,6 @@ class UnlearnApp(InputValidator):
                    seed=self.seed,
                    model_type='unlearned',
                    payload=losses)
-
-        # Step 6: Evaluate the model after unlearning
-        # TODO handle case where model has not been trained but evaluate required nonetheless
-        if isinstance(data_dict.get('val', None), torch.utils.data.DataLoader):
-            val_loss, val_accuracy = Trainer(unlearned_model).evaluate_model(data_dict['val'])
-            print(f"Post-unlearning Validation Loss: {val_loss:.4f}")
-            print(f"Post-unlearning Validation Accuracy: {val_accuracy:.2f}%\n")
-        retain_loss, retain_accuracy = Trainer(unlearned_model).evaluate_model(data_dict['retain'])
-        forget_loss, forget_accuracy = Trainer(unlearned_model).evaluate_model(data_dict['forget'])
-        print(f"Pre-unlearning Retain Loss: {retain_loss:.4f}")
-        print(f"Pre-unlearning Retain Accuracy: {retain_accuracy:.2f}%\n")
-        print(f"Pre-unlearning Forget Loss: {forget_loss:.4f}")
-        print(f"Pre-unlearning Forget Accuracy: {forget_accuracy:.2f}%\n")
-
-        if self.evaluate:
-            plot(losses)
 
         return unlearned_model
 

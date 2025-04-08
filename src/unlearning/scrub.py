@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import copy
 import torch.nn.functional as F
-from base import BaseUnlearner
+from unlearning.base import BaseUnlearner
 from typing import Dict
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -19,19 +19,15 @@ class SCRUB(BaseUnlearner):
     This approach ensures the model "forgets" specific data while maintaining
     performance on data that should be retained.
     """
-    def __init__(self, 
-                device,
-                evaluate: bool = False,
-                ):
+    def __init__(self, device):
         """
         Initialize the SCRUB unlearning class.
 
         Args:
             device: Computing device (CPU/GPU) to use for computations.
                    If None, will be automatically determined.
-            evaluate: Whether to track and return evaluation metrics during unlearning.
         """
-        super().__init__(device, evaluate)
+        super().__init__(device)
 
     def _kl_divergence(self, 
                        model1_logits: torch.Tensor, 
@@ -224,16 +220,10 @@ class SCRUB(BaseUnlearner):
                 - lr: Learning rate (default: 1e-2)
                 - weight_decay: Weight decay parameter (default: 0)
                 - use_l2_penalty: Whether to add L2 regularization (default: False)
-                
+
         Returns:
-            If self.evaluate is True:
-                Tuple of (unlearned_model, losses_dict) where losses_dict contains
-                tracked losses for each dataset type
-            Otherwise:
-                The unlearned model
-                
-        Raises:
-            ValueError: If epochs are less than 1 or required data is missing
+            Tuple of (unlearned_model, losses_dict) where losses_dict contains
+            tracked losses for each dataset type
         """
         model.to(self.device)
         unlearned_model = copy.deepcopy(model)
@@ -242,71 +232,73 @@ class SCRUB(BaseUnlearner):
         loss_fn, _, lr, weight_decay, _ = self.valid_args(**kwargs)
         if min_epochs < 1 or max_epochs < 1:
             raise ValueError("Number of min and max epochs must be greater than 0.")
-        
+
         # Check for required datasets
         if 'retain' not in data_dict.keys() and 'forget' not in data_dict.keys():
             raise ValueError("'forget' and 'retain' data must be in data_dict.")
-        
+
         # Extract additional hyperparameters
-        alpha = kwargs.get('alpha', 1.0)
-        gamma = kwargs.get('gamma', 1.0)
-        if alpha < 0 or gamma < 0:  
+        alpha = kwargs['alpha']
+        gamma = kwargs['gamma']
+        if alpha < 0 or gamma < 0:
             raise ValueError("Alpha and gamma must be non-negative.")
-        
+
         # Initialize loss tracking
         losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
 
         optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
                                     lr=lr,
                                     weight_decay=weight_decay)
-        
+
         eval_only_data = [data for data in data_dict.keys() if 
                           data not in ['retain'] and 
                           data_dict[data] is not None]
 
         # Calculate total number of epochs and initialize counters
         num_epochs = max(min_epochs, max_epochs)
-        min_i=0
-        max_i=0
-        
-        for _ in range(num_epochs):
+        min_i = 0
+        max_i = 0
+
+        for epoch in range(num_epochs):
             unlearned_model.train()
             total_retain_loss = 0
 
             # Maximize divergence on forget data
             if max_i < max_epochs:
-                self.max_epoch(model, unlearned_model, data_dict['forget'], optimizer)
-                max_i+=1
+                self.max_epoch(model,
+                               unlearned_model,
+                               data_dict['forget'],
+                               optimizer)
+                max_i += 1
 
             # Minimize divergence on retain data
             if min_i < min_epochs:
                 _, _, retain_loss = self.min_epoch(
-                                    model, 
+                                    model,
                                     unlearned_model,
-                                    data_dict['retain'], 
-                                    optimizer, 
+                                    data_dict['retain'],
+                                    optimizer,
                                     alpha=alpha,
                                     gamma=gamma,
                                     criterion=loss_fn
                                 )
-                min_i+=1
+                min_i += 1
                 total_retain_loss += retain_loss
 
             if verbose:
-                print(f'Epoch {e}: Retain Loss: {total_retain_loss}')
+                print(f'Epoch {epoch + 1}: Retain Loss: {total_retain_loss}')
 
-            if self.evaluate:
-                # Calculate average retain loss for this epoch
-                losses['retain_losses'].append(total_retain_loss)
-                unlearned_model.eval()
-                # Evaluate model on other datasets
-                for data_type in eval_only_data:
-                    loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
-                    losses[f"{data_type}_losses"].append(loader_loss.item())
-                    if verbose:
-                        print(f'{data_type.capitalize()} Loss: {loader_loss}', end='  ')
+            # Calculate average retain loss for this epoch
+            losses['retain_losses'].append(total_retain_loss)
+            unlearned_model.eval()
+            # Evaluate model on other datasets
+            for data_type in eval_only_data:
+                loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
+                losses[f"{data_type}_losses"].append(loader_loss.item())
                 if verbose:
-                    print()
-                
+                    print(f'{data_type.capitalize()} Loss: {loader_loss}',
+                          end='  ')
+            if verbose:
+                print()
 
         return unlearned_model, losses

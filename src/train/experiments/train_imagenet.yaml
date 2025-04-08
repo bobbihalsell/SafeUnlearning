@@ -1,15 +1,15 @@
 model:
-  name: mobilenet_v2
-  pretrained: true  # Use library-provided pretrained weights.
+  name: resnet18
+  pretrained: true  # Use library-provided pretrained weights, which are on ImageNet-1k
   num_classes: 10
   save_dir: ./artifacts/models # directory to save the trained model
   train_cfg:  # Will use Adam only for now
-    epochs: 15
+    epochs: 0  # USE PRETRAINED WEIGHTS
     lr: 0.01
     weight_decay: 0.0001
 dataset:
   name: cifar10
-  load_dir: ./data # directory to the ImageFolder-format dataset
+  load_dir: ./imagenet_data # directory to the ImageFolder-format dataset
   batch_sizes:
     train: 64
     val: 64
