@@ -30,33 +30,12 @@ class InputValidator:
         if self.reconstructor_name == 'ggl':
             reconstructor = config['Reconstructor']['GGL']
             self.reconstructor_params = config["Reconstructor"]['GGL']
-            self.num_updates = reconstructor['num_updates']
-            self.unlearning_method = reconstructor['unlearning_method']
-            self.alpha = reconstructor['alpha']
-            self.gamma = reconstructor['gamma']
-            self.min_epochs = reconstructor['min_epochs']
-            self.max_epochs = reconstructor['max_epochs']
-            self.batch_size = reconstructor['batch_size']
-            self.loss_models = reconstructor['loss_models'] # 'l1', 'l2', 'weighted', or 'interpolated'
-            self.budget = reconstructor['budget'] # Budget for Bayesian Optimization
-            self.search_dim = reconstructor['search_dim'] # Dimension of the latent space
-            self.use_tanh = reconstructor['use_tanh'] # Whether to apply tanh activation to the latent vector
+
 
         elif self.reconstructor_name == 'inversegrad':
             reconstructor = config['Reconstructor']['InverseGrad']
             self.reconstructor_params = config["Reconstructor"]['InverseGrad']
-            self.grad_lr = reconstructor['grad_lr']
-            self.rec_experiments = reconstructor['rec_experiments']
-            self.rec_epochs = reconstructor['rec_epochs']
-            self.boxed = reconstructor['boxed']
-            self.cost_fn = reconstructor['cost_fn']
-            self.indices = reconstructor['indices']
-            self.weights = reconstructor['weights']
-            self.optim = reconstructor['optim']
-            self.total_variation = reconstructor['total_vaariation']
-            self.init = reconstructor['init']
-            self.lr_decay = reconstructor['lr_decay']
-            self.scoring_choice = reconstructor['scoring_choice']
+
 
         self.unlearner_name = config['Unlearner']['name']
         self.unlearn_params = config['Unlearner']['cfg']
