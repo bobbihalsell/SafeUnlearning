@@ -5,18 +5,18 @@ experiment:
   device: "cuda"
 
 paths:
-  original_weights: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/artifacts/unlearned/resnet18_unlearned_gascent_seed42_epoch1_sample1_01.pth"
-  unlearned_weights: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/artifacts/unlearned/resnet18_unlearned_gascent_seed42_epoch1_sample1_01.pth"
+  original_weights: "/vol/bitbucket/vb524/safe-unlearning/src/artifacts/models/exp1_original.pth"
+  unlearned_weights: "/vol/bitbucket/vb524/safe-unlearning/src/artifacts/unlearned/exp1_neggrad_0a_2ep_1f_1r.pth"
   
 data:
-  labels: [13]
-  dataset_name: imagenet
-  num_classes: 1000 
+  labels: [7]
+  dataset_name: cifar10
+  num_classes: 10 
   data_root: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/unlearning/test_samples3"
   image_mean: [0.5, 0.5, 0.5]
   image_std: [0.5, 0.5, 0.5]
   image_size: [3, 32, 32]
-  batch_size: 1
+  batch_size: 64
   num_workers: 1
 
 Reconstructor:
@@ -36,20 +36,22 @@ Reconstructor:
     search_dim: 128  # Dimension of the latent space
     use_tanh: false  # Whether to apply tanh activation to the latent vector
   InverseGrad:
-    grad_lr: 0.01
-    rec_epochs: 10000
     num_images: 1
+    grad_diff_lr: 0.01
     signed: True
-    boxed: False
+    boxed: True
     cost_fn: sim
     indices: def
     weights: equal
     optim: adamw
     num_runs: 1
+    recon_iterations: 100
     total_variation: 1e-1
-    init: 'randn'
+    init: randn
     lr_decay: True
     scoring_choice: loss
+    eval: True
+    filter: none
 
 Unlearner:
   name: neggrad  # Options: neggrad, neggradplus, scrub, euk, cfk, finetune
@@ -79,5 +81,5 @@ dataset_cfg:
   save_path: ./data
 
 output:
-  dir: artifacts/
+  dir: src/artifacts/
 verbose: true
