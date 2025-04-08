@@ -7,28 +7,45 @@ class InputValidator:
     def __init__(self, config):
         assert isinstance(config, dict)
 
-        self.unlearner_name = config['unlearner']['name']
-        self.reconstructor_name = config["reconstructor_name"]
-        self.unlearn_params = config['unlearner']['cfg']
-        self.reconstructor_params = config["reconstructor"]
+        self.experiment_name = config['experiment']['name']
+        self.seed = config['experiment']['seed']
+        self.model_name = config['experiment']['model_name']
 
-        self.dataset_name = config['dataset']['name']
-        self.dataset_save_dir = config['dataset']['save_path']
-        self.dataset_cfg = config['dataset']['cfg']
-        self.num_workers = self.dataset_cfg['num_workers']
-        self.batch_sizes = self.dataset_cfg['batch_sizes']
+        self.oiginal_weights = config['paths']['original_weights']
+        self.unlearned_weights = config['paths']['unlearned_weights']
 
-        model_config = config['model']
-        self.model_name = model_config['name']
-        self.unlearned_model_ckpt_path = model_config['unlearned_model_ckpt_path']
-        self.original_model_ckpt_path = model_config['original_model_ckpt_path']
-        self.num_classes = model_config['num_classes']
+        data_config = config['data']
+        self.labels = data_config['labels']
+        self.dataset_name = data_config['dataset_name']
+        self.image_mean = data_config['image_mean']
+        self.image_std = data_config['image_std']
+        self.image_size = data_config['image_size']
+        self.batch_size = data_config['batch_size']
+        #self.num_workers = data_config['num_workers] don't know if we need that?
+        self.num_classes = data_config['num_classes']
+
+        self.reconstructor_name = config['Reconstructor']['type']
+        self.reconstructor_lr = config['Reconstructor']['lr']
+
+        if self.reconstructor_name == 'ggl':
+            reconstructor = config['Reconstructor']['GGL']
+            self.reconstructor_params = config["Reconstructor"]['GGL']
+
+
+        elif self.reconstructor_name == 'inversegrad':
+            reconstructor = config['Reconstructor']['InverseGrad']
+            self.reconstructor_params = config["Reconstructor"]['InverseGrad']
+
+
+        self.unlearner_name = config['Unlearner']['name']
+        self.unlearn_params = config['Unlearner']['cfg']
+        
 
         self.verbose = config['verbose']
 
         self._validate_unlearner_params()
-        self._validate_dataset_params()
-        self._validate_model_params()
+        #self._validate_dataset_params()
+        #self._validate_model_params()
 
     def _validate_unlearner_params(self):
         """

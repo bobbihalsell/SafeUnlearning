@@ -1,62 +1,54 @@
-device: "cuda"  # or "cpu"
-data_root: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/unlearning/test_samples3" #root directory for unlearned dataset
-dataset_name: "imagenet"  #name of dataset
-reconstructor_name: ggl
+experiment:
+  name: "test_config"
+  seed: 42
+  model_name: resnet18
+  device: "cuda"
 
-reconstructor:
-## common params
-  experiment_name: "test_config" # i use this when saving image, could be useful when integrating with WANDB
-  seed: 42 # potentially used for both?
-  lr: 0.001
-  labels: [13]  # Can we pass as a list?
-  save_img: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/artifacts/test_config.png" #save reconstructed image
-
-  # InverseGrad params
-  image_mean:
-  - 0.5
-  - 0.5
-  - 0.5
-  image_shape:
-  - 3
-  - 32
-  - 32
-  image_std: 
-  - 0.5
-  - 0.5
-  - 0.5
-  grad_lr: 0.01
-  rec_experiments: 1
-  rec_epochs: 10000
-  boxed: True,
-  cost_fn: sim
-  indices: def
-  weights: equal
-  optim: adamw
-  total_variation: 1e-1
-  init: 'randn'
-  lr_decay: True
-  scoring_choice: loss
-
-
-  num_classes: 1000
-  num_updates: 1
-  unlearning_method: neggrad
-  alpha: None
-  gamma: None
-  min_epochs: None
-  max_epochs: None
+paths:
+  original_weights: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/artifacts/unlearned/resnet18_unlearned_gascent_seed42_epoch1_sample1_01.pth"
+  unlearned_weights: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/artifacts/unlearned/resnet18_unlearned_gascent_seed42_epoch1_sample1_01.pth"
+  
+data:
+  labels: [13]
+  dataset_name: imagenet
+  data_root: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/unlearning/test_samples3"
+  image_mean: [0.5, 0.5, 0.5]
+  image_std: [0.5, 0.5, 0.5]
+  image_size: [3, 32, 32]
   batch_size: 1
-  save_z: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/artifacts/test_config.npy" #save latent vector from reconstruction
-  loss_models: "l2"  # 'l1', 'l2', 'weighted', or 'interpolated'
-  budget: 500  # Budget for Bayesian Optimization
-  search_dim: 128  # Dimension of the latent space
-  use_tanh: false  # Whether to apply tanh activation to the latent vector
-model:
-  name: resnet18
-  num_classes: 1000
-  unlearned_model_ckpt_path: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/artifacts/unlearned/resnet18_unlearned_gascent_seed42_epoch1_sample1_01.pth" #path for the unlearned model 
-  original_model_ckpt_path: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/artifacts/unlearned/resnet18_unlearned_gascent_seed42_epoch1_sample1_01.pth" #placeholer, put eg pretrained resnet18
-unlearner:
+  num_workers: 1
+
+Reconstructor:
+  type: ggl
+  lr: 0.01
+  GGL:
+    num_classes: 1000 # think it would be good if we both have this parameter? 
+    num_updates: 1
+    unlearning_method: neggrad
+    alpha: None
+    gamma: None
+    min_epochs: None
+    max_epochs: None
+    batch_size: 1
+    loss_models: "l2"  # 'l1', 'l2', 'weighted', or 'interpolated'
+    budget: 500  # Budget for Bayesian Optimization
+    search_dim: 128  # Dimension of the latent space
+    use_tanh: false  # Whether to apply tanh activation to the latent vector
+  InverseGrad:
+    grad_lr: 0.01
+    rec_experiments: 1
+    rec_epochs: 10000
+    boxed: True,
+    cost_fn: sim
+    indices: def
+    weights: equal
+    optim: adamw
+    total_variation: 1e-1
+    init: 'randn'
+    lr_decay: True
+    scoring_choice: loss
+
+Unlearner:
   name: neggrad  # Options: neggrad, neggradplus, scrub, euk, cfk, finetune
   evaluate: true
   cfg:
@@ -74,15 +66,15 @@ unlearner:
     k: 3  # For euk/cfk
     method: CFk  # For kunlearn (CFk or EUk)
     reinit_method: randn  # For euk (randn or zero or xaiver)
-dataset:
-  name: imagenet  # Options: cifar10, cifar5, cifar100, imagenet
-  save_path: ./data # the directory filepath where the dataset should be saved OR is saved and should be loaded in from. 
-  cfg:
-    batch_sizes:
-      retain: 32
-      forget: 32
-      val: 32
-    num_workers: 1
-seed: 42
-output_dir: artifacts/
+
+
+dataset_cfg:
+  batch_sizes:
+    retain: 1
+    forget: 1
+    val: 32
+  save_path: ./data
+
+output:
+  dir: artifacts/
 verbose: true

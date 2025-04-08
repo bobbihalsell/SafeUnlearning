@@ -48,8 +48,9 @@ def set_seed(seed):
 
 
 
-class ModelDiffReconstructorBO():
-    def __init__(self, original_model, target_model, generator, loss_fn, unlearning_method, type='l1', num_classes=1000, num_updates=None, lr=0.01, search_dim=128, use_tanh=False, budget=500, alpha=None, gamma=None, min_epochs=None, max_epochs=None):
+class GGLReconstructor():
+    #def __init__(self, original_model, target_model, generator, loss_fn, unlearning_method, loss_models='l1', num_classes=1000, num_updates=None, lr=0.01, search_dim=128, use_tanh=False, budget=500, alpha=None, gamma=None, min_epochs=None, max_epochs=None, label=None, save_img=None, save_z=None, batch_size=1):
+    def __init__(self, original_model, target_model, loss_fn, search_dim=128, use_tanh=False, budget=500, loss_models='l1', unlearning_method='neggrad', num_classes=1000, num_updates=None, lr=0.01,  alpha=None, gamma=None, min_epochs=None, max_epochs=None, labels=None, exp_name='exp', batch_size=1):
         """
         original_model: The original model (pre-update).
         target_model: The target model (unlearned model).
@@ -64,7 +65,7 @@ class ModelDiffReconstructorBO():
         """
         self.original_model = original_model
         self.target_model = target_model
-        self.generator = generator
+        #self.generator = generator
         self.loss_fn = loss_fn
         self.num_classes = num_classes
         self.num_updates = num_updates
@@ -72,12 +73,14 @@ class ModelDiffReconstructorBO():
         self.search_dim = search_dim
         self.use_tanh = use_tanh
         self.budget = budget
-        self.type = type
+        self.type = loss_models
         self.unlearning_method = unlearning_method
         self.alpha = alpha 
         self.gamma = gamma
         self.min_epochs = min_epochs
         self.max_epochs = max_epochs
+        self.label = labels
+        self.exp_name=exp_name
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 

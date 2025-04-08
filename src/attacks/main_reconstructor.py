@@ -40,7 +40,7 @@ class ReconstructorApp(InputValidator):
 
         self.device = setup_device()
         print(f'Using device: {self.device}')
-        self.seed = config['seed']
+        self.seed = config['experiment']['seed']
         set_seed(self.seed)
 
         self.unlearn_params['loss_fn'] = nn.CrossEntropyLoss()
@@ -113,26 +113,27 @@ class ReconstructorApp(InputValidator):
 
     def initialize_reconstructor(self, unlearned_model, original_model):
         """ Initialize the correct unlearner from user specification."""
-        generator = BigGAN.from_pretrained("biggan-deep-256")  
-        generator.eval()  # Set to evaluation mode
         loss_fn = nn.CrossEntropyLoss()
         if self.reconstructor_name == 'ggl':
             reconstructor = GGLReconstructor(
+                lr = self.reconstructor_lr,
+                exp_name = self.experiment_name,
                 original_model = original_model,
                 target_model=unlearned_model, 
-                generator = generator,
                 loss_fn = loss_fn,
                 **self.reconstructor_params
             )
-        elif self.unlearner_name == 'dgl':
-            reconstructor = DGLReconstructor(
-                self.device,
-                **self.reconstructor_params
-            )
-        elif self.unlearner_name == 'inversegrad':
+
+        elif self.reconstructor_name == 'inversegrad':
             reconstructor = InverseGradReconstructor(
                 self.device,
-                **self.reconstructor_params
+                lr = self.reconstructor_lr,
+                exp_name = self.experiment_name,
+                original_model = original_model,
+                target_model=unlearned_model,
+                loss_fn = loss_fn, #not sure if you're using the sae loss?
+                **self.reconstructor_params #reconstructor specific parameters
+                ### you can add any parameters defined in config_validation here, I think if we need unlearning params then we can also use **self.unlearning_params
             )
         else:
             raise ValueError(f'unlearner_name {self.unlearner_name}'
@@ -154,10 +155,10 @@ class ReconstructorApp(InputValidator):
         print('running...')
         # Step 1 : read yaml files
         # Step 2 : load unlearned model 
-        unlearned_model = self.load_model_from_disk(self.unlearned_model_ckpt_path)
+        unlearned_model = self.load_model_from_disk(self.unlearned_weights)
 
         # Step 3: Initialize the pretrained model
-        original_model = self.load_model_from_disk(self.original_model_ckpt_path)
+        original_model = self.load_model_from_disk(self.oiginal_weights)
 
 
         # Step 4: Reconstruction
