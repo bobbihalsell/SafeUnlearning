@@ -125,8 +125,9 @@ class DatasetInitializer:
                     os.rmdir(subset_dir)  # Remove empty directory
             # Ensure parent directory exists
             os.makedirs(os.path.dirname(subset_dir), exist_ok=True)
+            abs_origin_dir = os.path.abspath(origin_dir)
             # Create the symlink
-            os.symlink(origin_dir, subset_dir, target_is_directory=True)
+            os.symlink(abs_origin_dir, subset_dir, target_is_directory=True)
 
         for label in forget_classes:
             create_class_symlink('forget', label)

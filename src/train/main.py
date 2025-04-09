@@ -1,7 +1,7 @@
 import argparse
 import yaml
 import torchvision
-from torchvision.datasets import ImageFolder
+from train.image_loading import RobustImageFolder
 import torch
 from torch.utils.data import DataLoader
 import timm
@@ -41,6 +41,7 @@ class TrainApp:
         self.pretrained = model_cfg['pretrained']
         self.num_classes = model_cfg['num_classes']
         self.model_save_dir = model_cfg['save_dir']
+        self.freeze_all_except_last = model_cfg['freeze_all_except_classifier']
         assert self.model_save_dir is not None
 
         dataset_cfg = config['dataset']
@@ -51,6 +52,12 @@ class TrainApp:
         self.num_workers = dataset_cfg.get('num_workers', 1)
 
         self.train_cfg = model_cfg['train_cfg']
+        self.run_id = config['run_id']
+
+        self.checkpoint_path = model_cfg.get('checkpoint_path', None)
+        self.from_checkpoint = False  # Flag to determine whether to train from checkpoint
+        if self.checkpoint_path is not None:
+            self.from_checkpoint = True
 
     def initialize_model(self):
         """Initialize the model based on model name from user configuration."""
@@ -98,6 +105,15 @@ class TrainApp:
 
         return model
 
+    def freeze_all_except_classifier(self, model):
+        """Unfreeze only the last (classifier) layer."""
+        for name, param in model.named_parameters():
+            if "classifier" in name or "fc" in name:
+                param.requires_grad = True
+            else:
+                param.requires_grad = False
+        return model
+
     def get_transform(self):
         if self.dataset_name == 'cifar10':
             return get_cifar10_test_transform()
@@ -124,7 +140,7 @@ class TrainApp:
                 raise Exception(f'{split_dir} does not exist. Is the dataset '
                                 'in ImageFolder format?')
 
-            dataset = ImageFolder(root=split_dir, transform=transform)
+            dataset = RobustImageFolder(root=split_dir, transform=transform)
             dataloaders[split] = DataLoader(
                 dataset,
                 batch_size=batch_size,
@@ -134,6 +150,28 @@ class TrainApp:
             )
 
         return dataloaders
+
+    def reinitialize_checkpoints(self, model, optimizer):
+        """ Load in model and optimizer state dict from a checkpoint."""
+        if self.from_checkpoint:
+            # Load the checkpoint state_dict
+            checkpoint = torch.load(self.checkpoint_path)
+            model.load_state_dict(checkpoint['model_state_dict'])
+
+            # Optionally, load optimizer state_dict if you want to resume training
+            if 'optimizer_state_dict' in checkpoint:
+                optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+            print(f"Loaded model from checkpoint: {self.checkpoint_path}")
+
+            epoch = checkpoint['epoch']
+
+        else:
+            raise Exception('reinitialize_checkpoint_states should not be '
+                            'called if the user does not want to train '
+                            'from checkpoint.')
+
+        return model, optimizer, epoch
 
     def pretrain(self):
         """ Perform pretraining of a model on a dataset."""
@@ -151,6 +189,8 @@ class TrainApp:
                 "model_name": self.model_name,
                 "num_classes": self.num_classes,
             },
+            id=str(self.run_id),
+            resume="allow"
         )
         # Step 1: Initialize the model
         model = self.initialize_model()
@@ -168,6 +208,15 @@ class TrainApp:
                                      lr=lr,
                                      weight_decay=weight_decay)
 
+        start_epoch = 0
+        if self.from_checkpoint:
+            model, optimizer, start_epoch = self.reinitialize_checkpoints(
+                model=model,
+                optimizer=optimizer)
+
+        if self.freeze_all_except_last:
+            model = self.freeze_all_except_classifier(model)
+
         # Training configuration
         best_val_loss = float("inf")
         # Create the directory if it does not exist
@@ -181,7 +230,8 @@ class TrainApp:
             train_loss = 0.0
             correct, total = 0, 0
 
-            for batch in train_dl:
+            for i, batch in enumerate(train_dl):
+                print(f'Training Batch {i}...')
                 inputs, labels = batch
                 inputs, labels = inputs.to(device), labels.to(device)
 
@@ -202,7 +252,7 @@ class TrainApp:
             wandb.log({
                 "train_loss": train_loss,
                 "train_accuracy": train_acc,
-                "epoch": epoch + 1
+                "epoch": start_epoch + epoch + 1
             })
 
             # Validation phase
@@ -211,17 +261,26 @@ class TrainApp:
             wandb.log({
                 "val_loss": val_loss,
                 "val_accuracy": val_acc,
-                "epoch": epoch + 1
+                "epoch": start_epoch + epoch + 1
             })
 
-            print(f"Epoch {epoch+1}/{num_epochs} - "
+            print(f"Epoch {start_epoch+epoch+1}/{start_epoch+num_epochs} - "
                   f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}% - "
                   f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%")
 
             # Save the best model based on validation loss
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
-                torch.save(model.state_dict(), save_path)
+                # Create a checkpoint dictionary
+                checkpoint = {
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'epoch': start_epoch + epoch + 1,
+                    'best_val_loss': best_val_loss,
+                }
+
+                # Save the checkpoint
+                torch.save(checkpoint, save_path)
                 print(f"New best model saved at {save_path}")
 
         print("Training complete.")
@@ -255,3 +314,4 @@ class TrainApp:
 if __name__ == '__main__':
     trainer = TrainApp()
     trainer.pretrain()
+    # python src/train/main.py --config_path src/train/experiments/train_simple.yaml

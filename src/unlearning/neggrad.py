@@ -3,7 +3,7 @@ import torch.nn as nn
 import copy
 from unlearning.utils import l2_penalty
 from itertools import cycle
-from base import BaseUnlearner
+from unlearning.base import BaseUnlearner
 from typing import Optional, Tuple, Dict
 from torch.utils.data import DataLoader
 
@@ -89,7 +89,7 @@ class NegGrad(BaseUnlearner):
         for e in range(num_epochs):
             total_forget_loss = 0
             for forget_inputs, forget_labels in data_dict['forget']:
-                unlearned_model.train()
+                unlearned_model.eval()
                 optimizer.zero_grad()
 
                 forget_inputs = forget_inputs.to(self.device)
@@ -258,7 +258,8 @@ class NegGradPlus(BaseUnlearner):
             for retain_batch, forget_batch in zip(data_dict['retain'],
                                                   cycle(data_dict['forget'])
                                                   ):
-                unlearned_model.train()
+                #  Avoid BN layer computation, so code works with batch size 1
+                unlearned_model.eval()
                 optimizer.zero_grad()
                 # Process forget batch
                 forget_batch = [
