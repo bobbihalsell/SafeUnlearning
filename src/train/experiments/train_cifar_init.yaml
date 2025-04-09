@@ -6,7 +6,7 @@ model:
   checkpoint_path: # Path to model weights if you want to start training from self-provided weights
   save_dir: ./artifacts/models # directory to save the trained model
   train_cfg:  # Will use Adam only for now
-    epochs: 1
+    epochs: 5
     lr: 0.001
     weight_decay: 0.0001
 dataset:

@@ -1,7 +1,7 @@
 import argparse
 import yaml
 import torchvision
-from torchvision.datasets import ImageFolder
+from train.image_loading import RobustImageFolder
 import torch
 from torch.utils.data import DataLoader
 import timm
@@ -140,7 +140,7 @@ class TrainApp:
                 raise Exception(f'{split_dir} does not exist. Is the dataset '
                                 'in ImageFolder format?')
 
-            dataset = ImageFolder(root=split_dir, transform=transform)
+            dataset = RobustImageFolder(root=split_dir, transform=transform)
             dataloaders[split] = DataLoader(
                 dataset,
                 batch_size=batch_size,
@@ -230,7 +230,8 @@ class TrainApp:
             train_loss = 0.0
             correct, total = 0, 0
 
-            for batch in train_dl:
+            for i, batch in enumerate(train_dl):
+                print(f'Training Batch {i}...')
                 inputs, labels = batch
                 inputs, labels = inputs.to(device), labels.to(device)
 
