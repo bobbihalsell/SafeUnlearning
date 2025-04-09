@@ -52,7 +52,7 @@ class SaveImage:
 
     def save_png(self, 
                  images: list, 
-                 filepath: Optional[str] = None, 
+                 filename: Optional[str] = None, 
                  fig_size: Optional[tuple] = None,
                  n_cols: Optional[int] = None,
                  normalize: Optional[bool] = True
@@ -61,7 +61,7 @@ class SaveImage:
         Save images as PNG files with a specified layout.
         Args:
             images (list): List of images to save.
-            filepath (str, optional): Path to save the image. Defaults to None.
+            filename (str, optional): Name of the file to save. Defaults to None.
             fig_size (tuple, optional): Figure size. Defaults to None.
             n_cols (int, optional): Number of columns. Defaults to None.
             normalize (bool, optional): Whether to normalize the images. Defaults to True.
@@ -71,7 +71,7 @@ class SaveImage:
         """
         self.num_images = len(images)
 
-        images = images.clone().detach()
+        images = images.clone().detach().to(self.device)
 
         if normalize:
             images.mul_(self.image_std).add_(self.image_mean).clamp_(0, 1) 
@@ -85,31 +85,28 @@ class SaveImage:
                 n_cols = int(np.ceil(self.num_images / 2))
             n_rows = int(np.ceil(self.num_images / n_cols))
 
-            if fig_size is None:
-                _, h, w = images[0].shape
-                scale = 1.5
-                fig_width = (w * n_cols * scale) / 100
-                fig_height = (h * n_rows * scale) / 100
-                fig_size = (fig_width, fig_height)
+            _, h, w = images[0].shape
+            scale = 1.5
+            fig_width = (w * n_cols * scale) / 100
+            fig_height = (h * n_rows * scale) / 100
+            fig_size = (fig_width, fig_height)
 
-            fig, axes = plt.subplots(n_rows, n_cols, figsize=fig_size,
-                                    dpi=300)
+            fig, axes = plt.subplots(n_rows, n_cols, figsize=fig_size, dpi=300)
+            axes = np.array(axes).flatten()
+
             for i, im in enumerate(images):
-                row = i // n_cols
-                col = i % n_cols
-                axes[row, col].imshow(im.permute(1, 2, 0).cpu())
-                axes[row, col].axis('off')
-                if i >= n_rows * n_cols:
-                    break
+                axes[i].imshow(im.permute(1, 2, 0).cpu())
+                axes[i].axis('off')
+
             # Hide any unused subplots
-            for j in range(i + 1, n_rows * n_cols):
-                row = j // n_cols
-                col = j % n_cols
-                axes[row, col].axis('off')
+            for j in range(len(images), len(axes)):
+                axes[j].axis('off')
 
-        if filepath is None:
+        if filename is None:
             filepath = os.path.join(self.directory, f'{self.attack_name}_{self.seed}_{self.experiment_name}.png')
-
+        else:
+            filepath = os.path.join(self.directory, filename)
+            
         plt.tight_layout()
         plt.savefig(filepath, bbox_inches='tight')
         print(f"Image saved at {filepath}")

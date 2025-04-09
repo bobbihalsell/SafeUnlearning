@@ -6,7 +6,7 @@ import torch.nn as nn
 import torchvision
 from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
-from attacks.utils import set_seed, setup_device, safe_dataclass_load
+from attacks.utils import set_seed, setup_device, safe_dataclass_load, SaveImage
 import os
 from datasets.cifar10 import get_cifar10_test_transform
 from datasets.cifar100 import get_cifar100_test_transform
@@ -45,7 +45,7 @@ class ReconstructorApp(InputValidator):
 
         self.unlearn_params['loss_fn'] = nn.CrossEntropyLoss()
         # Output directory
-        self.output_dir = config.get('output_dir', 'artifacts/')
+        self.output_dir = config.get('output_dir', 'src/artifacts/')
         os.makedirs(self.output_dir, exist_ok=True)
 
     def initialize_model(self):
@@ -125,18 +125,11 @@ class ReconstructorApp(InputValidator):
             )
 
         elif self.reconstructor_name == 'inversegrad':
-            # print(self.inverse_grad_config)
-            # print(original_model)
             reconstructor = InverseGradReconstructor(
-                self.device,
-                lr = self.reconstructor_lr,
-                # exp_name = self.experiment_name,
-                model = original_model,
-                config = safe_dataclass_load(InverseGradConfig, self.reconstructor_params),
-                # target_model=unlearned_model,
-                # loss_fn = loss_fn, #not sure if you're using the sae loss?
-                # **self.reconstructor_params #reconstructor specific parameters
-                ### you can add any parameters defined in config_validation here, I think if we need unlearning params then we can also use **self.unlearning_params
+                device = self.device,
+                original_model = original_model,
+                unlearned_model = unlearned_model,
+                config = safe_dataclass_load(InverseGradConfig, self.reconstructor_params)
             )
         else:
             raise ValueError(f'reconstructor {self.reconstructor_name}'
@@ -146,10 +139,14 @@ class ReconstructorApp(InputValidator):
 
 
 
-
-
     def save_results(self):
-        pass
+        saver = SaveImage(self.reconstructor_name,
+                          self.seed,
+                          self.experiment_name,
+                          self.image_mean,
+                          self.image_std,
+                          self.output_dir)
+        return saver
 
     def calculate_metrics(self):
         pass
@@ -164,24 +161,26 @@ class ReconstructorApp(InputValidator):
         original_model = self.load_model_from_disk(self.oiginal_weights)
 
         # Step 4: Reconstruction
-        reconstructor = self.initialize_reconstructor(unlearned_model, original_model )
+        reconstructor = self.initialize_reconstructor(unlearned_model, original_model)
         print('reconstructor initialized')
-        #reconstruction, losses = reconstructor.reconstruct(original_model, 
-                                                    #unlearned_model,
-                                                    #verbose=self.verbose,
-                                                    #**self.reconstructor_params)
-        print('model unlearned')
+        reconstruction, losses = reconstructor.reconstruct(labels = self.labels,
+                                                           image_size= self.image_size,
+                                                           image_mean= self.image_mean,
+                                                           image_std=self.image_std,
+                                                           lr= self.reconstructor_lr,
+                                                           verbose=self.verbose)
 
-        # Step 5: Save the unlearned model
-        self.save_results()
-
+        # # Step 5: Save the reconstructed image
+        image_saver = self.save_results()
+        image_saver.save_png(reconstruction,
+                             normalize=True)
+        
         self.calculate_metrics()
 
-        return unlearned_model
 
 
 if __name__ == '__main__':
     app = ReconstructorApp()
     app.run()
     # Run pip install -e .
-    # Run python src/unlearning/main_reconstructor.py --config_path src/unlearning/experiments/config.yaml
+    # Run python src/attacks/main_reconstructor.py --config_path src/attacks/config.yaml
