@@ -6,6 +6,7 @@ data/**
 raw/**
 imagenet/**
 tiny-imagenet-200/**
+outputs/**
 
 # *.pt
 # *.pth
