@@ -1,5 +1,3 @@
-import argparse
-import yaml
 import timm
 import torch
 import torch.nn as nn
@@ -18,6 +16,7 @@ from unlearning.finetune import FinetuneUnlearner
 from unlearning.scrub import SCRUB
 from unlearning.kunlearn import KUnlearn
 from unlearning.neggrad import NegGrad, NegGradPlus
+
 
 class UnlearnApp(InputValidator):
     def __init__(self, config: DictConfig):
@@ -206,7 +205,10 @@ class UnlearnApp(InputValidator):
 
         return unlearned_model
 
-@hydra.main(version_base=None, config_path="experiments", config_name="unlearn_simple")
+
+@hydra.main(version_base=None,
+            config_path="experiments",
+            config_name="unlearn_cifar_neggradplus")
 def main(cfg: DictConfig):
     app = UnlearnApp(cfg)
     app.run()

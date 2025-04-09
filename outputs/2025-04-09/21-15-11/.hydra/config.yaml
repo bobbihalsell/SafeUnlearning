@@ -1,0 +1,27 @@
+model:
+  name: mobilenet_v2
+  num_classes: 10
+  model_ckpt_path: ./artifacts/models/cifar/mobilenet_v2_42_original.pt
+unlearner:
+  name: scrub
+  evaluate: true
+  cfg:
+    lr: 0.001
+    weight_decay: 0
+    use_l2_penalty: false
+    min_epochs: 2
+    max_epochs: 5
+    alpha: 0.5
+    gamma: 0.5
+dataset:
+  name: cifar10
+  save_path: ./data
+  cfg:
+    batch_sizes:
+      retain: 32
+      forget: 32
+      val: 32
+    num_workers: 1
+seed: 42
+output_dir: ./artifacts
+verbose: true
