@@ -1,13 +1,11 @@
-import os
-import timm
 import torch
 import torch.nn as nn
 import copy
 from unlearning.utils import (l2_penalty)
-from itertools import cycle
 from unlearning.base import BaseUnlearner
 from typing import Dict
 from torch.utils.data import DataLoader
+
 
 class FinetuneUnlearner(BaseUnlearner):
     """
@@ -16,14 +14,14 @@ class FinetuneUnlearner(BaseUnlearner):
     This method creates a copy of the original model and fine-tunes it
     using only the retain dataset, effectively causing the model to "forget"
     the forget dataset by not reinforcing those patterns during retraining.
-    
+
     This method is computationally efficient but may not provide strong forgetting
     guarantees for models that have already memorized the forget data.
     """
-    def __init__(self, 
-                device,
-                evaluate: bool = False,
-                ):
+    def __init__(self,
+                 device,
+                 evaluate: bool = False,
+                 ):
         """
         Initialize the FinetuneUnlearner class.
 
@@ -59,7 +57,7 @@ class FinetuneUnlearner(BaseUnlearner):
                 tracked losses for each dataset type.
             Otherwise:
                 The unlearned model.
-  
+
         Raises:
             ValueError: If 'retain' data is not in data_dict.
         """
@@ -89,7 +87,7 @@ class FinetuneUnlearner(BaseUnlearner):
             total_retain_loss = 0
             for retain_inputs, retain_labels in data_dict['retain']:
 
-                model.train()
+                unlearned_model.eval()
                 optimizer.zero_grad()
 
                 retain_inputs = retain_inputs.to(self.device)
@@ -126,4 +124,3 @@ class FinetuneUnlearner(BaseUnlearner):
                     print()
 
         return unlearned_model, losses
-

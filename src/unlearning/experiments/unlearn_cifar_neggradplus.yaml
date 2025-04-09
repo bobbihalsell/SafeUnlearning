@@ -1,7 +1,7 @@
 model:
   name: mobilenet_v2
   num_classes: 10
-  model_ckpt_path: ./artifacts/models/mobilenet_v2_42_original.pt  # You must specify a path to the original model.
+  model_ckpt_path: ./artifacts/models/cifar/mobilenet_v2_42_original.pt  # You must specify a path to the original model.
 unlearner:
   name: neggradplus  # Options: neggrad, neggradplus, scrub, euk, cfk, finetune
   evaluate: true
@@ -18,7 +18,7 @@ dataset:
   cfg:
     batch_sizes:
       retain: 32
-      forget: 32
+      forget: 1
       val: 32
     num_workers: 1
 seed: 42

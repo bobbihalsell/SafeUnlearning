@@ -273,7 +273,7 @@ class SCRUB(BaseUnlearner):
         max_i=0
         
         for e in range(num_epochs):
-            unlearned_model.train()
+            unlearned_model.eval()
 
             # Maximize divergence on forget data
             if max_i < max_epochs:

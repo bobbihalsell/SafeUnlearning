@@ -15,7 +15,6 @@ dataset:
   batch_sizes:
     train: 64
     val: 64
-    test: 64
   num_workers: 4
 seed: 42
 run_id: imagenet_trial
