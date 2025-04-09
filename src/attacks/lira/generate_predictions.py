@@ -54,13 +54,3 @@ def run(lira_model_root: Path, model_name: str, unlearner: str, split_ndx: int,
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     np.save(output_path, probas)
-
-
-def main(args):
-    run(args.lira_model_root, args.model, args.unlearner, args.split_ndx, args.forget_ndx, args.output_dir,
-        args.device)
-
-
-if __name__ == "__main__":
-    args = get_parser().parse_args()
-    main(args)

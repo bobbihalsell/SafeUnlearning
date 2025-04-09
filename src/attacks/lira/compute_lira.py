@@ -133,7 +133,7 @@ def get_preds(lira_preds: Path, unlearner: str):
     return res
 
 
-def main(args):
+def run(args):
     unlearner = args.unlearner
     lira_root = args.lira_root
     lira_preds = args.lira_preds
@@ -172,13 +172,3 @@ def main(args):
     ndx_to_membership = compute_membership_probabilities(id_to_correct_probas)
     with open(f"lira/{unlearner}_membership.npy", "wb") as out_fo:
         pickle.dump(obj=ndx_to_membership, file=out_fo)
-
-
-if __name__ == "__main__":
-    args = argparse.Namespace()
-    args.lira_root = Path(
-        "/home/gcp-compute/for_reproducibility/lira_predictions/lira"
-    )
-    args.lira_preds = Path("lira") / "predictions"
-    args.unlearners = ["kgltop4"]
-    main(args)

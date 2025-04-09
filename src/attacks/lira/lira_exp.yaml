@@ -1,17 +1,27 @@
+experiment:
+  name: lira_test_config
+  seed: 42
+  model_name: resnet18
+  device: cuda
+
+data:
+  dataset_name: cifar10
+  num_classes: 10
+  save_path: ./data
+  num_splits: 10
+  num_forgets: 5
+
 model:
   name: resnet18
   num_classes: 10
   model_ckpt_path: # You must specify a path to the original model.
-unlearner:
-  name: neggradplus  # Options: neggrad, neggradplus, scrub, euk, cfk, finetune
+
+Unlearner:
+  name: neggrad  # Options: neggrad, neggradplus, scrub, euk, cfk, finetune
   evaluate: true
-  verbose: true
   cfg:
     # Common parameters for all unlearners
-    loss_fn: cross_entropy
     lr: 0.001
-    weight_decay: 0
-    use_l2_penalty: false
     epochs: 5 # Ignored for scrub
     # Specific parameters for some unlearners (will be ignored for others)
     beta: 0.5  # For neggradplus  beta = 0: forget only, beta = 1: retain only
@@ -22,12 +32,7 @@ unlearner:
     k: 3  # For euk/cfk
     method: CFk  # For kunlearn (CFk or EUk)
     reinit_method: randn  # For euk (randn or zero or xaiver)
-dataset:
-  name: cifar10  # Options: cifar10, cifar5, cifar100, imagenet
-  url: # must end in .tar or .tar.gz
-  save_path: ./data # the directory filepath where the dataset should be saved OR is saved and should be loaded in from.
-  proportion: 1 # Choose 1 to get all data. Data will always be balanced.
-  num_splits: 10
-  num_forgets: 5
-seed: 42
-output_dir: artifacts/
+
+output:
+  dir: src/artifacts/
+verbose: true

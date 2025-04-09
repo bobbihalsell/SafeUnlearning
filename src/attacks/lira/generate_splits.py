@@ -1,12 +1,8 @@
 from copy import deepcopy
 from pathlib import Path
-import argparse
 import numpy as np
 
-from munl.datasets import get_dataset_and_lengths
-from munl.datasets.cifar10 import (
-    get_cifar10_train_transform,
-)
+from src.datasets.load_datasets import load_train_val_test_datasets
 
 
 def generate_lira_train_tests(lira_dev_indices, num_attempts, ratio=0.5):
@@ -38,22 +34,18 @@ def generate_all_forgets(train_matrices, num_attempts, ratio):
     return retains, forgets
 
 
-def main(args):
-    data_seed = args.data_seed
+def run(args):
+    dataset = args.dataset
+    data_seed = args.seed
     val_ratio = args.val_ratio
     forget_ratio = args.forget_ratio
     num_splits = args.num_splits
     num_forgets = args.num_forgets
 
-    # TODO: fix hardcoded dataset
-    cifar10 = get_dataset_and_lengths(
-        Path("datasets"),
-        dataset_name="cifar10",
-        transform=get_cifar10_train_transform(),
-    )
-    dataset, (train_len, test_len) = cifar10
+    train, test = load_train_val_test_datasets(dataset, 1, val_ratio, dataset_load_dir, dataset_save_dir)
+    train_len, test_len = len(train), len(test)
 
-    indices = np.arange((len(dataset)))
+    indices = np.arange(train_len + test_len)
     dev_indices = indices[:train_len]
     val_len = int(train_len * val_ratio)
 
@@ -82,18 +74,3 @@ def main(args):
             split_path.mkdir(parents=True)
         np.save(split_path / "retains.npy", retains[split_ndx])
         np.save(split_path / "forgets.npy", forgets[split_ndx])
-
-
-def get_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--data_seed", type=int, default=123)
-    parser.add_argument("--val_ratio", type=float, default=0.05)
-    parser.add_argument("--forget_ratio", type=float, default=0.1)
-    parser.add_argument("--num_splits", type=int, default=64)
-    parser.add_argument("--num_forgets", type=int, default=10)
-    return parser.parse_args()
-
-
-if __name__ == "__main__":
-    args = get_args()
-    main(args)
