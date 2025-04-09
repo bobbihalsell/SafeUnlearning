@@ -5,6 +5,7 @@ dataset:
   save_dir: ./data # the directory filepath where the split dataset should be saved
   proportion: 1 # Choose 1 to use all data. Data will always be balanced.
   val_ratio: 0.2
+  retain_size:  # For instance forgetting only. Number of instances to retain use in retain set or leave empty if all remaining instances should be used
 forget:
   method: instance # instance or class only
   forget_idx: [1]
