@@ -46,7 +46,7 @@ class InverseGradReconstructor():
         self.config = config
         self.original_model = original_model
         self.unlearned_model = unlearned_model
-        self.setup = device
+        self.device = device
 
         self.loss_fn_ce = torch.nn.CrossEntropyLoss()
         self.loss_fn = DistillKL(2)
@@ -63,18 +63,19 @@ class InverseGradReconstructor():
             return [(new.detach() - old.detach()) / grad_lr for old, new in zip(param_old, param_new)]
 
     def reconstruct(self, labels, image_size=[3, 32, 32], 
-                    num_images=1, image_mean = [0.5, 0.5, 0.5],
+                    image_mean = [0.5, 0.5, 0.5],
                     image_std = [0.5, 0.5, 0.5],
                     lr = 0.1, verbose = True):
         """Reconstruct image from gradient."""
 
-        self.num_images = num_images
         self.image_size = tuple(int(x) for x in image_size)
         self.dm = image_mean[0]
         self.ds = image_std[0]
         self.lr = lr
         self.verbose = verbose
-        labels = torch.tensor(labels, device=self.setup)
+        labels = torch.as_tensor(labels, device = self.device)
+        self.num_images = labels.shape[0]
+
         
         
         if eval:
@@ -83,7 +84,7 @@ class InverseGradReconstructor():
         input_data = self.input_gradient
         stats = defaultdict(list)
         x = self._init_images()
-        scores = torch.zeros(self.config.num_runs, device=self.setup)
+        scores = torch.zeros(self.config.num_runs, device=self.device)
 
         if labels is None:
             if self.num_images == 1 and self.iDLG:
@@ -102,17 +103,16 @@ class InverseGradReconstructor():
                 self.loss_fn_ce = loss_fn
                 self.loss_fn = DistillKL(2)
         else:
-            assert labels.shape[0] == self.num_images
             self.reconstruct_label = False
 
         try:
             for trial in range(self.config.num_runs):
-                x_trial, labels = self._run_trial(x[trial].to(self.setup), input_data, labels)
+                x_trial, labels = self._run_trial(x[trial].to(self.device), input_data, labels)
                 # Finalize
                 print(f'Finalizing trial {trial} ...')
                 scores[trial] = self._score_trial(x_trial, input_data, labels)
                 print(f'Score: {scores[trial]:2.4f}')
-                x[trial] = x_trial.to(self.setup)
+                x[trial] = x_trial.to(self.device)
 
 
         except KeyboardInterrupt:
@@ -134,11 +134,11 @@ class InverseGradReconstructor():
 
     def _init_images(self):
         if self.config.init == 'randn':
-            return torch.randn((self.config.num_runs, self.num_images, *self.image_size), device = self.setup)
+            return torch.randn((self.config.num_runs, self.num_images, *self.image_size), device = self.device)
         elif self.config.init == 'rand':
-            return (torch.rand((self.config.num_runs, self.num_images, *self.image_size), device =self.setup) - 0.5) * 2
+            return (torch.rand((self.config.num_runs, self.num_images, *self.image_size), device =self.device) - 0.5) * 2
         elif self.config.init == 'zeros':
-            return torch.zeros((self.config.num_runs, self.num_images, *self.image_size), device = self.setup)
+            return torch.zeros((self.config.num_runs, self.num_images, *self.image_size), device = self.device)
         else:
             raise ValueError()
 
@@ -146,7 +146,7 @@ class InverseGradReconstructor():
         x_trial.requires_grad = True
         if self.reconstruct_label:
             output_test = self.original_model(x_trial)
-            labels = torch.randn(output_test.shape[1]).to(**self.setup).requires_grad_(True)
+            labels = torch.randn(output_test.shape[1]).to(**self.device).requires_grad_(True)
 
             if self.config.optim == 'adam':
                 optimizer = torch.optim.Adam([x_trial, labels], lr=self.lr)
@@ -179,7 +179,7 @@ class InverseGradReconstructor():
         try:
             self.model_copy = copy.deepcopy(self.original_model)
             for iteration in range(recon_iterations):
-                closure = self._gradient_closure(optimizer, x_trial.to(self.setup), input_data, labels)
+                closure = self._gradient_closure(optimizer, x_trial.to(self.device), input_data, labels)
                 rec_loss = optimizer.step(closure)
                 if self.config.lr_decay:
                     scheduler.step()
@@ -217,8 +217,8 @@ class InverseGradReconstructor():
         def closure():
             optimizer.zero_grad()
             self.original_model.zero_grad()
-            loss_ce = self.loss_fn_ce(self.original_model(x_trial.to(self.setup)), label)
-            loss_kl = self.loss_fn(self.original_model(x_trial.to(self.setup)), self.model_copy(x_trial.to(self.setup)))
+            loss_ce = self.loss_fn_ce(self.original_model(x_trial.to(self.device)), label)
+            loss_kl = self.loss_fn(self.original_model(x_trial.to(self.device)), self.model_copy(x_trial.to(self.device)))
             loss = loss_ce + loss_kl
 
             gradient = torch.autograd.grad(loss, self.original_model.parameters(), create_graph=True)
