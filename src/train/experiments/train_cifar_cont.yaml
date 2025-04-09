@@ -1,0 +1,21 @@
+model:
+  name: mobilenet_v2
+  pretrained: true  # Start from library-provided pretrained weights.
+  freeze_all_except_classifier: false
+  num_classes: 10
+  checkpoint_path: artifacts/models/mobilenet_v2_42_original.pt # Path to model weights if you want to start training from self-provided weights
+  save_dir: ./artifacts/models # directory to save the trained model
+  train_cfg:  # Will use Adam only for now
+    epochs: 20
+    lr: 0.001
+    weight_decay: 0.0001
+dataset:
+  name: cifar10
+  load_dir: ./data # directory to the ImageFolder-format dataset
+  batch_sizes:
+    train: 128
+    val: 128
+    test: 128
+  num_workers: 4
+seed: 42
+run_id: melon
