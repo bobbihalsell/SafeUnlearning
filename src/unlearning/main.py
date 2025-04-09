@@ -1,5 +1,3 @@
-import argparse
-import yaml
 import timm
 import torch
 import torch.nn as nn
@@ -8,6 +6,8 @@ from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
 from unlearning.utils import save_model, set_seed, setup_device, ConfigError
 import os
+import hydra
+from omegaconf import OmegaConf, DictConfig
 from datasets.cifar10 import get_cifar10_test_transform
 from datasets.cifar100 import get_cifar100_test_transform
 from datasets.imagenet import get_imagenet_test_transform
@@ -19,23 +19,9 @@ from unlearning.neggrad import NegGrad, NegGradPlus
 
 
 class UnlearnApp(InputValidator):
-    def __init__(self):
-        parser = argparse.ArgumentParser(
-            description="Specify path to unlearning .yaml file.")
-        parser.add_argument("--config_path",
-                            type=str,
-                            required=True,
-                            help="Path to .yaml file")
-        args = parser.parse_args()
-
-        # Load in the instructions for the unlearning run from a filepath
-        with open(args.config_path, 'r') as f:
-            try:
-                config = yaml.safe_load(f)
-            except FileNotFoundError:
-                raise FileNotFoundError('.yaml file not found.')
-
+    def __init__(self, config: DictConfig):
         # Perform input validation first
+        config = OmegaConf.to_container(config, resolve=True)
         super().__init__(config)
 
         self.device = setup_device()
@@ -220,8 +206,16 @@ class UnlearnApp(InputValidator):
         return unlearned_model
 
 
-if __name__ == '__main__':
-    app = UnlearnApp()
+@hydra.main(version_base=None,
+            config_path="experiments",
+            config_name="unlearn_cifar_neggradplus")
+def main(cfg: DictConfig):
+    app = UnlearnApp(cfg)
     app.run()
+
+
+if __name__ == '__main__':
+    main()
     # Run pip install -e .
-    # Run python src/unlearning/main.py --config_path src/unlearning/experiments/unlearn_simple.yaml
+    ## to override the config dataset for example
+    # Run python python src/unlearning/main.py dataset.name=cifar10
