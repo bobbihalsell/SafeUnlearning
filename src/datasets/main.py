@@ -82,11 +82,9 @@ class DatasetInitializer:
         """ Create symlink forget and retain subsets"""
         train_dataset = ImageFolder(root=train_dir)
 
-        # If retain_indices is None, use all indices except the forget_indices
-        
+        # If retain_size is None, use all indices except the forget_indices
         all_indices = set(range(len(train_dataset)))
         retain_indices = list(all_indices - set(forget_indices))
-        print(type(retain_size))
 
         if retain_size is not None:
             retain_indices = list(np.random.choice(retain_indices, min(retain_size, len(retain_indices))))
