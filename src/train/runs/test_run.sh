@@ -1,0 +1,1 @@
+python src/train/main.py dataset=cifar10 model=mobilenet_v2 dataset.load_dir=./data model.pretrained=true model.save_dir=./artifacts/models/cifar_test model.num_classes=10

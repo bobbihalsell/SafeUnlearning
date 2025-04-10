@@ -1,0 +1,5 @@
+defaults:
+  - model: ???
+  - dataset: ???
+seed: 42
+run_id: melon

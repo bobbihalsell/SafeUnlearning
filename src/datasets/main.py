@@ -1,43 +1,28 @@
-import yaml
-import argparse
 from datasets.load_datasets import load_train_val_test_datasets
 import numpy as np
-
 import os
+import shutil
 from torchvision.datasets import ImageFolder
 from unlearning.utils import ConfigError
+import hydra
+from omegaconf import DictConfig, OmegaConf
+from omegaconf.errors import MissingMandatoryValue
 
 
 class DatasetInitializer:
-    def __init__(self):
-        parser = argparse.ArgumentParser(
-            description="Specify path to dataset prep .yaml file.")
-        parser.add_argument("--config_path",
-                            type=str,
-                            required=True,
-                            help="Path to .yaml file")
-        args = parser.parse_args()
-
-        # Load in the instructions for the unlearning run from a filepath
-        with open(args.config_path, 'r') as f:
-            try:
-                config = yaml.safe_load(f)
-            except FileNotFoundError:
-                raise FileNotFoundError('.yaml file not found.')
-
+    def __init__(self, config: DictConfig):
+        config = OmegaConf.to_container(config, resolve=True)
         dataset_cfg = config['dataset']
         self.dataset_name = dataset_cfg['name']
         self.init_dir = dataset_cfg['init_dir']
         self.save_dir = dataset_cfg['save_dir']
         self.proportion = dataset_cfg['proportion']
         self.val_ratio = dataset_cfg['val_ratio']
-        self.retain_size = dataset_cfg.get('retain_size', None)
-
 
         forget_cfg = config['forget']
         self.forget_method = forget_cfg['method']
         self.forget_idx = forget_cfg['forget_idx']
-
+        self.retain_size = forget_cfg.get('retain_size', None)
 
         seed = config.get('seed', 42)
         np.random.seed(seed)
@@ -45,8 +30,16 @@ class DatasetInitializer:
     def load_datasets(self):
         """ Download and save benchmark datasets with name support.
 
-        This will download train/val/test datasets in the save directory.
+        This will download dataset splits in the save directory.
         """
+        # Check if the save path is filled from a previous run and clear it
+        if os.path.exists(self.save_dir):
+            print("Clearing existing dataset "
+                  f"split directory: {self.save_dir}")
+            shutil.rmtree(self.save_dir)
+
+        os.makedirs(self.save_dir, exist_ok=True)
+
         load_train_val_test_datasets(
             dataset_name=self.dataset_name,
             proportion=self.proportion,
@@ -144,7 +137,23 @@ class DatasetInitializer:
             create_class_symlink('retain', label)
 
 
+@hydra.main(version_base=None,
+            config_path="config",
+            config_name="config")
+def main(cfg: DictConfig):
+    # Print the config for the user first
+    print('============ Run Configuration ============')
+    print(OmegaConf.to_yaml(cfg))
+    print('============================================')
+    missing_keys = OmegaConf.missing_keys(cfg)
+    if missing_keys:
+        raise MissingMandatoryValue(
+            'Missing the following required arguments in the configuration: '
+            f'{missing_keys}. \n'
+            'Hint: python file.py key=value sets the appropriate value.')
+    app = DatasetInitializer(cfg)
+    app.load_datasets()
+
+
 if __name__ == '__main__':
-    DatasetInitializer().load_datasets()
-    # DatasetInitializer().get_train_test_data()
-    # python src/datasets/main.py --config_path src/datasets/experiments/prep_simple.yaml
+    main()
