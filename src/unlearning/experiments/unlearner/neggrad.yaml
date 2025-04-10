@@ -1,0 +1,8 @@
+name: neggrad  # Options: neggrad, neggradplus, scrub, euk, cfk, finetune
+evaluate: true
+cfg:
+  # Common parameters for all unlearners
+  lr: 0.0005
+  weight_decay: 0 # Optimization algorithm weight decay
+  use_l2_penalty: false
+  epochs: 2
