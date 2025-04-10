@@ -80,7 +80,6 @@ class KUnlearn(FinetuneUnlearner):
             model (nn.Module): PyTorch model to modify
             method (str): The initialization method. Options:
                 - "zero": Sets weights to zero (most aggressive reset)
-                - "xavier": Applies Xavier uniform initialization (better for training)
                 - "randn": Initializes weights with a standard normal distribution
 
         Returns:
@@ -95,11 +94,6 @@ class KUnlearn(FinetuneUnlearner):
                 if self.init == "zero":
                     # Set all weights to zero
                     param.data.zero_()
-                elif self.init == "xavier":
-                    # Apply Xavier uniform initialization to weight matrices
-                    # Only apply Xavier to weight tensors, not biases
-                    if param.dim() > 1:  
-                        nn.init.xavier_uniform_(param)
                 elif self.init == "randn":
                     # Initialize with standard normal distribution
                     param.data.normal_()
@@ -124,7 +118,7 @@ class KUnlearn(FinetuneUnlearner):
                 data_dict (Dict[str, DataLoader]): Dictionary containing dataloaders for different datasets
                                                 Must include 'retain' data
                 reinit_method (str): Method to use for reinitializing weights in EUk approach
-                                    Options: 'zero', 'xavier', 'random'/'randn'
+                                    Options: 'zero', 'randn'
                 **kwargs: Additional arguments passed to the parent unlearn method, including:
                         - loss_fn: Loss function to use for training
                         - num_epochs: Number of training epochs
