@@ -7,8 +7,6 @@ import copy
 from dataclasses import dataclass
 from collections import defaultdict, OrderedDict
 from InverseGrad.modules import MetaMonkey
-
-from InverseGrad.metrics import total_variation as TV
 from InverseGrad.medianfilt import MedianPool2d
 
 from copy import deepcopy
@@ -38,11 +36,13 @@ class InverseGradConfig:
 
 
 class InverseGradReconstructor():
-    """Instantiate a reconstruction algorithm."""
+    """Instantiate a reconstruction algorithm.
+    This class is used to reconstruct an image from the gradients of a model.
+    It is used in the InverseGrad algorithm. """
 
     def __init__(self, device, original_model, unlearned_model,  
                  config: InverseGradConfig = InverseGradConfig()):
-        """Initialize with algorithm setup."""
+        """Initialise with algorithm setup."""
         self.config = config
         self.original_model = original_model
         self.unlearned_model = unlearned_model
@@ -58,14 +58,15 @@ class InverseGradReconstructor():
     def _gradient_difference(
             self,
             grad_lr = 1e-4):
-            param_old = [p.clone().detach() for p in self.original_model.parameters()]
-            param_new = [p.clone().detach() for p in self.unlearned_model.parameters()]
-            return [(new.detach() - old.detach()) / grad_lr for old, new in zip(param_old, param_new)]
+        param_old = [p.clone().detach() for p in self.original_model.parameters()]
+        param_new = [p.clone().detach() for p in self.unlearned_model.parameters()]
+        return [(new.detach() - old.detach()) / grad_lr for old, new in zip(param_old, param_new)]
 
     def reconstruct(self, labels, image_size=[3, 32, 32], 
                     image_mean = [0.5, 0.5, 0.5],
                     image_std = [0.5, 0.5, 0.5],
                     lr = 0.1, verbose = True):
+        
         """Reconstruct image from gradient."""
 
         self.image_size = tuple(int(x) for x in image_size)
@@ -130,7 +131,7 @@ class InverseGradReconstructor():
             stats['opt'] = scores[optimal_index].item()
             x_optimal = x[optimal_index]
 
-        return x_optimal.detach(), stats
+        return x_optimal.detach(), stats['opt']
 
     def _init_images(self):
         if self.config.init == 'randn':
@@ -190,9 +191,6 @@ class InverseGradReconstructor():
                         lower = -self.dm / self.ds
                         upper = (1 - self.dm) / self.ds
                         x_trial.data = torch.clamp(x_trial, min=lower, max=upper)
-                    # if self.debug['boxed']:
-                    #     self.dm, self.ds = torch.tensor(self.dm).to(x_trial.device), torch.tensor(self.ds).to(x_trial.device)
-                    #     x_trial.data = torch.max(torch.min(x_trial, (1 - self.dm) / self.ds), -self.dm / self.ds)
 
 
                     if (iteration + 1 == recon_iterations) or iteration % 500 == 0 and self.verbose:
@@ -227,7 +225,7 @@ class InverseGradReconstructor():
                                             weights=self.config.weights)
 
             if self.config.total_variation> 0:
-                rec_loss += self.config.total_variation * TV(x_trial)
+                rec_loss += self.config.total_variation * total_variation(x_trial)
             rec_loss.backward()
             if self.config.signed:
                 x_trial.grad.sign_()
@@ -247,7 +245,7 @@ class InverseGradReconstructor():
                                         cost_fn=self.config.cost_fn, indices=self.config.indices,
                                         weights=self.config.weights)
         elif self.config.scoring_choice== 'tv':
-            return TV(x_trial)
+            return total_variation(x_trial)
         elif self.config.scoring_choice in ['pixelmean', 'pixelmedian']:
             return 0.0
         else:
@@ -311,7 +309,7 @@ class MultiStepReconstructor(InverseGradReconstructor):
                                             weights=self.config.weights)
 
             if self.config.total_variation > 0:
-                rec_loss += self.config.total_variation * TV(x_trial)
+                rec_loss += self.config.total_variation * total_variation(x_trial)
             rec_loss.backward()
             if self.config.signed:
                 x_trial.grad.sign_()
@@ -327,7 +325,7 @@ class MultiStepReconstructor(InverseGradReconstructor):
                                         cost_fn=self.config.cost_fn, indices=self.config.indices,
                                         weights=self.config.weights)
         elif self.config.scoring_choice== 'tv':
-            return TV(x_trial)
+            return total_variation(x_trial)
 
 
 def loss_steps(model, inputs, labels, loss_fn=torch.nn.CrossEntropyLoss(), lr=1e-4, local_steps=4, use_updates=True, batch_size=0):
@@ -428,3 +426,8 @@ def reconstruction_costs(gradients, input_gradient, cost_fn='l2', indices='def',
         total_costs += costs
     return total_costs / len(gradients)
 
+def total_variation(x):
+    """Anisotropic TV."""
+    dx = torch.mean(torch.abs(x[:, :, :, :-1] - x[:, :, :, 1:]))
+    dy = torch.mean(torch.abs(x[:, :, :-1, :] - x[:, :, 1:, :]))
+    return dx + dy

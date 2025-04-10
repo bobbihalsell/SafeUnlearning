@@ -1,5 +1,6 @@
 import argparse
 import yaml
+import time
 import timm
 import torch
 import torch.nn as nn
@@ -103,6 +104,7 @@ class ReconstructorApp(InputValidator):
             model = self.initialize_model()
             # Load state dict
             checkpoint = torch.load(model_path, map_location=self.device)
+            checkpoint = checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint
             model.load_state_dict(checkpoint)
             model = model.to(self.device)
             print(f"Loaded model from {model_path}")
@@ -163,12 +165,18 @@ class ReconstructorApp(InputValidator):
         # Step 4: Reconstruction
         reconstructor = self.initialize_reconstructor(unlearned_model, original_model)
         print('reconstructor initialized')
+
+        start_time = time.time()
         reconstruction, losses = reconstructor.reconstruct(labels = self.labels,
                                                            image_size= self.image_size,
                                                            image_mean= self.image_mean,
                                                            image_std=self.image_std,
                                                            lr= self.reconstructor_lr,
                                                            verbose=self.verbose)
+        total_time = time.time() - start_time
+        if self.verbose:
+            print(f"Reconstruction completed in {total_time:.2f} seconds")
+            print(f"Reconstruction Losses: {losses}")
 
         # # Step 5: Save the reconstructed image
         image_saver = self.save_results()
