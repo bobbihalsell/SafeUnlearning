@@ -1,13 +1,11 @@
-import os
-import timm
 import torch
 import torch.nn as nn
 import copy
 from unlearning.utils import (l2_penalty)
-from itertools import cycle
 from unlearning.base import BaseUnlearner
 from typing import Dict
 from torch.utils.data import DataLoader
+
 
 class FinetuneUnlearner(BaseUnlearner):
     """
@@ -16,11 +14,14 @@ class FinetuneUnlearner(BaseUnlearner):
     This method creates a copy of the original model and fine-tunes it
     using only the retain dataset, effectively causing the model to "forget"
     the forget dataset by not reinforcing those patterns during retraining.
-    
+
     This method is computationally efficient but may not provide strong forgetting
     guarantees for models that have already memorized the forget data.
     """
-    def __init__(self, device):
+    def __init__(self,
+                 device,
+                 evaluate: bool = False,
+                 ):
         """
         Initialize the FinetuneUnlearner class.
 
@@ -28,7 +29,7 @@ class FinetuneUnlearner(BaseUnlearner):
             device: Computing device (CPU/GPU) to use for computations.
                    If None, will be automatically determined.
         """
-        super().__init__(device)
+        super().__init__(device, evaluate)
 
     def unlearn(self,
                 model: nn.Module,
@@ -42,7 +43,7 @@ class FinetuneUnlearner(BaseUnlearner):
             model: The original model to perform unlearning on.
             data_dict: Dictionary of dataloaders, must include a 'retain' key with
                       the data to retain. Other keys (e.g., 'forget', 'test') will
-                      be used for evaluation.
+                      be used for evaluation if self.evaluate is True.
             **kwargs: Additional arguments including:
                 - loss_fn: Loss function to use for training.
                 - num_epochs: Number of training epochs (default: 1).
@@ -51,8 +52,11 @@ class FinetuneUnlearner(BaseUnlearner):
                 - use_l2_penalty: Whether to add L2 regularization (default: False).
 
         Returns:
-            Tuple of (unlearned_model, losses_dict) where losses_dict contains
-            tracked losses for each dataset type.
+            If self.evaluate is True:
+                Tuple of (unlearned_model, losses_dict) where losses_dict contains
+                tracked losses for each dataset type.
+            Otherwise:
+                The unlearned model.
 
         Raises:
             ValueError: If 'retain' data is not in data_dict.
@@ -70,7 +74,7 @@ class FinetuneUnlearner(BaseUnlearner):
         # Initialize loss tracking
         losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
 
-        optimizer = torch.optim.SGD(params=model.parameters(),
+        optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
                                     lr=lr,
                                     weight_decay=weight_decay)
 
@@ -79,12 +83,11 @@ class FinetuneUnlearner(BaseUnlearner):
                           data_dict[data] is not None]
 
         # Main training loop
-        for epoch in range(num_epochs):
+        for e in range(num_epochs):
             total_retain_loss = 0
-            num_batches = 0
             for retain_inputs, retain_labels in data_dict['retain']:
-                num_batches += 1
-                model.train()
+
+                unlearned_model.eval()
                 optimizer.zero_grad()
 
                 retain_inputs = retain_inputs.to(self.device)
@@ -104,19 +107,20 @@ class FinetuneUnlearner(BaseUnlearner):
                 retain_loss.backward()
                 optimizer.step()
 
-            avg_retain_loss = total_retain_loss/num_batches
             if verbose:
-                print(f'Epoch {epoch+1}: Retain Loss: {avg_retain_loss}')
+                print(f'Epoch {e}: Retain Loss: {total_retain_loss/len(data_dict["retain"])}')
 
-            # Calculate average retain loss for this epoch
-            losses['retain_losses'].append(total_retain_loss)
-            unlearned_model.eval()
-            # Evaluate model on other datasets
-            for data_type in eval_only_data:
-                loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
-                losses[f"{data_type}_losses"].append(loader_loss.item())
+            if self.evaluate:
+                # Calculate average retain loss for this epoch
+                losses['retain_losses'].append(total_retain_loss/len(data_dict["retain"]))
+                unlearned_model.eval()
+                # Evaluate model on other datasets
+                for data_type in eval_only_data:
+                    loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
+                    losses[f"{data_type}_losses"].append(loader_loss.item())
+                    if verbose:
+                        print(f'{data_type.capitalize()} Loss: {loader_loss}', end='  ')
                 if verbose:
-                    print(f'{data_type.capitalize()} Loss: {loader_loss}',
-                          end=' ')
+                    print()
 
         return unlearned_model, losses

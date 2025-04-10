@@ -1,5 +1,3 @@
-import argparse
-import yaml
 import timm
 import torch
 import torch.nn as nn
@@ -8,6 +6,9 @@ from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
 from unlearning.utils import save_model, set_seed, setup_device, ConfigError
 import os
+import hydra
+from omegaconf import OmegaConf, DictConfig
+from omegaconf.errors import MissingMandatoryValue
 from datasets.cifar10 import get_cifar10_test_transform
 from datasets.cifar100 import get_cifar100_test_transform
 from datasets.imagenet import get_imagenet_test_transform
@@ -19,23 +20,9 @@ from unlearning.neggrad import NegGrad, NegGradPlus
 
 
 class UnlearnApp(InputValidator):
-    def __init__(self):
-        parser = argparse.ArgumentParser(
-            description="Specify path to unlearning .yaml file.")
-        parser.add_argument("--config_path",
-                            type=str,
-                            required=True,
-                            help="Path to .yaml file")
-        args = parser.parse_args()
-
-        # Load in the instructions for the unlearning run from a filepath
-        with open(args.config_path, 'r') as f:
-            try:
-                config = yaml.safe_load(f)
-            except FileNotFoundError:
-                raise FileNotFoundError('.yaml file not found.')
-
+    def __init__(self, config: DictConfig):
         # Perform input validation first
+        config = OmegaConf.to_container(config, resolve=True)
         super().__init__(config)
 
         self.device = setup_device()
@@ -103,7 +90,7 @@ class UnlearnApp(InputValidator):
             model = self.initialize_model()
             # Load state dict
             checkpoint = torch.load(model_path, map_location=self.device)
-            model.load_state_dict(checkpoint)
+            model.load_state_dict(checkpoint['model_state_dict'])
             model = model.to(self.device)
             print(f"Loaded model from {model_path}")
             return model
@@ -220,8 +207,23 @@ class UnlearnApp(InputValidator):
         return unlearned_model
 
 
-if __name__ == '__main__':
-    app = UnlearnApp()
+@hydra.main(version_base=None,
+            config_path="config",
+            config_name="config")
+def main(cfg: DictConfig):
+    # Print the config for the user first
+    print('============ Run Configuration ============')
+    print(OmegaConf.to_yaml(cfg))
+    print('============================================')
+    missing_keys = OmegaConf.missing_keys(cfg)
+    if missing_keys:
+        raise MissingMandatoryValue(
+            'Missing the following required arguments in the configuration: '
+            f'{missing_keys}. \n'
+            'Hint: python file.py key=value sets the appropriate value.')
+    app = UnlearnApp(cfg)
     app.run()
-    # Run pip install -e .
-    # Run python src/unlearning/main.py --config_path src/unlearning/experiments/unlearn_simple.yaml
+
+
+if __name__ == '__main__':
+    main()

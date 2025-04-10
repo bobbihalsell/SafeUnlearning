@@ -9,6 +9,7 @@ class BaseUnlearner:
     """ Base class for all machine unlearning implementations."""
     def __init__(self,
                  device,
+                 evaluate: bool = False
                  ):
         """
         Initialize the BaseUnlearner.
@@ -17,7 +18,8 @@ class BaseUnlearner:
             device: Computing device (GPU/CPU) to use for computations.
                    If None, will be automatically determined.
         """
-        self.device = device if device is not None else setup_device()        
+        self.device = device if device is not None else setup_device()   
+        self.evaluate = evaluate     
 
     @abstractmethod
     def unlearn(
@@ -89,9 +91,9 @@ class BaseUnlearner:
         Raises:
             ValueError: If any of the parameters fails validation checks.
         """
-        num_epochs = kwargs['epochs']
         lr = kwargs['lr']
         # Extract parameters with default values
+        num_epochs = kwargs.get('epochs', 1)
         weight_decay = kwargs.get('weight_decay', 0)
         loss_fn = kwargs.get('loss_fn')
         use_l2_penalty = kwargs.get('use_l2_penalty', False)

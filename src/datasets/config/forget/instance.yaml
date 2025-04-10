@@ -1,0 +1,3 @@
+method: instance
+forget_idx: ???
+retain_size: # Number of instances to use in retain set or leave empty for all remaining instances 

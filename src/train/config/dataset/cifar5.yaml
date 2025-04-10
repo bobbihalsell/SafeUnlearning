@@ -1,0 +1,6 @@
+name: cifar5
+load_dir: ??? # directory to the ImageFolder-format dataset
+batch_sizes:
+  train: 128
+  val: 128
+num_workers: 4

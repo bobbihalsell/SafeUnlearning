@@ -20,6 +20,7 @@ class InputValidator:
         self.model_name = model_config['name']
         self.model_ckpt_path = model_config['model_ckpt_path']
         self.num_classes = model_config['num_classes']
+        self.output_dir = model_config['output_dir']
 
         self.verbose = config['verbose']
 

@@ -11,23 +11,27 @@ class SCRUB(BaseUnlearner):
     """
     Implementation of the SCRUB unlearning algorithm as described in 
     "Towards Unbounded Machine Unlearning" (https://arxiv.org/abs/2302.09880).
-    
+
     SCRUB employs a bi-level optimization strategy to:
     1. Maximize divergence on forget data (maximize KL divergence)
     2. Minimize divergence on retain data (minimize KL divergence + classification error)
-    
+
     This approach ensures the model "forgets" specific data while maintaining
     performance on data that should be retained.
     """
-    def __init__(self, device):
+    def __init__(self,
+                 device,
+                 evaluate: bool = False,
+                 ):
         """
         Initialize the SCRUB unlearning class.
 
         Args:
             device: Computing device (CPU/GPU) to use for computations.
                    If None, will be automatically determined.
+            evaluate: Whether to track and return evaluation metrics during unlearning.
         """
-        super().__init__(device)
+        super().__init__(device, evaluate)
 
     def _kl_divergence(self, 
                        model1_logits: torch.Tensor, 
@@ -35,21 +39,21 @@ class SCRUB(BaseUnlearner):
                        ) -> torch.Tensor:
         """
         Calculate the Kullback-Leibler divergence between outputs of two models.
-        
+
         Args:
             model1_logits: Logits (pre-softmax outputs) from the first model
             model2_logits: Logits (pre-softmax outputs) from the second model
-            
+
         Returns:
             KL divergence between the two distributions
-            
+
         Raises:
             ValueError: If the shapes of the logits don't match
         """
-        
+
         if model1_logits.shape != model2_logits.shape:
             raise ValueError("Model logits must have the same shape.")
-        
+
         model1_logits = model1_logits.to(dtype=torch.float32)
         model2_logits = model2_logits.to(dtype=torch.float32)
 
@@ -58,17 +62,17 @@ class SCRUB(BaseUnlearner):
         model2_probs = torch.clamp(model2_probs, min=1e-10)  # Avoid log(0)
 
         return F.kl_div(log_model1_probs, model2_probs, reduction='sum')
-    
+
     def forget_loss(self, original_out, unl_out):
         """
         Compute the training loss for forgetting data.
         For forget data, we want to maximize the KL divergence between the original
         and unlearned model outputs.
-        
+
         Args:
             original_out: Output logits from the original model
             unl_out: Output logits from the unlearned model
-            
+
         Returns:
             Normalized KL divergence loss for forget data
         """
@@ -76,16 +80,15 @@ class SCRUB(BaseUnlearner):
         Nf = len(original_out)
         # Compute KL divergence between original and unlearned model outputs
         forget_kl = self._kl_divergence(original_out, unl_out)
-        return forget_kl/Nf
-    
+        return forget_kl/Nf, forget_kl
     def retain_loss(self, original_out, unl_out, true_y, alpha, gamma, criterion):
         """
         Compute the composite loss for retaining data.
-        
+
         For retain data, we want to: 
             - Minimize KL divergence between original and unlearned models
             - Maintain classification accuracy through cross-entropy loss
-        
+
         Args:
             original_out: Output logits from the original model
             unl_out: Output logits from the unlearned model
@@ -93,7 +96,7 @@ class SCRUB(BaseUnlearner):
             alpha: Weight for the KL divergence component
             gamma: Weight for the cross-entropy component
             criterion: Loss function for classification error
-            
+
         Returns:
             Tuple containing:
             - Combined weighted loss (KL + CE)
@@ -103,19 +106,18 @@ class SCRUB(BaseUnlearner):
         Nr = len(original_out)
         retain_kl = self._kl_divergence(original_out, unl_out)
         retain_ce = criterion(unl_out, true_y)
-        return (alpha * retain_kl + gamma * retain_ce)/Nr, retain_kl/Nr, retain_ce/Nr
-    
+        return (alpha * retain_kl + gamma * retain_ce)/Nr, retain_kl, retain_ce
     def max_epoch(self, model, unlearned_model, forget_data, optimizer, step=True):
         """
         Perform one epoch of maximizing divergence on forget data.
         This is the "forgetting" step where we make the model outputs diverge
         from the original model on data that should be forgotten.
-        
+
         Args:
             forget_data: The data to forget (tuple of tensors or DataLoader)
             optimizer: Optimizer for updating model parameters
             step: Whether to perform optimization step (True) or just compute loss (False)
-            
+
         Returns:
             Average loss across all batches
         """
@@ -127,36 +129,39 @@ class SCRUB(BaseUnlearner):
             forget_loader = forget_data
 
         avg_loss = 0.0
+        avg_kl_loss = 0.0
         for forget_batch in forget_loader:
             forget_x = forget_batch[0]
+            forget_x = forget_x.to(self.device)
             # Compute divergence loss
             original_out = model(forget_x)
             unl_out = unlearned_model(forget_x)
-            loss = self.forget_loss(original_out, unl_out)
+            loss, forget_kl = self.forget_loss(original_out, unl_out)
             if step:
                 optimizer.zero_grad()
                 # We negate the loss because we want to maximize divergence
                 (-loss).backward()
                 optimizer.step()
             avg_loss += loss
+            avg_kl_loss += forget_kl
         # Normalize by number of batches
         avg_loss = avg_loss/len(forget_loader)
-        return avg_loss
-    
+        avg_kl_loss = avg_kl_loss/len(forget_loader)
+        return avg_loss, avg_kl_loss
     def min_epoch(self, model, unlearned_model, retain_data, optimizer, alpha, gamma, criterion):
         """
         Perform one epoch of minimizing divergence on retain data.
-        
+
         This is the "retaining" step where we ensure the model maintains
         performance on data that should be retained.
-        
+
         Args:
             retain_data: The data to retain (tuple of tensors or DataLoader)
             optimizer: Optimizer for updating model parameters
             alpha: Weight for the KL divergence component
             gamma: Weight for the cross-entropy component
             criterion: Loss function for classification error
-            
+
         Returns:
             Tuple containing average values for:
             - Combined loss
@@ -175,6 +180,8 @@ class SCRUB(BaseUnlearner):
 
         for retain_batch in retain_loader:
             retain_x, retain_y = retain_batch
+            retain_x = retain_x.to(self.device)
+            retain_y = retain_y.to(self.device)
             # Compute retain losses
             original_out = model(retain_x)
             unl_out = unlearned_model(retain_x)
@@ -222,25 +229,31 @@ class SCRUB(BaseUnlearner):
                 - use_l2_penalty: Whether to add L2 regularization (default: False)
 
         Returns:
-            Tuple of (unlearned_model, losses_dict) where losses_dict contains
-            tracked losses for each dataset type
+            If self.evaluate is True:
+                Tuple of (unlearned_model, losses_dict) where losses_dict contains
+                tracked losses for each dataset type
+            Otherwise:
+                The unlearned model
+
+        Raises:
+            ValueError: If epochs are less than 1 or required data is missing
         """
         model.to(self.device)
         unlearned_model = copy.deepcopy(model)
 
         # Validate and extract common hyperparameters
         loss_fn, _, lr, weight_decay, _ = self.valid_args(**kwargs)
-        if min_epochs < 1 or max_epochs < 1:
-            raise ValueError("Number of min and max epochs must be greater than 0.")
-
+        #if min_epochs < 1 or max_epochs < 1:
+            #raise ValueError("Number of min and max epochs must be greater than 0.")
+        
         # Check for required datasets
         if 'retain' not in data_dict.keys() and 'forget' not in data_dict.keys():
             raise ValueError("'forget' and 'retain' data must be in data_dict.")
 
         # Extract additional hyperparameters
-        alpha = kwargs['alpha']
-        gamma = kwargs['gamma']
-        if alpha < 0 or gamma < 0:
+        alpha = kwargs.get('alpha', 1.0)
+        gamma = kwargs.get('gamma', 1.0)
+        if alpha < 0 or gamma < 0:  
             raise ValueError("Alpha and gamma must be non-negative.")
 
         # Initialize loss tracking
@@ -249,26 +262,27 @@ class SCRUB(BaseUnlearner):
         optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
                                     lr=lr,
                                     weight_decay=weight_decay)
+        if min_epochs > 0: 
+            eval_only_data = [data for data in data_dict.keys() if 
+                            data not in ['retain'] and 
+                            data_dict[data] is not None]
+        else:
+            eval_only_data = [data for data in data_dict.keys()]
+        
 
-        eval_only_data = [data for data in data_dict.keys() if 
-                          data not in ['retain'] and 
-                          data_dict[data] is not None]
 
         # Calculate total number of epochs and initialize counters
         num_epochs = max(min_epochs, max_epochs)
         min_i = 0
         max_i = 0
 
-        for epoch in range(num_epochs):
-            unlearned_model.train()
-            total_retain_loss = 0
+        for e in range(num_epochs):
+            model.eval()
+            unlearned_model.eval()
 
             # Maximize divergence on forget data
             if max_i < max_epochs:
-                self.max_epoch(model,
-                               unlearned_model,
-                               data_dict['forget'],
-                               optimizer)
+                self.max_epoch(model, unlearned_model, data_dict['forget'], optimizer)
                 max_i += 1
 
             # Minimize divergence on retain data
@@ -282,23 +296,23 @@ class SCRUB(BaseUnlearner):
                                     gamma=gamma,
                                     criterion=loss_fn
                                 )
-                min_i += 1
-                total_retain_loss += retain_loss
+                min_i+=1
 
-            if verbose:
-                print(f'Epoch {epoch + 1}: Retain Loss: {total_retain_loss}')
+            if verbose and min_epochs>0:
+                print(f'Epoch {e}: Retain Loss: {retain_loss}')
 
-            # Calculate average retain loss for this epoch
-            losses['retain_losses'].append(total_retain_loss)
-            unlearned_model.eval()
-            # Evaluate model on other datasets
-            for data_type in eval_only_data:
-                loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
-                losses[f"{data_type}_losses"].append(loader_loss.item())
+            if self.evaluate:
+                if min_epochs>0:
+                    losses['retain_losses'].append(retain_loss)
+                # Calculate average retain loss for this epoch
+                #losses['retain_losses'].append(retain_loss)
+                unlearned_model.eval()
+                # Evaluate model on other datasets
+                for data_type in eval_only_data:
+                    loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
+                    losses[f"{data_type}_losses"].append(loader_loss.item())
+                    if verbose:
+                        print(f'{data_type.capitalize()} Loss: {loader_loss}', end='  ')
                 if verbose:
-                    print(f'{data_type.capitalize()} Loss: {loader_loss}',
-                          end='  ')
-            if verbose:
-                print()
-
+                    print()
         return unlearned_model, losses
