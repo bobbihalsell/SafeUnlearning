@@ -81,7 +81,6 @@ class SCRUB(BaseUnlearner):
         # Compute KL divergence between original and unlearned model outputs
         forget_kl = self._kl_divergence(original_out, unl_out)
         return forget_kl/Nf, forget_kl
-
     def retain_loss(self, original_out, unl_out, true_y, alpha, gamma, criterion):
         """
         Compute the composite loss for retaining data.
@@ -108,7 +107,6 @@ class SCRUB(BaseUnlearner):
         retain_kl = self._kl_divergence(original_out, unl_out)
         retain_ce = criterion(unl_out, true_y)
         return (alpha * retain_kl + gamma * retain_ce)/Nr, retain_kl, retain_ce
-
     def max_epoch(self, model, unlearned_model, forget_data, optimizer, step=True):
         """
         Perform one epoch of maximizing divergence on forget data.
@@ -150,7 +148,6 @@ class SCRUB(BaseUnlearner):
         avg_loss = avg_loss/len(forget_loader)
         avg_kl_loss = avg_kl_loss/len(forget_loader)
         return avg_loss, avg_kl_loss
-
     def min_epoch(self, model, unlearned_model, retain_data, optimizer, alpha, gamma, criterion):
         """
         Perform one epoch of minimizing divergence on retain data.
@@ -246,9 +243,9 @@ class SCRUB(BaseUnlearner):
 
         # Validate and extract common hyperparameters
         loss_fn, _, lr, weight_decay, _ = self.valid_args(**kwargs)
-        if min_epochs < 1 or max_epochs < 1:
-            raise ValueError("Number of min and max epochs must be greater than 0.")
-
+        #if min_epochs < 1 or max_epochs < 1:
+            #raise ValueError("Number of min and max epochs must be greater than 0.")
+        
         # Check for required datasets
         if 'retain' not in data_dict.keys() and 'forget' not in data_dict.keys():
             raise ValueError("'forget' and 'retain' data must be in data_dict.")
@@ -265,10 +262,14 @@ class SCRUB(BaseUnlearner):
         optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
                                     lr=lr,
                                     weight_decay=weight_decay)
+        if min_epochs > 0: 
+            eval_only_data = [data for data in data_dict.keys() if 
+                            data not in ['retain'] and 
+                            data_dict[data] is not None]
+        else:
+            eval_only_data = [data for data in data_dict.keys()]
+        
 
-        eval_only_data = [data for data in data_dict.keys() if 
-                          data not in ['retain'] and 
-                          data_dict[data] is not None]
 
         # Calculate total number of epochs and initialize counters
         num_epochs = max(min_epochs, max_epochs)
@@ -295,14 +296,16 @@ class SCRUB(BaseUnlearner):
                                     gamma=gamma,
                                     criterion=loss_fn
                                 )
-                min_i += 1
+                min_i+=1
 
-            if verbose:
+            if verbose and min_epochs>0:
                 print(f'Epoch {e}: Retain Loss: {retain_loss}')
 
             if self.evaluate:
+                if min_epochs>0:
+                    losses['retain_losses'].append(retain_loss)
                 # Calculate average retain loss for this epoch
-                losses['retain_losses'].append(retain_loss)
+                #losses['retain_losses'].append(retain_loss)
                 unlearned_model.eval()
                 # Evaluate model on other datasets
                 for data_type in eval_only_data:
@@ -312,5 +315,4 @@ class SCRUB(BaseUnlearner):
                         print(f'{data_type.capitalize()} Loss: {loader_loss}', end='  ')
                 if verbose:
                     print()
-
         return unlearned_model, losses
