@@ -8,9 +8,6 @@ import numpy as np
 from numpy.typing import NDArray as Array
 from scipy.stats import norm
 
-from munl.datasets import get_dataset_and_lengths
-from munl.datasets.cifar10 import get_cifar10_test_transform
-
 
 def predicted_membership_probability(
     z, forget_mean, forget_sigma, never_mean, never_sigma
