@@ -2,6 +2,7 @@ import yaml
 import argparse
 from datasets.load_datasets import load_train_val_test_datasets
 import numpy as np
+
 import os
 from torchvision.datasets import ImageFolder
 from unlearning.utils import ConfigError
@@ -30,10 +31,13 @@ class DatasetInitializer:
         self.save_dir = dataset_cfg['save_dir']
         self.proportion = dataset_cfg['proportion']
         self.val_ratio = dataset_cfg['val_ratio']
+        self.retain_size = dataset_cfg.get('retain_size', None)
+
 
         forget_cfg = config['forget']
         self.forget_method = forget_cfg['method']
         self.forget_idx = forget_cfg['forget_idx']
+
 
         seed = config.get('seed', 42)
         np.random.seed(seed)
@@ -57,6 +61,7 @@ class DatasetInitializer:
                 train_dir=self.save_dir + '/train',
                 output_dir=self.save_dir,
                 forget_indices=self.forget_idx,
+                retain_size=self.retain_size
             )
         elif self.forget_method == 'class':
             self.create_symlink_subsets_by_classes(
@@ -72,15 +77,17 @@ class DatasetInitializer:
                                           train_dir: str,
                                           output_dir: str,
                                           forget_indices: list,
-                                          retain_indices: list = None,
+                                          retain_size: int = None,
                                           ):
         """ Create symlink forget and retain subsets"""
         train_dataset = ImageFolder(root=train_dir)
 
-        # If retain_indices is None, use all indices except the forget_indices
-        if retain_indices is None:
-            all_indices = set(range(len(train_dataset)))
-            retain_indices = list(all_indices - set(forget_indices))
+        # If retain_size is None, use all indices except the forget_indices
+        all_indices = set(range(len(train_dataset)))
+        retain_indices = list(all_indices - set(forget_indices))
+
+        if retain_size is not None:
+            retain_indices = list(np.random.choice(retain_indices, min(retain_size, len(retain_indices))))
 
         def symlink_subset(subset_name, subset_indices):
             subset_dir = os.path.join(output_dir, subset_name)
