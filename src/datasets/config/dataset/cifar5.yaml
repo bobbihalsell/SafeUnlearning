@@ -1,0 +1,5 @@
+name: cifar5
+init_dir: ??? # the directory filepath where the dataset should be initially downloaded to, for CIFAR, or currently exists, for ImageNet
+save_dir: ??? # the directory filepath where the split dataset should be saved
+proportion: 1 # Choose 1 to use all data. Data will always be balanced.
+val_ratio: 0.2
