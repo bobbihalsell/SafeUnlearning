@@ -262,10 +262,14 @@ class SCRUB(BaseUnlearner):
         optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
                                     lr=lr,
                                     weight_decay=weight_decay)
+        if min_epochs > 0: 
+            eval_only_data = [data for data in data_dict.keys() if 
+                            data not in ['retain'] and 
+                            data_dict[data] is not None]
+        else:
+            eval_only_data = [data for data in data_dict.keys()]
+        
 
-        eval_only_data = [data for data in data_dict.keys() if 
-                          data not in ['retain'] and 
-                          data_dict[data] is not None]
 
         # Calculate total number of epochs and initialize counters
         num_epochs = max(min_epochs, max_epochs)
@@ -300,8 +304,6 @@ class SCRUB(BaseUnlearner):
             if self.evaluate:
                 if min_epochs>0:
                     losses['retain_losses'].append(retain_loss)
-                else:
-                    losses['retain_losses'] = [0]
                 # Calculate average retain loss for this epoch
                 #losses['retain_losses'].append(retain_loss)
                 unlearned_model.eval()
