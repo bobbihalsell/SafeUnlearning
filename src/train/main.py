@@ -1,5 +1,3 @@
-import argparse
-import yaml
 import torchvision
 from train.image_loading import RobustImageFolder
 import torch
@@ -12,27 +10,15 @@ from unlearning.utils import ConfigError
 from train.utils import setup_device, set_seed
 import wandb
 import os
+import hydra
+from omegaconf import DictConfig, OmegaConf
+from omegaconf.errors import MissingMandatoryValue
 
 
 class TrainApp:
     """ Perform pretraining, or model loading and saving, for a model."""
-    def __init__(self):
-        parser = argparse.ArgumentParser(
-            description="Path to .yaml file with configurations for training."
-            )
-        parser.add_argument("--config_path",
-                            type=str,
-                            required=True,
-                            help="Path to .yaml file for training configs.")
-        args = parser.parse_args()
-
-        # Load in the instructions for the unlearning run from a filepath
-        with open(args.config_path, 'r') as f:
-            try:
-                config = yaml.safe_load(f)
-            except FileNotFoundError:
-                raise FileNotFoundError('.yaml file not found.')
-
+    def __init__(self, config: DictConfig):
+        config = OmegaConf.to_container(config, resolve=True)
         self.seed = config['seed']
         set_seed(self.seed)
 
@@ -311,7 +297,21 @@ class TrainApp:
         return val_loss, val_acc
 
 
-if __name__ == '__main__':
-    trainer = TrainApp()
+@hydra.main(version_base=None, config_path="config", config_name="config")
+def main(cfg: DictConfig):
+    print('============ Run Configuration ============')
+    print(OmegaConf.to_yaml(cfg))
+    print('============================================')
+    missing_keys = OmegaConf.missing_keys(cfg)
+    if missing_keys:
+        raise MissingMandatoryValue(
+            'Missing the following required arguments in the configuration: '
+            f'{missing_keys}. \n'
+            'Hint: python file.py key=value sets the appropriate value.')
+
+    trainer = TrainApp(config=cfg)
     trainer.pretrain()
-    # python src/train/main.py --config_path src/train/experiments/train_simple.yaml
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,6 @@
+name: imagenet
+load_dir: ??? # directory to the ImageFolder-format dataset
+batch_sizes:
+  train: 64
+  val: 64
+num_workers: 4

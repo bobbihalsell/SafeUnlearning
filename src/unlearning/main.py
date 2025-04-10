@@ -8,6 +8,7 @@ from unlearning.utils import save_model, set_seed, setup_device, ConfigError
 import os
 import hydra
 from omegaconf import OmegaConf, DictConfig
+from omegaconf.errors import MissingMandatoryValue
 from datasets.cifar10 import get_cifar10_test_transform
 from datasets.cifar100 import get_cifar100_test_transform
 from datasets.imagenet import get_imagenet_test_transform
@@ -211,7 +212,15 @@ class UnlearnApp(InputValidator):
             config_name="config")
 def main(cfg: DictConfig):
     # Print the config for the user first
+    print('============ Run Configuration ============')
     print(OmegaConf.to_yaml(cfg))
+    print('============================================')
+    missing_keys = OmegaConf.missing_keys(cfg)
+    if missing_keys:
+        raise MissingMandatoryValue(
+            'Missing the following required arguments in the configuration: '
+            f'{missing_keys}. \n'
+            'Hint: python file.py key=value sets the appropriate value.')
     app = UnlearnApp(cfg)
     app.run()
 

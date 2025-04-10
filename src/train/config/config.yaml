@@ -1,6 +1,5 @@
 defaults:
   - model: ???
   - dataset: ???
-  - unlearner: ???
 seed: 42
-verbose: true
+run_id: melon
