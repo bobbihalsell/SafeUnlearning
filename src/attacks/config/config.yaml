@@ -1,0 +1,6 @@
+defaults:
+  - experiment: ???
+  - data: ???
+  - reconstructor: ???
+seed: 42
+verbose: true
