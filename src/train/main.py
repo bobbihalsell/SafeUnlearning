@@ -150,7 +150,7 @@ class TrainApp:
 
             print(f"Loaded model from checkpoint: {self.checkpoint_path}")
 
-            epoch = checkpoint['epoch']
+            epoch = checkpoint.get('epoch', 0)
 
         else:
             raise Exception('reinitialize_checkpoint_states should not be '
@@ -165,19 +165,6 @@ class TrainApp:
         num_epochs = self.train_cfg['epochs']
         weight_decay = self.train_cfg['weight_decay']
 
-        wandb.init(
-            project="TEST",
-            config={
-                "epochs": num_epochs,
-                "batch_size": self.batch_sizes['train'],
-                "learning_rate": lr,
-                "weight_decay": weight_decay,
-                "model_name": self.model_name,
-                "num_classes": self.num_classes,
-            },
-            id=str(self.run_id),
-            resume="allow"
-        )
         # Step 1: Initialize the model
         model = self.initialize_model()
         device = setup_device()
@@ -194,6 +181,32 @@ class TrainApp:
                                      lr=lr,
                                      weight_decay=weight_decay)
 
+        # Create the save directory
+        os.makedirs(self.model_save_dir, exist_ok=True)
+        save_path = self.model_save_dir + f'/{self.model_name}_{self.seed}_original.pt'
+
+        if num_epochs == 0:
+            # Handle case where user just wants to download pretrained weights
+            checkpoint = {
+                'model_state_dict': model.state_dict(),
+            }
+            torch.save(checkpoint, save_path)
+            print(f'Model downloaded without training at {save_path}.')
+            return None
+
+        wandb.init(
+            project="TEST",
+            config={
+                "epochs": num_epochs,
+                "batch_size": self.batch_sizes['train'],
+                "learning_rate": lr,
+                "weight_decay": weight_decay,
+                "model_name": self.model_name,
+                "num_classes": self.num_classes,
+            },
+            id=str(self.run_id),
+            resume="allow"
+        )
         start_epoch = 0
         if self.from_checkpoint:
             model, optimizer, start_epoch = self.reinitialize_checkpoints(
@@ -205,9 +218,6 @@ class TrainApp:
 
         # Training configuration
         best_val_loss = float("inf")
-        # Create the directory if it does not exist
-        os.makedirs(self.model_save_dir, exist_ok=True)
-        save_path = self.model_save_dir + f'/{self.model_name}_{self.seed}_original.pt'
 
         print(f"Starting training with device {device}...")
         for epoch in range(num_epochs):
