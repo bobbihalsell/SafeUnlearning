@@ -34,15 +34,17 @@ def generate_all_forgets(train_matrices, num_attempts, ratio):
     return retains, forgets
 
 
-def run(args):
-    dataset = args.dataset
-    data_seed = args.seed
-    val_ratio = args.val_ratio
-    forget_ratio = args.forget_ratio
-    num_splits = args.num_splits
-    num_forgets = args.num_forgets
+def run(config):
+    root = config.root
+    dataset = config.dataset.name
+    data_seed = config.seed
+    val_ratio = config.dataset.val_ratio
+    forget_ratio = config.dataset.forget_ratio
+    num_splits = config.dataset.num_splits
+    num_forgets = config.dataset.num_forgets
+    save_dir = config.dataset.save_dir
 
-    train, test = load_train_val_test_datasets(dataset, 1, val_ratio, dataset_load_dir, dataset_save_dir)
+    train, test = load_train_val_test_datasets(dataset, 1, val_ratio, '', save_dir)
     train_len, test_len = len(train), len(test)
 
     indices = np.arange(train_len + test_len)
@@ -56,7 +58,7 @@ def run(args):
     train_matrices, test_matrices = generate_lira_train_tests(
         lira_dev_indices=lira_dev_indices, num_attempts=num_splits
     )
-    path = Path("artifacts/lira/splits")
+    path = Path(root / "splits")
     if not path.exists():
         path.mkdir(parents=True)
     np.save(path / "train_matrices.npy", train_matrices)

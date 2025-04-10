@@ -1,11 +1,12 @@
 from utils import get_retain_forget_val_test_indices
-from pipeline.step_5_unlearn import UnlearnerApp
 from munl.datasets import get_loaders_from_dataset_and_unlearner_from_cfg_with_indices
 from pathlib import Path
 import numpy as np
 
+from src.unlearning.main import UnlearnApp
 
-def main(args):
+
+def main(args, dataset_cfg, model_cfg, unlearner_cfg):
     unlearner_name = args.unlearner_name
     model_name = args.model
     dataset_name = args.dataset
@@ -17,8 +18,6 @@ def main(args):
     name_save_path = "artifacts/lira/unlearn"
     if not Path(name_save_path).exists():
         Path(name_save_path).mkdir(parents=True, exist_ok=True)
-    # from args
-    # dataset_cfg, unlearner_cfg, model_cfg
 
     for split_ndx in range(num_splits):
         for forget_ndx in range(num_forgets):
