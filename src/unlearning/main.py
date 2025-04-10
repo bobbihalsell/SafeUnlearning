@@ -207,15 +207,14 @@ class UnlearnApp(InputValidator):
 
 
 @hydra.main(version_base=None,
-            config_path="experiments",
-            config_name="unlearn_cifar_neggradplus")
+            config_path="config",
+            config_name="config")
 def main(cfg: DictConfig):
+    # Print the config for the user first
+    print(OmegaConf.to_yaml(cfg))
     app = UnlearnApp(cfg)
     app.run()
 
 
 if __name__ == '__main__':
     main()
-    # Run pip install -e .
-    ## to override the config dataset for example
-    # Run python python src/unlearning/main.py dataset.name=cifar10
