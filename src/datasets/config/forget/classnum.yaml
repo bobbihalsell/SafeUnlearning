@@ -1,0 +1,2 @@
+method: classnum
+forget_idx: ??? # dict like {0: 100, 1: 100} where the key is the class index and the value is the number of class indices to be removed

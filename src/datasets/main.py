@@ -23,6 +23,7 @@ class DatasetInitializer:
         self.forget_method = forget_cfg['method']
         self.forget_idx = forget_cfg['forget_idx']
         self.retain_size = forget_cfg.get('retain_size', None)
+        self.num = forget_cfg.get('num', None) 
 
         seed = config.get('seed', 42)
         np.random.seed(seed)
@@ -58,6 +59,12 @@ class DatasetInitializer:
             )
         elif self.forget_method == 'class':
             self.create_symlink_subsets_by_classes(
+                train_dir=self.save_dir + '/train',
+                output_dir=self.save_dir,
+                forget_classes=self.forget_idx
+            )
+        elif self.forget_method == 'classnum':
+            self.create_symlink_subsets_by_class_number(
                 train_dir=self.save_dir + '/train',
                 output_dir=self.save_dir,
                 forget_classes=self.forget_idx
@@ -136,6 +143,78 @@ class DatasetInitializer:
         for label in retain_classes:
             create_class_symlink('retain', label)
 
+    def create_symlink_subsets_by_class_number(self,
+                                        train_dir: str,
+                                        output_dir: str,
+                                        forget_classes: dict  # e.g., {0: 100, 3: 50} forgets 100 samples from class 0 and 50 from class 3
+                                        ):
+        """ Create symlinks for a specific number of samples from each class to forget. """
+        subdirs = [name for name in os.listdir(train_dir) if
+                os.path.isdir(os.path.join(train_dir, name))]
+        forget_classes = {str(label): str(count) for label, count in forget_classes.items()}
+        
+        def create_file_symlinks(subset_name, class_label, files):
+            # Create the target directory (forget classes)
+            target_dir = os.path.join(output_dir, subset_name, class_label)
+            os.makedirs(target_dir, exist_ok=True)
+            
+            for file in files:
+                src_file = os.path.abspath(os.path.join(train_dir, class_label, file))
+                dst_file = os.path.join(target_dir, file)
+                
+                # Remove existing symlink if it exists
+                if os.path.exists(dst_file):
+                    if os.path.islink(dst_file):
+                        os.unlink(dst_file) # Remove existing symlink
+                    else:
+                        os.remove(dst_file) # Remove existing file
+                # Create the symlink
+                os.symlink(src_file, dst_file)
+        
+        def create_dir_symlink(subset_name, class_label):
+            # Create the target directory (retain classes)
+            subset_dir = os.path.join(output_dir, subset_name, class_label)
+            origin_dir = os.path.join(train_dir, class_label)
+            
+            # Remove existing directory/symlink if it exists
+            if os.path.exists(subset_dir):
+                if os.path.islink(subset_dir):
+                    os.unlink(subset_dir)  # Remove existing symlink
+                else:
+                    os.rmdir(subset_dir)  # Remove empty directory
+                    
+            os.makedirs(os.path.dirname(subset_dir), exist_ok=True)
+            abs_origin_dir = os.path.abspath(origin_dir)
+            # Create the symlink
+            os.symlink(abs_origin_dir, subset_dir, target_is_directory=True)
+        
+        for class_label in subdirs:
+            if class_label in forget_classes:
+                num_samples_to_forget = int(forget_classes[class_label])
+                class_dir = os.path.join(train_dir, class_label)
+                
+                all_files = [f for f in os.listdir(class_dir) if 
+                            os.path.isfile(os.path.join(class_dir, f))]
+                
+                num_samples_to_forget = min(num_samples_to_forget, len(all_files))
+                
+                if num_samples_to_forget > 0:
+                    # Randomly select files to forget
+                    forget_files = list(np.random.choice(
+                        all_files,
+                        size=num_samples_to_forget,
+                        replace=False
+                    ))
+                    
+                    create_file_symlinks('forget', class_label, forget_files)
+                    retain_files = list(set(all_files) - set(forget_files))
+                    create_file_symlinks('retain', class_label, retain_files)
+                else:
+                    # If no samples to forget, link entire class to retain
+                    create_dir_symlink('retain', class_label)
+            else:
+                # For classes not in forget_classes, link the entire directory to retain
+                create_dir_symlink('retain', class_label)
 
 @hydra.main(version_base=None,
             config_path="config",
