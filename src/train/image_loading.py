@@ -36,7 +36,13 @@ class RobustImageFolder(ImageFolder):
                          os.scandir(directory) if
                          entry.is_dir())
         if not classes:
-            raise FileNotFoundError(f"Couldn't find any class folder in {directory}.")
-
-        class_to_idx = {cls_name: int(cls_name) for cls_name in classes}
+            raise FileNotFoundError(
+                f"Couldn't find any class folder in {directory}.")
+        try:
+            class_to_idx = {cls_name: int(cls_name) for cls_name in classes}
+        except ValueError:
+            raise RuntimeError(
+                'Dataset folder names must be integers corresponding exactly '
+                'to image labels. Use the dataset splitting app to prepare '
+                'your dataset, or manually adjust your folder names.')
         return classes, class_to_idx
