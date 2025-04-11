@@ -16,8 +16,7 @@ from datasets.cifar10 import get_cifar10_test_transform
 from datasets.cifar100 import get_cifar100_test_transform
 from datasets.imagenet import get_imagenet_test_transform
 from attacks.config_validation import InputValidator #change this later 
-# from attacks.GGL.final_ggl import GGLReconstructor
-# from pytorch_pretrained_biggan import BigGAN, BigGANConfig
+from attacks.GGL.final_ggl import GGLReconstructor
 from attacks.InverseGrad.reconstructor import InverseGradReconstructor,InverseGradConfig
 
 DEFAULT_SEED = 42
@@ -110,6 +109,7 @@ class ReconstructorApp(InputValidator):
         loss_fn = nn.CrossEntropyLoss()
         if self.reconstructor_name == 'ggl':
             reconstructor = GGLReconstructor(
+                labels = self.labels,
                 lr = self.reconstructor_lr,
                 exp_name = self.experiment_name,
                 original_model = original_model,
@@ -170,12 +170,16 @@ class ReconstructorApp(InputValidator):
         print('reconstructor initialized')
 
         start_time = time.time()
-        reconstruction, losses = reconstructor.reconstruct(labels = self.labels,
-                                                           image_size= self.image_size,
-                                                           image_mean= self.image_mean,
-                                                           image_std=self.image_std,
-                                                           lr= self.reconstructor_lr,
-                                                           verbose=self.verbose)
+        print(self.reconstructor_name)
+        if self.reconstructor_name == 'ggl':
+            reconstruction, z_res, losses = reconstructor.reconstruct()
+        elif self.reconstructor_name == 'inversegrad':
+            reconstruction, losses = reconstructor.reconstruct(labels = self.labels,
+                                                            image_size= self.image_size,
+                                                            image_mean= self.image_mean,
+                                                            image_std=self.image_std,
+                                                            lr= self.reconstructor_lr,
+                                                            verbose=self.verbose)
         total_time = time.time() - start_time
         if self.verbose:
             print(f"Reconstruction completed in {total_time:.2f} seconds")

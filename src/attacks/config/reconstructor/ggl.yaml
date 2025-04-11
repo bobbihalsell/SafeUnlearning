@@ -1,4 +1,4 @@
-type: ggl  # Options: ggl, inversegrad
+type: ggl
 lr: 0.01
 cfg:
   num_updates: 1
@@ -9,6 +9,13 @@ cfg:
   max_epochs: None
   batch_size: 1
   loss_models: "l2"  # 'l1', 'l2', 'weighted', or 'interpolated'
-  budget: 500  # Budget for Bayesian Optimization
+  budget: 50000  # Budget for Bayesian Optimization
   search_dim: 128  # Dimension of the latent space
   use_tanh: false  # Whether to apply tanh activation to the latent vector
+
+
+
+
+
+seed: 42
+verbose: true
