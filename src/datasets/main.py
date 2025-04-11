@@ -29,20 +29,10 @@ class DatasetInitializer:
         np.random.seed(seed)
 
     def rename_imagenet_folders(self):
-        """ Map initial ImageNet-1k class folder names to label indices.
-
-        This is useful when the user has an Imagenet subset, and perhaps
-        not all the classes, and is using a pretrained model on Imagenet
-        and thus needs to align the folder names with the labels originally
-        used to train the model.
-
-        Also useful if the user is using a pretrained model from Imagenet
-        and requires unlearning to work properly to forget the label used
-        when training the model originally.
-
-        Output e.g. data/train/n01582220 -> data/train/18
+        """Create a copy of the ImageNet subset with folder names
+        mapped to label indices, preserving the original dataset.
         """
-        base_dir = os.path.dirname(__file__)  # Directory of the current script
+        base_dir = os.path.dirname(__file__)
         mapping_path = os.path.join(base_dir,
                                     'imagenet',
                                     'imagenet_1k_mappings.json')
@@ -50,23 +40,43 @@ class DatasetInitializer:
         with open(mapping_path, 'r') as f:
             default_imagenet_mapping = json.load(f)
 
+        source_root = self.init_dir
+        target_root = self.init_dir.rstrip('/') + '_renamed'
+
+        os.makedirs(target_root, exist_ok=True)
+
         split_names = ['train', 'val']
         for split in split_names:
-            split_dir = os.path.join(self.init_dir, split)
-            if os.path.exists(split_dir):
-                folder_names = [i for i in sorted(os.listdir(split_dir)) if not i.startswith('.')]
-                for folder in folder_names:
-                    try:
-                        label_index = default_imagenet_mapping[folder]
-                    except KeyError:
-                        raise KeyError(
-                            f"Folder name not found in ImageNet-1K Class IDs: {folder}"
-                        )
-                    cur_dir = os.path.join(split_dir, folder)
-                    new_dir = os.path.join(split_dir, str(label_index))
-                    if os.path.exists(new_dir):
-                        raise FileExistsError(f"Target directory already exists: {new_dir}")
-                    os.rename(cur_dir, new_dir)
+            src_split = os.path.join(source_root, split)
+            tgt_split = os.path.join(target_root, split)
+
+            if not os.path.exists(src_split):
+                continue
+
+            os.makedirs(tgt_split, exist_ok=True)
+
+            folder_names = [i for i in
+                            sorted(os.listdir(src_split)) if
+                            not i.startswith('.')]
+            for folder in folder_names:
+                try:
+                    label_index = default_imagenet_mapping[folder]
+                except KeyError:
+                    raise KeyError(
+                        "Folder name not found in "
+                        f"ImageNet-1K Class IDs: {folder}"
+                    )
+
+                src_dir = os.path.join(src_split, folder)
+                tgt_dir = os.path.join(tgt_split, str(label_index))
+
+                if os.path.exists(tgt_dir):
+                    raise FileExistsError(
+                        f"Target directory already exists: {tgt_dir}")
+
+                shutil.copytree(src_dir, tgt_dir)
+
+        print(f"Renamed dataset created at: {target_root}")
 
     def load_datasets(self):
         """ Download and save benchmark datasets with name support.
@@ -81,14 +91,17 @@ class DatasetInitializer:
 
         os.makedirs(self.save_dir, exist_ok=True)
 
+        init_dir = self.init_dir
         if self.dataset_name == 'imagenet':
+            # Rename the folders to match label indices
             self.rename_imagenet_folders()
+            init_dir = self.init_dir.rstrip('/') + '_renamed'
 
         load_train_val_test_datasets(
             dataset_name=self.dataset_name,
             proportion=self.proportion,
             val_ratio=self.val_ratio,
-            dataset_load_dir=self.init_dir,
+            dataset_load_dir=init_dir,
             dataset_save_dir=self.save_dir,
         )
 
@@ -124,7 +137,12 @@ class DatasetInitializer:
         retain_indices = list(all_indices - set(forget_indices))
 
         if retain_size is not None:
-            retain_indices = list(np.random.choice(retain_indices, min(retain_size, len(retain_indices))))
+            retain_indices = list(
+                np.random.choice(
+                    retain_indices,
+                    min(retain_size, len(retain_indices))
+                    )
+                )
 
         def symlink_subset(subset_name, subset_indices):
             subset_dir = os.path.join(output_dir, subset_name)
