@@ -28,33 +28,44 @@ class DatasetInitializer:
         seed = config.get('seed', 42)
         np.random.seed(seed)
 
-    def rename_provided_folders(self):
-        """ Map initial ImageNet-1k class folder names to label indices."""
-        if self.dataset_name == 'imagenet':
-            # Use default Imagenet-1k mappings
-            with open('imagenet/imagenet_1k_mappings.json', 'r') as f:
-                default_imagenet_mapping = json.load(f)
+    def rename_imagenet_folders(self):
+        """ Map initial ImageNet-1k class folder names to label indices.
 
-            split_names = ['train', 'val']
-            for split in split_names:
-                split_dir = self.init_dir + f'/{split}'
-                if os.path.exists(split_dir):
-                    folder_names = [i for i in
-                                    sorted(os.listdir(split_dir)) if
-                                    not i.startswith('.')]
-                    for folder in folder_names:
-                        try:
-                            label_index = default_imagenet_mapping[folder]
-                        except KeyError:
-                            raise KeyError(
-                                "Received a folder name that was not in the "
-                                f"original ImageNet-1K Class IDs: {folder}")
-                        cur_dir = split_dir + f'/{folder}'
-                        new_dir = split_dir + f'/{label_index}'
-                        if os.path.exists(new_dir):
-                            raise FileExistsError(
-                                f"Target directory already exists: {new_dir}")
-                        os.rename(cur_dir, new_dir)
+        This is useful when the user has an Imagenet subset, and perhaps
+        not all the classes, and is using a pretrained model on Imagenet
+        and thus needs to align the folder names with the labels originally
+        used to train the model.
+
+        Also useful if the user is using a pretrained model from Imagenet
+        and requires unlearning to work properly to forget the label used
+        when training the model originally.
+
+        Output e.g. data/train/n01582220 -> data/train/18
+        """
+        # Use default Imagenet-1k mappings
+        with open('imagenet/imagenet_1k_mappings.json', 'r') as f:
+            default_imagenet_mapping = json.load(f)
+
+        split_names = ['train', 'val']
+        for split in split_names:
+            split_dir = self.init_dir + f'/{split}'
+            if os.path.exists(split_dir):
+                folder_names = [i for i in
+                                sorted(os.listdir(split_dir)) if
+                                not i.startswith('.')]
+                for folder in folder_names:
+                    try:
+                        label_index = default_imagenet_mapping[folder]
+                    except KeyError:
+                        raise KeyError(
+                            "Received a folder name that was not in the "
+                            f"original ImageNet-1K Class IDs: {folder}")
+                    cur_dir = split_dir + f'/{folder}'
+                    new_dir = split_dir + f'/{label_index}'
+                    if os.path.exists(new_dir):
+                        raise FileExistsError(
+                            f"Target directory already exists: {new_dir}")
+                    os.rename(cur_dir, new_dir)
 
     def load_datasets(self):
         """ Download and save benchmark datasets with name support.
@@ -68,6 +79,9 @@ class DatasetInitializer:
             shutil.rmtree(self.save_dir)
 
         os.makedirs(self.save_dir, exist_ok=True)
+
+        if self.dataset_name == 'imagenet':
+            self.rename_imagenet_folders()
 
         load_train_val_test_datasets(
             dataset_name=self.dataset_name,
