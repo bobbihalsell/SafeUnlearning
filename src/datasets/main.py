@@ -23,6 +23,7 @@ class DatasetInitializer:
         self.forget_method = forget_cfg['method']
         self.forget_idx = forget_cfg['forget_idx']
         self.retain_size = forget_cfg.get('retain_size', None)
+        self.num = forget_cfg.get('num', None) 
 
         seed = config.get('seed', 42)
         np.random.seed(seed)
@@ -58,6 +59,12 @@ class DatasetInitializer:
             )
         elif self.forget_method == 'class':
             self.create_symlink_subsets_by_classes(
+                train_dir=self.save_dir + '/train',
+                output_dir=self.save_dir,
+                forget_classes=self.forget_idx
+            )
+        elif self.forget_method == 'classnum':
+            self.create_symlink_subsets_by_classes_number(
                 train_dir=self.save_dir + '/train',
                 output_dir=self.save_dir,
                 forget_classes=self.forget_idx
