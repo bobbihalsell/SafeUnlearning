@@ -1,3 +1,19 @@
+type: ggl
+lr: 0.01
+config:
+  num_updates: 1
+  unlearning_method: neggrad
+  alpha: None
+  gamma: None
+  min_epochs: None
+  max_epochs: None
+  batch_size: 1
+  loss_models: "l2"  # 'l1', 'l2', 'weighted', or 'interpolated'
+  budget: 50000  # Budget for Bayesian Optimization
+  search_dim: 128  # Dimension of the latent space
+  use_tanh: false  # Whether to apply tanh activation to the latent vector
+
+
 experiment:
   name: "test_config"
   original_weights: "/vol/bitbucket/oap24/pipeline_code/safe-unlearning/src/artifacts/models/resnet18_pretrained.pth"
@@ -11,25 +27,7 @@ data:
   labels: [12]
   num_classes: 1000 
   data_root: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/unlearning/test_samples3"
-  image_mean: [0.5, 0.5, 0.5]
-  image_std: [0.5, 0.5, 0.5]
-  image_size: [3, 32, 32]
 
-reconstructor:
-  type: ggl  # Options: ggl, inversegrad
-  lr: 0.01
-  GGL:
-    num_updates: 1
-    unlearning_method: neggrad
-    alpha: None
-    gamma: None
-    min_epochs: None
-    max_epochs: None
-    batch_size: 1
-    loss_models: "l2"  # 'l1', 'l2', 'weighted', or 'interpolated'
-    budget: 50000  # Budget for Bayesian Optimization
-    search_dim: 128  # Dimension of the latent space
-    use_tanh: false  # Whether to apply tanh activation to the latent vector
 
 seed: 42
 verbose: true
