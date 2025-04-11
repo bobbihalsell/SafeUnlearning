@@ -5,7 +5,10 @@ import torch
 import torch.nn as nn
 import torchvision
 from torch.nn.functional import softmax
-from torch.utils.data import DataLoader
+from torch.utils.data import ConcatDataset, DataLoader
+
+from src.datasets.load_datasets import load_train_val_test_datasets
+from src.attacks.lira.utils import load_model
 
 
 def extract_target_and_outputs(
@@ -21,7 +24,6 @@ def extract_target_and_outputs(
     Returns:
         typ.Tuple[np.ndarray, np.ndarray]: (True labels, Predicted labels)
     """
-    model.eval()
     num_entries = len(loader.dataset)
     output_size = model((loader.dataset[0][0]).unsqueeze(0).to(device)).shape[-1]
     predictions = np.zeros(shape=(num_entries, output_size))
@@ -37,23 +39,24 @@ def extract_target_and_outputs(
     return y_true, predictions
 
 
-def run(lira_model_root: Path, model_name: str, unlearner: str, num_splits: int,
-        num_forgets: int, output_dir: Path, device: str):
-    cifar_complete, _ = get_dataset_and_lengths(
-        Path("datasets"), "cifar10", transform=get_cifar10_test_transform()
-    )
+def run(config, device):
+    lira_root = config.root
+    dataset = config.dataset.name
+    model_name = config.model.name
+    unlearner = config.unlearner.name
+    num_splits = config.dataset.num_splits
+    num_forgets = config.dataset.num_forgets
+    save_dir = config.dataset.save_dir
+
+    train, test = load_train_val_test_datasets(dataset, 1, 0, '', save_dir)
+    dataset = ConcatDataset([train, test])
     loader = DataLoader(
-        cifar_complete, batch_size=1024, shuffle=False, num_workers=4
+        dataset, batch_size=config.batch_size, shuffle=False, num_workers=config.num_workers
     )
 
     for split_ndx in range(num_splits):
         for forget_ndx in range(num_forgets):
-            model = torchvision.models.resnet18(weights=None, num_classes=10)
-            weights = torch.load(
-                lira_model_root / unlearner / f"{model_name}_{split_ndx}_{forget_ndx}.pth",
-                map_location=device,
-            )
-            model.load_state_dict(weights)
+            model = load_model(model_name, lira_root / unlearner / f"{model_name}_{config.seed}_{split_ndx}_{forget_ndx}.pth")
             model.to(device)
             model.eval()
             with torch.no_grad():
@@ -61,7 +64,7 @@ def run(lira_model_root: Path, model_name: str, unlearner: str, num_splits: int,
             _, logits = extracted
             probas = softmax(torch.Tensor(logits), dim=1).numpy()
             output_path = (
-                output_dir / unlearner / f"{model_name}_{split_ndx}_{forget_ndx}.npy"
+                lira_root / unlearner / f"{model_name}_{config.seed}_{split_ndx}_{forget_ndx}.npy"
             )
             output_path.parent.mkdir(parents=True, exist_ok=True)
             np.save(output_path, probas)

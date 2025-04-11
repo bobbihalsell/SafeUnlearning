@@ -1,12 +1,13 @@
-import argparse
 import pickle
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-
+from torch.utils.data import ConcatDataset
 import numpy as np
 from numpy.typing import NDArray as Array
 from scipy.stats import norm
+
+from src.datasets.load_datasets import load_train_val_test_datasets
 
 
 def predicted_membership_probability(
@@ -100,52 +101,40 @@ def extract_correct_probabilities(
     return indices_to_correct_probas_never_and_forgotten
 
 
-def reconstruct_split_and_forget(
-    lira_root: Path,
-    num_splits: int = 64,
-    num_forgets: int = 10,
-    num_elements: int = 2375,
-):
-    reconstructed = np.zeros((num_splits, num_forgets, num_elements), dtype=int)
+def reconstruct_split_and_forget(lira_root: Path, num_splits: int):
+    reconstructed = []
     for split_ndx in range(num_splits):
         forgets = lira_root / str(split_ndx) / "forgets.npy"
         data = np.load(forgets)
-        reconstructed[split_ndx] = data
-    return reconstructed
+        reconstructed.append(data)
+    return np.stack(reconstructed)
 
 
-# TODO: fix hardcoded values
-def get_preds(lira_preds: Path, unlearner: str):
-    storage = np.zeros(shape=(64, 10, 60_000, 10))
-    unlearner_dir = lira_preds / unlearner
-    ndx = 0
-    for split_ndx in range(64):
-        for forget_ndx in range(10):
-            model = f"resnet18_0_{split_ndx}_{forget_ndx}.npy"
-            preds = np.load(unlearner_dir / model)
-            assert preds.shape == (60_000, 10)
-            storage[split_ndx][forget_ndx] = preds
-            ndx += 1
-    res = np.transpose(storage, (2, 0, 1, 3))
+def get_preds(lira_root: Path, model: str, unlearner: str, num_splits: int, num_forgets: int, seed: int):
+    storage = []
+    for split_ndx in range(num_splits):
+        forgets = []
+        for forget_ndx in range(num_forgets):
+            model = f"{model}_{seed}_{split_ndx}_{forget_ndx}.npy"
+            preds = np.load(lira_root / unlearner / model)
+            forgets.append(preds)
+        storage.append(np.stack(forgets))
+    res = np.transpose(np.stack(storage), (2, 0, 1, 3))
     return res
 
 
-def run(args):
-    unlearner = args.unlearner
-    lira_root = args.lira_root
-    lira_preds = args.lira_preds
-    num_splits = args.num_splits
-    num_forgets = args.num_forgets
-    num_elements = args.num_elements
-    test_indices = np.load(args.lira_root / "test_matrices.npy")
+def run(config):
+    unlearner = config.unlearner.name
+    lira_root = config.root
+    num_splits = config.dataset.num_splits
+    num_forgets = config.dataset.num_forgets
+    test_indices = np.load(lira_root / "splits" / "test_matrices.npy")
 
-    # TODO: fix hardcoded dataset
-    cifar_complete, _ = get_dataset_and_lengths(
-        Path("datasets"), "cifar10", transform=get_cifar10_test_transform()
-    )
-    targets = np.concatenate([cifar_complete.datasets[ndx].targets for ndx in range(2)])
+    train, test = load_train_val_test_datasets(config.dataset.name, 1, 0, '', config.dataset.save_dir)
+    dataset = ConcatDataset([train, test])
+    targets = np.concatenate([dataset.datasets[ndx].targets for ndx in range(2)])
 
-    forgets_splits_and_forget_indices = reconstruct_split_and_forget(lira_root, num_splits, num_forgets, num_elements)
+    forgets_splits_and_forget_indices = reconstruct_split_and_forget(lira_root, num_splits)
 
     id_to_forgotten_never_seen = {}
     for split_ndx, row in enumerate(test_indices):
@@ -162,10 +151,10 @@ def run(args):
                     (split_ndx, forget_ndx)
                 )
 
-    storage = get_preds(lira_preds, unlearner)
+    storage = get_preds(lira_root, config.model.name, unlearner, num_splits, num_forgets, config.seed)
     id_to_correct_probas = extract_correct_probabilities(
         storage, targets, id_to_forgotten_never_seen
     )
     ndx_to_membership = compute_membership_probabilities(id_to_correct_probas)
-    with open(f"lira/{unlearner}_membership.npy", "wb") as out_fo:
+    with open(lira_root / f"{unlearner}_membership.npy", "wb") as out_fo:
         pickle.dump(obj=ndx_to_membership, file=out_fo)
