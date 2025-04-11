@@ -53,29 +53,31 @@ class TrainApp:
                 weights="DEFAULT" if self.pretrained else None,
             )
 
-            # Adjust the last layer based on model type
-            if hasattr(model, "fc"):  # ResNet-style
-                model.fc = torch.nn.Linear(
-                    model.fc.in_features,
-                    self.num_classes
-                )
-            elif hasattr(model, "classifier"):
-                # MobileNet, EfficientNet, VGG, DenseNet
-                if isinstance(model.classifier, torch.nn.Sequential):
-                    # Handle cases where classifier is Sequential
-                    last_layer_idx = len(model.classifier) - 1
-                    model.classifier[last_layer_idx] = torch.nn.Linear(
-                        model.classifier[last_layer_idx].in_features,
+            if self.dataset_name != 'imagenet':  # Imagenet-1k
+                print('Replacing default classification head...')
+                # Adjust the last layer to match number of classes
+                if hasattr(model, "fc"):  # ResNet-style
+                    model.fc = torch.nn.Linear(
+                        model.fc.in_features,
                         self.num_classes
                     )
+                elif hasattr(model, "classifier"):
+                    # MobileNet, EfficientNet, VGG, DenseNet
+                    if isinstance(model.classifier, torch.nn.Sequential):
+                        # Handle cases where classifier is Sequential
+                        last_layer_idx = len(model.classifier) - 1
+                        model.classifier[last_layer_idx] = torch.nn.Linear(
+                            model.classifier[last_layer_idx].in_features,
+                            self.num_classes
+                        )
+                    else:
+                        model.classifier = torch.nn.Linear(
+                            model.classifier.in_features,
+                            self.num_classes
+                        )
                 else:
-                    model.classifier = torch.nn.Linear(
-                        model.classifier.in_features,
-                        self.num_classes
-                    )
-            else:
-                raise AttributeError("Unknown classification layer "
-                                     f'for {self.model_name}')
+                    raise AttributeError("Unknown classification layer "
+                                         f'for {self.model_name}')
 
         else:
             print(f'Could not find {self.model_name} in torchvision.'

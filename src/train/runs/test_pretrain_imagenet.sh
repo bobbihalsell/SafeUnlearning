@@ -1,0 +1,1 @@
+python src/train/main.py dataset=imagenet model=resnet18 dataset.load_dir=./data model.pretrained=true model.save_dir=./artifacts/models/imagenet_test model.num_classes=1000 model.train_cfg.epochs=0
