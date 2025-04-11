@@ -1,11 +1,15 @@
 import argparse
 import yaml
+import time
 import timm
 import torch
 import torch.nn as nn
 import torchvision
 from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
+import hydra
+from omegaconf import OmegaConf, DictConfig
+from omegaconf.errors import MissingMandatoryValue
 from attacks.utils import set_seed, setup_device, safe_dataclass_load, SaveImage
 import os
 from datasets.cifar10 import get_cifar10_test_transform
@@ -19,31 +23,19 @@ from attacks.InverseGrad.reconstructor import InverseGradReconstructor,InverseGr
 DEFAULT_SEED = 42
 
 class ReconstructorApp(InputValidator):
-    def __init__(self):
-        parser = argparse.ArgumentParser(
-            description="Specify path to unlearning .yaml file.")
-        parser.add_argument("--config_path",
-                            type=str,
-                            required=True,
-                            help="Path to .yaml file")
-        args = parser.parse_args()
-
-        # Load in the instructions for the unlearning run from a filepath
-        with open(args.config_path, 'r') as f:
-            try:
-                config = yaml.safe_load(f)
-            except FileNotFoundError:
-                raise FileNotFoundError('.yaml file not found.')
-
+    def __init__(self, config: DictConfig):
         # Perform input validation first
-        super().__init__(config)
+        config = OmegaConf.to_container(config, resolve=True)
+        # super().__init__(config)
 
         self.device = setup_device()
+        print(config.keys())
         print(f'Using device: {self.device}')
-        self.seed = config['experiment']['seed']
+        self.seed = config['seed']
         set_seed(self.seed)
 
         self.unlearn_params['loss_fn'] = nn.CrossEntropyLoss()
+
         # Output directory
         self.output_dir = config.get('output_dir', 'src/artifacts/')
         os.makedirs(self.output_dir, exist_ok=True)
@@ -103,6 +95,7 @@ class ReconstructorApp(InputValidator):
             model = self.initialize_model()
             # Load state dict
             checkpoint = torch.load(model_path, map_location=self.device)
+            checkpoint = checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint
             model.load_state_dict(checkpoint)
             model = model.to(self.device)
             print(f"Loaded model from {model_path}")
@@ -163,12 +156,18 @@ class ReconstructorApp(InputValidator):
         # Step 4: Reconstruction
         reconstructor = self.initialize_reconstructor(unlearned_model, original_model)
         print('reconstructor initialized')
+
+        start_time = time.time()
         reconstruction, losses = reconstructor.reconstruct(labels = self.labels,
                                                            image_size= self.image_size,
                                                            image_mean= self.image_mean,
                                                            image_std=self.image_std,
                                                            lr= self.reconstructor_lr,
                                                            verbose=self.verbose)
+        total_time = time.time() - start_time
+        if self.verbose:
+            print(f"Reconstruction completed in {total_time:.2f} seconds")
+            print(f"Reconstruction Losses: {losses}")
 
         # # Step 5: Save the reconstructed image
         image_saver = self.save_results()
@@ -178,9 +177,25 @@ class ReconstructorApp(InputValidator):
         self.calculate_metrics()
 
 
+@hydra.main(version_base=None,
+            config_path="config",
+            config_name="config")
+def main(cfg: DictConfig):
+    # Print the config for the user first
+    print('============ Run Configuration ============')
+    print(OmegaConf.to_yaml(cfg))
+    print('============================================')
+    missing_keys = OmegaConf.missing_keys(cfg)
+    if missing_keys:
+        raise MissingMandatoryValue(
+            'Missing the following required arguments in the configuration: '
+            f'{missing_keys}. \n'
+            'Hint: python file.py key=value sets the appropriate value.')
+    app = ReconstructorApp(cfg)
+    app.run()
 
 if __name__ == '__main__':
-    app = ReconstructorApp()
-    app.run()
+    main()
+
     # Run pip install -e .
     # Run python src/attacks/main_reconstructor.py --config_path src/attacks/config.yaml

@@ -1,0 +1,18 @@
+type: inversegrad  # Options: ggl, inversegrad
+lr: 0.01
+InverseGrad:
+  grad_diff_lr: 0.01
+  signed: True
+  boxed: True
+  cost_fn: sim
+  indices: def
+  weights: equal
+  optim: adamw
+  num_runs: 1
+  recon_iterations: 100
+  total_variation: 1e-1
+  init: randn
+  lr_decay: True
+  scoring_choice: loss
+  eval: True
+  filter: none
