@@ -80,7 +80,7 @@ def load_train_val_test_datasets(dataset_name: str,
             root=os.path.join(dataset_load_dir, "train"),
             transform=None
         )
-        # TODO custom dataset handling. val should be optional, if path does not exist, then do not save a test set
+        # If val path does not exist, then do not save a test set
         if os.path.exists(os.path.join(dataset_load_dir, "val")):
             raw_test = datasets.ImageFolder(
                 root=os.path.join(dataset_load_dir, "val"),

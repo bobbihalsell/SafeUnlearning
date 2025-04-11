@@ -2,9 +2,8 @@ import timm
 import torch
 import torch.nn as nn
 import torchvision
-from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
-from unlearning.utils import save_model, set_seed, setup_device, ConfigError
+from train.image_loading import RobustImageFolder
 import os
 import hydra
 from omegaconf import OmegaConf, DictConfig
@@ -17,6 +16,7 @@ from unlearning.finetune import FinetuneUnlearner
 from unlearning.scrub import SCRUB
 from unlearning.kunlearn import KUnlearn
 from unlearning.neggrad import NegGrad, NegGradPlus
+from unlearning.utils import save_model, set_seed, setup_device, ConfigError
 
 
 class UnlearnApp(InputValidator):
@@ -160,7 +160,7 @@ class UnlearnApp(InputValidator):
                 raise Exception(f'{split_dir} does not exist. Is the dataset '
                                 'in ImageFolder format?')
 
-            dataset = ImageFolder(root=split_dir, transform=transform)
+            dataset = RobustImageFolder(root=split_dir, transform=transform)
             dataloaders[split] = DataLoader(
                 dataset,
                 batch_size=batch_size,
