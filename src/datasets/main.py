@@ -7,6 +7,7 @@ from unlearning.utils import ConfigError
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.errors import MissingMandatoryValue
+import json
 
 
 class DatasetInitializer:
@@ -26,6 +27,34 @@ class DatasetInitializer:
 
         seed = config.get('seed', 42)
         np.random.seed(seed)
+
+    def rename_provided_folders(self):
+        """ Map initial ImageNet-1k class folder names to label indices."""
+        if self.dataset_name == 'imagenet':
+            # Use default Imagenet-1k mappings
+            with open('imagenet/imagenet_1k_mappings.json', 'r') as f:
+                default_imagenet_mapping = json.load(f)
+
+            split_names = ['train', 'val']
+            for split in split_names:
+                split_dir = self.init_dir + f'/{split}'
+                if os.path.exists(split_dir):
+                    folder_names = [i for i in
+                                    sorted(os.listdir(split_dir)) if
+                                    not i.startswith('.')]
+                    for folder in folder_names:
+                        try:
+                            label_index = default_imagenet_mapping[folder]
+                        except KeyError:
+                            raise KeyError(
+                                "Received a folder name that was not in the "
+                                f"original ImageNet-1K Class IDs: {folder}")
+                        cur_dir = split_dir + f'/{folder}'
+                        new_dir = split_dir + f'/{label_index}'
+                        if os.path.exists(new_dir):
+                            raise FileExistsError(
+                                f"Target directory already exists: {new_dir}")
+                        os.rename(cur_dir, new_dir)
 
     def load_datasets(self):
         """ Download and save benchmark datasets with name support.
