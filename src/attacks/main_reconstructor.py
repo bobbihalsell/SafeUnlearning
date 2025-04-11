@@ -1,5 +1,4 @@
-import argparse
-import yaml
+import os
 import time
 import timm
 import torch
@@ -10,8 +9,9 @@ from torch.utils.data import DataLoader
 import hydra
 from omegaconf import OmegaConf, DictConfig
 from omegaconf.errors import MissingMandatoryValue
+import wandb
+
 from attacks.utils import set_seed, setup_device, safe_dataclass_load, SaveImage
-import os
 from datasets.cifar10 import get_cifar10_test_transform
 from datasets.cifar100 import get_cifar100_test_transform
 from datasets.imagenet import get_imagenet_test_transform
@@ -33,8 +33,6 @@ class ReconstructorApp(InputValidator):
         print(f'Using device: {self.device}')
         self.seed = config['seed']
         set_seed(self.seed)
-
-        # self.unlearn_params['loss_fn'] = nn.CrossEntropyLoss()
 
         # Output directory
         self.output_dir = config.get('output_dir', 'src/artifacts/')
@@ -106,6 +104,9 @@ class ReconstructorApp(InputValidator):
 
     def initialize_reconstructor(self, unlearned_model, original_model):
         """ Initialize the correct unlearner from user specification."""
+
+
+
         loss_fn = nn.CrossEntropyLoss()
         if self.reconstructor_name == 'ggl':
             reconstructor = GGLReconstructor(
@@ -153,6 +154,17 @@ class ReconstructorApp(InputValidator):
         # Step 3: Initialize the pretrained model
         original_model = self.load_model_from_disk(self.original_weights)
 
+        # Step 3: Initialize wandb
+        config = self.reconstructor_params.copy() 
+        config['type'] = self.reconstructor_name
+        config['reconstructor_lr'] = self.reconstructor_lr  
+        
+        wandb.init(
+            project = "reconstruction",
+            config =  config,
+            group=self.experiment_name
+            )
+        
         # Step 4: Reconstruction
         reconstructor = self.initialize_reconstructor(unlearned_model, original_model)
         print('reconstructor initialized')
@@ -169,10 +181,17 @@ class ReconstructorApp(InputValidator):
             print(f"Reconstruction completed in {total_time:.2f} seconds")
             print(f"Reconstruction Losses: {losses}")
 
+
+        wandb.log({
+            'reconstruction_time': total_time,
+            'losses': losses,
+            'reconstruction': wandb.Image(reconstruction),
+        })
+
         # # Step 5: Save the reconstructed image
         image_saver = self.save_results()
         image_saver.save_png(reconstruction,
-                             normalize=True)
+                             normalize=False)
         
         self.calculate_metrics()
 
@@ -198,4 +217,4 @@ if __name__ == '__main__':
     main()
 
     # Run pip install -e .
-    # Run python src/attacks/main_reconstructor.py --config_path src/attacks/config.yaml
+    # Run python src/attacks/main_reconstructor.py experiment=reconstruction dataset=cifar10 reconstructor=inversegrad 
