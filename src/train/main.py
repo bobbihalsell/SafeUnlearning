@@ -53,7 +53,7 @@ class TrainApp:
                 weights="DEFAULT" if self.pretrained else None,
             )
 
-            if self.dataset_name != 'imagenet':  # Imagenet-1k
+            if self.num_classes != 1000:  # Imagenet-1k
                 print('Replacing default classification head...')
                 # Adjust the last layer to match number of classes
                 if hasattr(model, "fc"):  # ResNet-style
