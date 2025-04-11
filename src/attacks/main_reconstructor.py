@@ -26,7 +26,7 @@ class ReconstructorApp(InputValidator):
     def __init__(self, config: DictConfig):
         # Perform input validation first
         config = OmegaConf.to_container(config, resolve=True)
-        # super().__init__(config)
+        super().__init__(config)
 
         self.device = setup_device()
         print(config.keys())
@@ -34,7 +34,7 @@ class ReconstructorApp(InputValidator):
         self.seed = config['seed']
         set_seed(self.seed)
 
-        self.unlearn_params['loss_fn'] = nn.CrossEntropyLoss()
+        # self.unlearn_params['loss_fn'] = nn.CrossEntropyLoss()
 
         # Output directory
         self.output_dir = config.get('output_dir', 'src/artifacts/')
@@ -151,7 +151,7 @@ class ReconstructorApp(InputValidator):
         unlearned_model = self.load_model_from_disk(self.unlearned_weights)
 
         # Step 3: Initialize the pretrained model
-        original_model = self.load_model_from_disk(self.oiginal_weights)
+        original_model = self.load_model_from_disk(self.original_weights)
 
         # Step 4: Reconstruction
         reconstructor = self.initialize_reconstructor(unlearned_model, original_model)
