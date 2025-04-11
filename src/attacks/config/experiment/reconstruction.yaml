@@ -1,5 +1,5 @@
 name: "reconstruction_experiment"
-original_weights: ??
-unlearned_weights: ??
+original_weights: /vol/bitbucket/vb524/v2_safe/safe-unlearning/artifacts/diff_transform/unlearn/neggrad/resnet18_42_original.pt
+unlearned_weights: /vol/bitbucket/vb524/v2_safe/safe-unlearning/artifacts/diff_transform/unlearn/neggrad/resnet18_42_original.pt
 output:
   dir: src/artifacts/

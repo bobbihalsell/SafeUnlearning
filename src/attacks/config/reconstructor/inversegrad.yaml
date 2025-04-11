@@ -1,6 +1,6 @@
 type: inversegrad  # Options: ggl, inversegrad
 lr: 0.01
-InverseGrad:
+cfg:
   grad_diff_lr: 0.01
   signed: True
   boxed: True

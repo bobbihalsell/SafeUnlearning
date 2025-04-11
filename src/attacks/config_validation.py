@@ -8,99 +8,90 @@ class InputValidator:
         assert isinstance(config, dict)
 
         self.experiment_name = config['experiment']['name']
-        self.seed = config['experiment']['seed']
-        self.model_name = config['experiment']['model_name']
+        self.original_weights = config['experiment']['original_weights']
+        self.unlearned_weights = config['experiment']['unlearned_weights']
 
-        self.oiginal_weights = config['paths']['original_weights']
-        self.unlearned_weights = config['paths']['unlearned_weights']
+        self.seed = config['seed']
+        self.verbose = config['verbose']
 
         data_config = config['data']
+        self.model_name = data_config['model_name']
         self.labels = data_config['labels']
         self.dataset_name = data_config['dataset_name']
+        self.num_classes = data_config['num_classes']
         self.image_mean = data_config['image_mean']
         self.image_std = data_config['image_std']
         self.image_size = data_config['image_size']
-        self.batch_size = data_config['batch_size']
-        #self.num_workers = data_config['num_workers] don't know if we need that?
-        self.num_classes = data_config['num_classes']
+        self.data_root = data_config['data_root']
 
-        self.reconstructor_name = config['Reconstructor']['type']
-        self.reconstructor_lr = config['Reconstructor']['lr']
+        self.reconstructor_name = config['reconstructor']['type']
+        self.reconstructor_lr = config['reconstructor']['lr']
+        self.reconstructor_params = config['reconstructor']['cfg']
 
-        if self.reconstructor_name == 'ggl':
-            reconstructor = config['Reconstructor']['GGL']
-            self.reconstructor_params = config["Reconstructor"]['GGL']
+        print(self.reconstructor_name)
+
+        print(self.reconstructor_params)
+
+        # if self.reconstructor_name == 'ggl':
+        #     self.reconstructor_params = config["reconstructor"]['GGL']
 
 
-        elif self.reconstructor_name == 'inversegrad':
-            reconstructor = config['Reconstructor']['InverseGrad']
-            self.reconstructor_params = config["Reconstructor"]['InverseGrad']
+        # elif self.reconstructor_name == 'inversegrad':
+        #     self.reconstructor_params = config["reconstructor"]['InverseGrad']
 
-        self.unlearner_name = config['Unlearner']['name']
-        self.unlearn_params = config['Unlearner']['cfg']
+        
+        self._validate_experiment_params()
+        self._validate_dataset_params()
+
+        self._validate_reconstructor_params()
         
 
-        self.verbose = config['verbose']
-
-        self._validate_unlearner_params()
-        #self._validate_dataset_params()
-        #self._validate_model_params()
-
-    def _validate_unlearner_params(self):
+    def _validate_reconstructor_params(self):
         """
         Validate parameters required by each unlearner type.
         Raises exception if required parameters are missing.
         """
         # common parameters for unlearners
-        required_params = ['epochs',
-                           'lr',
-                           'weight_decay',
-                           'use_l2_penalty',
-                           ]
+        if self.reconstructor_name is None:
+            raise ConfigError('Reconstruction method must be provided.')
+        
+        if self.reconstructor_lr is None:
+            raise ConfigError('Learning rate for the unlearning '
+                              'reconstructor must be provided.')
 
-        missing_params = []
-        for param in required_params:
-            if param not in self.unlearn_params:
-                if self.unlearner_name == 'scrub' and param == 'epochs':
-                    continue
-                missing_params.append(param)
-
-        if missing_params:
-            raise ConfigError('Missing required parameters for unlearning: '
-                              f'{', '.join(missing_params)}')
 
         # Add specific parameters based on unlearner type
-        if self.unlearner_name == 'neggradplus':
-            try:
-                self.unlearn_params['beta']
-            except KeyError:
-                raise ConfigError('Missing required parameter beta'
-                                  ' for NegGradPlus unlearner')
-
-        elif self.unlearner_name == 'scrub':
+        elif self.reconstructor_name == 'ggl':
             # Check for required SCRUB-specific parameters
-            required_scrub_params = ['min_epochs', 'max_epochs',
-                                     'alpha', 'gamma']
-            missing_scrub_params = []
-            for param in required_scrub_params:
-                if param not in self.unlearn_params:
-                    missing_scrub_params.append(param)
-            if missing_scrub_params:
-                raise ConfigError('Missing required params for SCRUB unlearner:'
-                                  f' {', '.join(missing_scrub_params)}')
-
-        elif self.unlearner_name in {'euk', 'cfk'}:
-            # Check for k parameter
-            try:
-                self.unlearn_params['k']
-            except KeyError:
-                raise ConfigError(f'Missing required parameter k for '
-                                  f'{self.unlearner_name.upper()} unlearner')
-            if self.unlearner_name == 'euk':
-                # Check for EUk-specific parameters
-                if 'reinit_method' not in self.unlearn_params:
-                    raise ConfigError('Missing required parameter '
-                                      'reinit_method for EUk unlearner')
+            required_ggl_params = ['num_updates', 'unlearning_method',
+                                     'alpha', 'gamma', 'min_epochs',
+                                     'max_epochs', 'batch_size',
+                                     'loss_models', 'budget',
+                                     'search_dim', 'use_tanh']
+            missing_ggl_params = []
+            for param in required_ggl_params:
+                if param not in self.reconstructor_params:
+                    missing_ggl_params.append(param)
+            if missing_ggl_params:
+                raise ConfigError('Missing required params for GGL reconstruction:'
+                                  f' {', '.join(missing_ggl_params)}')
+            
+        elif self.reconstructor_name == 'inversegrad':
+            print("checking inverse grad params")
+            # Check for required Inverse Grad-specific parameters
+            required_igrad_params = ['grad_diff_lr', 'signed', 'boxed',
+                                   'cost_fn', 'indices', 'weights',
+                                   'optim', 'num_runs', 'recon_iterations',
+                                   'total_variation', 'init', 'lr_decay',
+                                   'scoring_choice', 'eval', 'filter']
+            missing_igrad_params = []
+            for param in required_igrad_params:
+                if param not in self.reconstructor_params:
+                    missing_igrad_params.append(param)
+            if missing_igrad_params:
+                raise ConfigError('Missing required params for Inverse Grad reconstruction:'
+                                  f' {', '.join(missing_igrad_params)}')
+    
 
     def _validate_dataset_params(self):
         valid_dataset_names = {'cifar5',
@@ -111,17 +102,24 @@ class InputValidator:
             raise ConfigError('Dataset support only for '
                               f'{', '.join(valid_dataset_names)}. '
                               f'Received {self.dataset_name}')
-        if self.dataset_save_dir is None:
+        if self.data_root is None:
             raise ConfigError('A path to '
                               'load the dataset from must be provided. '
-                              'dataset_save_dir cannot be empty.')
-
-    def _validate_model_params(self):
+                              'data_root cannot be empty.')
+        
+        if not isinstance(self.labels, list) or not all(isinstance(label, int) for label in self.labels):
+            raise ConfigError('Labels must be a list of integers.')
+        
+    def _validate_experiment_params(self):
         """ Check some of the model-related config params from the YAML file.
 
         This validates only some of the model parameters, as it is more
         efficient to use the EAFP approach for model name and
         initialization checking."""
-        if not os.path.exists(self.unlearned_model_ckpt_path):
+        if not os.path.exists(self.original_weights):
             raise ConfigError("Model weights file not found: "
-                              f"{self.unlearned_model_ckpt_path}")
+                              f"{self.original_weights}")
+
+        if not os.path.exists(self.unlearned_weights):
+            raise ConfigError("Model weights file not found: "
+                              f"{self.unlearned_weights}")
