@@ -3,23 +3,16 @@ import torch.nn as nn
 import torch.optim as optim
 import copy
 import numpy as np
-from pytorch_pretrained_biggan import BigGAN, BigGANConfig
-from torch.autograd import Variable
-import torchvision.models as models
-from torchvision import models, transforms, datasets
-from torch.utils.data import DataLoader
+from pytorch_pretrained_biggan import BigGAN
+from torchvision import transforms
 from attacks.GGL.turbo import Turbo1
-import os
-import yaml
 import random
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from torchvision import models, transforms, datasets
-from torch.utils.data import DataLoader
-import torchvision
+from torchvision import transforms
 
 from unlearning.scrub import SCRUB
 
@@ -50,7 +43,7 @@ def set_seed(seed):
 
 class GGLReconstructor():
     #def __init__(self, original_model, target_model, generator, loss_fn, unlearning_method, loss_models='l1', num_classes=1000, num_updates=None, lr=0.01, search_dim=128, use_tanh=False, budget=500, alpha=None, gamma=None, min_epochs=None, max_epochs=None, label=None, save_img=None, save_z=None, batch_size=1):
-    def __init__(self, original_model, target_model, loss_fn, search_dim=128, use_tanh=False, budget=500, loss_models='l1', unlearning_method='neggrad', num_classes=1000, num_updates=None, lr=0.01,  alpha=None, gamma=None, min_epochs=None, max_epochs=None, labels=None, exp_name='exp', batch_size=1):
+    def __init__(self, original_model, target_model, loss_fn, search_dim=128, use_tanh=False, budget=500, loss_models='l1', unlearning_method='neggrad', num_classes=1000, num_updates=None, lr=0.01,  alpha=None, gamma=None, min_epochs=None, max_epochs=None, labels=None, exp_name='ggl', initial_z=None, batch_size=1):
         """
         original_model: The original model (pre-update).
         target_model: The target model (unlearned model).
@@ -65,7 +58,9 @@ class GGLReconstructor():
         """
         self.original_model = original_model
         self.target_model = target_model
-        #self.generator = generator
+        generator = BigGAN.from_pretrained("biggan-deep-256")  
+        generator.eval()  # Set to evaluation mode
+        self.generator = generator
         self.loss_fn = loss_fn
         self.num_classes = num_classes
         self.num_updates = num_updates
@@ -80,31 +75,33 @@ class GGLReconstructor():
         self.min_epochs = min_epochs
         self.max_epochs = max_epochs
         self.label = labels
-        self.exp_name=exp_name
+        self.exp_name = exp_name
+        self.initial_z_path = initial_z
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-    def evaluate_loss(self, z, labels, type=None, steps=None):
+    def evaluate_loss(self, z, labels, loss_type=None, steps=None):
         """
         Evaluates the interpolation-based loss for the given latent vector z.
         """
         generated_image = self.generate_image(z, labels)
         # Create a copy
         recon = copy.deepcopy(self.original_model)
+        recon.eval()
 
         if self.unlearning_method == 'neggrad':
             # Perform scrub update on recon
-            recon = self.perform_sgd_updates(generated_image, labels, recon, alpha=self.alpha, gamma=self.gamma, min_epochs=self.min_epochs, max_epochs=self.max_epochs, lr=self.lr, loss_fn=self.loss_fn, steps=1)
+            recon = self.perform_sgd_updates(generated_image, labels, recon, steps=1)
 
         if self.unlearning_method == 'scrub':
-            recon = self.perform_scrub_updates(generated_image, labels, recon, steps=1)
+            recon = self.perform_scrub_updates(generated_image, labels, recon, alpha=self.alpha, gamma=self.gamma, min_epochs=self.min_epochs, max_epochs=self.max_epochs, lr=self.lr, loss_fn=self.loss_fn, steps=1)
 
-        if type == 'interpolated':
+        if loss_type == 'interpolated':
             recon_1 = copy.deepcopy(self.original_model)
             if self.unlearning_method == 'neggrad':
-                recon_1 = self.perform_sgd_updates(generated_image, labels, recon_1, alpha=self.alpha, gamma=self.gamma, min_epochs=self.min_epochs, max_epochs=self.max_epochs, lr=self.lr, loss_fn=self.loss_fn, steps=steps)
+                recon_1 = self.perform_sgd_updates(generated_image, labels, recon_1,  steps=steps)
             if self.unlearning_method == 'scrub':
-                recon_1 = self.perform_sgd_updates(generated_image, labels, recon_1, steps=steps)
+                recon_1 = self.perform_sgd_updates(generated_image, labels, alpha=self.alpha, gamma=self.gamma, min_epochs=self.min_epochs, max_epochs=self.max_epochs, lr=self.lr, loss_fn=self.loss_fn, steps=steps)
 
             # Interpolate between original and unlearned model
             interp_model = self.interpolate_models(self.original_model, self.target_model, alpha=0.5)
@@ -116,51 +113,14 @@ class GGLReconstructor():
             return loss_1+loss_2
 
 
-        elif type == 'weighted':
+        elif loss_type == 'weighted':
             loss = self.compute_model_difference_weighted(recon, self.target_model)
-        elif type == 'l2':
+        elif loss_type == 'l2':
             loss = self.compute_model_difference_l2(recon, self.target_model)
-        elif type == 'l1':
+        elif loss_type == 'l1':
             loss = self.compute_model_difference_l1(recon, self.target_model)
         
         return loss
-
-    def perform_scrub_updates(self, generated_image, labels, original_model, alpha, gamma, min_epochs, max_epochs, lr, loss_fn, verbose=True, steps=None):
-        scrub = SCRUB(device=self.device)
-
-        # Convert label to tensor if necessary
-        if isinstance(labels, int):
-            labels = torch.tensor([labels]).long().to(self.device)
-        else:
-            labels = labels.to(self.device)
-
-        # Package the generated image and label as a dictionary
-        data_dict = {
-            'forget': [(generated_image, labels)]  # Provide a list of tuples (image, label)
-        }
-
-        # Hardcode any additional arguments needed for unlearn method
-        kwargs = {
-            'alpha': alpha,
-            'gamma': gamma,
-            'loss_fn': loss_fn,
-            'lr': lr,
-            'min_epochs': min_epochs,
-            'max_epochs' : max_epochs
-
-        }
-
-        # Run the unlearning process
-        unlearned_model, losses = scrub.unlearn(
-            model=original_model,
-            data_dict=data_dict,
-            min_epochs=min_epochs,
-            max_epochs=max_epochs,
-            verbose=verbose,
-            **kwargs
-        )
-
-        return unlearned_model
 
     def interpolate_models(self, model1, model2, alpha=0.5):
         """
@@ -202,8 +162,54 @@ class GGLReconstructor():
         for p1, p2 in zip(model1.parameters(), model2.parameters()):
             diff += torch.sum(abs(p1 - p2))  # L1 norm of the difference
         return diff.item()
+    
+    def perform_scrub_updates(self, generated_image, labels, original_model, alpha, gamma, min_epochs, max_epochs, lr, loss_fn, verbose=True, steps=None):
+        scrub = SCRUB(device=self.device)
 
+        # Convert label to tensor if necessary
+        if isinstance(labels, int):
+            labels = torch.tensor([labels]).long().to(self.device)
+        else:
+            labels = labels.to(self.device)
 
+        # Package the generated image and label as a dictionary
+        forget_dataset = torch.utils.data.TensorDataset(generated_image, labels)
+        forget_loader = torch.utils.data.DataLoader(forget_dataset, batch_size=len(forget_dataset), shuffle=False)
+
+        # Hardcode any additional arguments needed for unlearn method
+        kwargs = {
+            'alpha': alpha,
+            'gamma': gamma,
+            'loss_fn': loss_fn,
+            'lr': lr,
+            'min_epochs': min_epochs,
+            'max_epochs' : max_epochs
+
+        }
+
+        # Run the unlearning process
+        unlearned_model, losses = scrub.unlearn(
+            model=original_model,
+            data_dict=forget_loader,
+            min_epochs=min_epochs,
+            max_epochs=max_epochs,
+            verbose=verbose,
+            **kwargs
+        )
+
+        return unlearned_model
+
+    def perform_sgd_updates(self, generated_image, labels, updated_model_attacker, steps=None):
+        if steps is None:
+            steps = self.num_updates
+        optimizer = optim.SGD(updated_model_attacker.parameters(), lr=0.001)
+        for _ in range(steps):
+            optimizer.zero_grad()
+            pred = updated_model_attacker(generated_image)
+            loss = self.loss_fn(pred, labels)
+            (-loss).backward()
+            optimizer.step()
+        return updated_model_attacker
     
     def generate_image(self, z, labels):
         """
@@ -244,24 +250,15 @@ class GGLReconstructor():
         return generated_image
 
 
-    def perform_sgd_updates(self, generated_image, labels, updated_model_attacker, steps=None):
-        if steps is None:
-            steps = self.num_updates
-        optimizer = optim.SGD(updated_model_attacker.parameters(), lr=0.001)
-        for _ in range(steps):
-            optimizer.zero_grad()
-            pred = updated_model_attacker(generated_image)
-            loss = self.loss_fn(pred, labels)
-            (-loss).backward()
-            optimizer.step()
-        return updated_model_attacker
-
-
-    def optimize_latent_vector(self, labels, initial_z=None, x_path=None, z_path=None):
+    def reconstruct(self, initial_z=None):
         """
         Optimize the latent vector z using Turbo Bayesian Optimization.
         If `initial_z` is provided, it starts from there instead of a random initialization.
         """
+        label = self.label[0] #TODO: change for multiple instances
+        x_path = f"/vol/bitbucket/oap24/pipeline_code/safe-unlearning/src/artifacts/reconstructed/GGL/results_report2/{self.exp_name}_labels{label}_{self.unlearning_method}_lr{self.lr}_updates{self.num_updates}_budget{self.budget}_loss{self.type}_BO_seed42_gp_AdamW_1_scheduler.png"
+        z_path = f"/vol/bitbucket/oap24/pipeline_code/safe-unlearning/src/artifacts/reconstructed/GGL/results_report2/{self.exp_name}_labels{label}_{self.unlearning_method}_lr{self.lr}_updates{self.num_updates}_budget{self.budget}_loss{self.type}_BO_seed42_gp_AdamW_1_scheduler"
+        labels = torch.tensor([label])  # Assign a label
         f = lambda z: self.evaluate_loss(z, labels, type=self.type)  # Define the objective function
 
         # Define search space
@@ -348,90 +345,4 @@ class GGLReconstructor():
         np.save(z_path, z_np)
         print(f"Latent vector z saved to {x_path}.npy")
 
-
-def load_config(config_file="config.yaml"):
-    with open(config_file, 'r') as f:
-        config = yaml.safe_load(f)
-    return config
-
-
-def process_label(label):
-    labels = torch.tensor([label])  # Assign a label
-    labels.to(device)
-    if isinstance(labels, int):
-        labels = torch.tensor([labels]).long().to(device)
-    else:
-        labels = labels.long().to(device)
-
-    return labels
-
-
-if __name__ == "__main__":
-    # Load the configuration from YAML
-    config = load_config("config_ggl.yaml")
-    print('yaml file loaded')
     
-    seed = config['Unlearner']['seed']
-    set_seed(seed)
-    device = config['Reconstructor']['device']
-    data_root = config['Reconstructor']['data_root']
-    dataset_name = config['Reconstructor']['dataset_name']
-    transform = get_transform(dataset_name)
-    forget_set = datasets.ImageFolder(root=data_root, transform=transform)
-    batch_size = config['Reconstructor']['batch_size']
-    forget_loader = DataLoader(forget_set, batch_size=batch_size, shuffle=True)
-    #generated_image = "/vol/bitbucket/oap24/final_project/safe-unlearning/src/unlearning/test_samples3/n00002357/ILSVRC2012_val_00002357.JPEG"
-    generated_image, labels = forget_set[0]
-    generated_image.to(device)
-    generated_image = torch.tensor(generated_image,device="cuda:0").unsqueeze(0)
-    # Perform SGD updates on the original model
-    label = config['Reconstructor']['label']
-
-
-    model_name = config['Unlearner']['model_name']
-    
-    label = process_label(label)
-    if model_name == 'resnet18':
-        model = torchvision.models.resnet18(pretrained=True)
-    model = model.to(device)
-    # Optimizer
-    model.eval()
-
-    updated_model_unlearner = copy.deepcopy(model)
-
-    unlearning_method = config['Unlearner']['name']
-    unlearning_path = config['Unlearner']['unlearning_path']
-    # Load the state dictionary from the file
-    state_dict = torch.load(unlearning_path)
-    # Load the state dictionary into the model
-    updated_model_unlearner.load_state_dict(state_dict)
-    #unlearned = perform_unlearning(updated_model_unlearner, generated_image, labels)
-    generator = BigGAN.from_pretrained("biggan-deep-256")  
-    generator.eval()  # Set to evaluation mode
-
-        
-    x_path = config['Reconstructor']['save_img']
-    z_path = config['Reconstructor']['save_z']
-
-    #loss_fn = config['loss']
-    loss_fn = nn.CrossEntropyLoss()
-    loss_models = config['Reconstructor']['loss_models']
-    num_updates = config['Unlearner']['cfg']['epochs']
-    lr = config['Unlearner']['cfg']["lr"]
-    budget = config['Reconstructor']['budget']
-    num_classes = config['Unlearner']['num_classes']
-    search_dim = config['Reconstructor']['search_dim']
-    use_tanh = config['Reconstructor']['use_tanh']
-
-    print('yaml file read')
-
-    # parameters specific to scrub
-    alpha = config['Unlearner'].get('alpha', None)
-    gamma = config['Unlearner'].get('gamma', None)
-    min_epochs = config['Unlearner'].get('min_epochs', None)
-    max_epochs = config['Unlearner'].get('max_epochs', None)
-
-
-
-    rec = ModelDiffReconstructorBO(original_model=model, target_model=updated_model_unlearner, generator=generator, loss_fn=loss_fn, type=loss_models, num_classes=num_classes, num_updates=num_updates, lr=lr, search_dim=search_dim, use_tanh=use_tanh, budget=budget, unlearning_method=unlearning_method, alpha=alpha, gamma=gamma, min_epochs=min_epochs, max_epochs=max_epochs)
-    z_res, x_res, loss_res = rec.optimize_latent_vector(labels=label, x_path=x_path, z_path=z_path) 
