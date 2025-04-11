@@ -1,6 +1,6 @@
 type: ggl
 lr: 0.01
-config:
+cfg:
   num_updates: 1
   unlearning_method: neggrad
   alpha: None
@@ -14,19 +14,7 @@ config:
   use_tanh: false  # Whether to apply tanh activation to the latent vector
 
 
-experiment:
-  name: "test_config"
-  original_weights: "/vol/bitbucket/oap24/pipeline_code/safe-unlearning/src/artifacts/models/resnet18_pretrained.pth"
-  unlearned_weights: "/vol/bitbucket/oap24/pipeline_code/safe-unlearning/src/artifacts/unlearn/neggrad/resnet18_42_unlearned.pt"
-  output:
-    dir: src/artifacts/
 
-data:
-  model_name: resnet18
-  dataset_name: imagenet
-  labels: [12]
-  num_classes: 1000 
-  data_root: "/vol/bitbucket/oap24/final_project/safe-unlearning/src/unlearning/test_samples3"
 
 
 seed: 42

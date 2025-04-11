@@ -255,11 +255,11 @@ class GGLReconstructor():
         Optimize the latent vector z using Turbo Bayesian Optimization.
         If `initial_z` is provided, it starts from there instead of a random initialization.
         """
-        label = self.label[0] #TODO: change for multiple instances
+        label = self.label #TODO: change for multiple instances
         x_path = f"/vol/bitbucket/oap24/pipeline_code/safe-unlearning/src/artifacts/reconstructed/GGL/results_report2/{self.exp_name}_labels{label}_{self.unlearning_method}_lr{self.lr}_updates{self.num_updates}_budget{self.budget}_loss{self.type}_BO_seed42_gp_AdamW_1_scheduler.png"
         z_path = f"/vol/bitbucket/oap24/pipeline_code/safe-unlearning/src/artifacts/reconstructed/GGL/results_report2/{self.exp_name}_labels{label}_{self.unlearning_method}_lr{self.lr}_updates{self.num_updates}_budget{self.budget}_loss{self.type}_BO_seed42_gp_AdamW_1_scheduler"
         labels = torch.tensor([label])  # Assign a label
-        f = lambda z: self.evaluate_loss(z, labels, type=self.type)  # Define the objective function
+        f = lambda z: self.evaluate_loss(z, labels, loss_type=self.type)  # Define the objective function
 
         # Define search space
         z_lb = -2 * np.ones(self.search_dim)
