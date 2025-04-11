@@ -2,7 +2,7 @@ from datasets.load_datasets import load_train_val_test_datasets
 import numpy as np
 import os
 import shutil
-from torchvision.datasets import ImageFolder
+from train.image_loading import RobustImageFolder
 from unlearning.utils import ConfigError
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -42,29 +42,30 @@ class DatasetInitializer:
 
         Output e.g. data/train/n01582220 -> data/train/18
         """
-        # Use default Imagenet-1k mappings
-        with open('imagenet/imagenet_1k_mappings.json', 'r') as f:
+        base_dir = os.path.dirname(__file__)  # Directory of the current script
+        mapping_path = os.path.join(base_dir,
+                                    'imagenet',
+                                    'imagenet_1k_mappings.json')
+
+        with open(mapping_path, 'r') as f:
             default_imagenet_mapping = json.load(f)
 
         split_names = ['train', 'val']
         for split in split_names:
-            split_dir = self.init_dir + f'/{split}'
+            split_dir = os.path.join(self.init_dir, split)
             if os.path.exists(split_dir):
-                folder_names = [i for i in
-                                sorted(os.listdir(split_dir)) if
-                                not i.startswith('.')]
+                folder_names = [i for i in sorted(os.listdir(split_dir)) if not i.startswith('.')]
                 for folder in folder_names:
                     try:
                         label_index = default_imagenet_mapping[folder]
                     except KeyError:
                         raise KeyError(
-                            "Received a folder name that was not in the "
-                            f"original ImageNet-1K Class IDs: {folder}")
-                    cur_dir = split_dir + f'/{folder}'
-                    new_dir = split_dir + f'/{label_index}'
+                            f"Folder name not found in ImageNet-1K Class IDs: {folder}"
+                        )
+                    cur_dir = os.path.join(split_dir, folder)
+                    new_dir = os.path.join(split_dir, str(label_index))
                     if os.path.exists(new_dir):
-                        raise FileExistsError(
-                            f"Target directory already exists: {new_dir}")
+                        raise FileExistsError(f"Target directory already exists: {new_dir}")
                     os.rename(cur_dir, new_dir)
 
     def load_datasets(self):
@@ -116,7 +117,7 @@ class DatasetInitializer:
                                           retain_size: int = None,
                                           ):
         """ Create symlink forget and retain subsets"""
-        train_dataset = ImageFolder(root=train_dir)
+        train_dataset = RobustImageFolder(root=train_dir)
 
         # If retain_size is None, use all indices except the forget_indices
         all_indices = set(range(len(train_dataset)))

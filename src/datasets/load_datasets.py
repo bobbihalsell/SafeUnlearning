@@ -1,9 +1,10 @@
 from torch.utils.data import Subset
 import torchvision.datasets as datasets
+from torchvision.transforms import ToPILImage
+from train.image_loading import RobustImageFolder
 import numpy as np
 import os
 import torch
-from torchvision.transforms import ToPILImage
 
 
 def _get_stratified_split(dataset: torch.utils.data.Dataset,
@@ -76,13 +77,13 @@ def load_train_val_test_datasets(dataset_name: str,
 
     elif dataset_name == 'imagenet':
         # Load in the dataset for filtering by proportion
-        raw_train = datasets.ImageFolder(
+        raw_train = RobustImageFolder(
             root=os.path.join(dataset_load_dir, "train"),
             transform=None
         )
         # If val path does not exist, then do not save a test set
         if os.path.exists(os.path.join(dataset_load_dir, "val")):
-            raw_test = datasets.ImageFolder(
+            raw_test = RobustImageFolder(
                 root=os.path.join(dataset_load_dir, "val"),
                 transform=None
             )
