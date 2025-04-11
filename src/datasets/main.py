@@ -123,6 +123,12 @@ class DatasetInitializer:
             raise ConfigError('Unsupported forget_method, '
                               f'received {self.forget_method}.')
 
+        if self.dataset_name == 'imagenet':
+            # Remove the interim directory created to avoid mutating original
+            renamed_dir = self.init_dir.rstrip('/') + '_renamed'
+            if os.path.exists(renamed_dir):
+                shutil.rmtree(renamed_dir)
+
     def create_symlink_subsets_by_indices(self,
                                           train_dir: str,
                                           output_dir: str,
