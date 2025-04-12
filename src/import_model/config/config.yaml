@@ -1,0 +1,28 @@
+# Model Loading Configuration
+load_method: torch  # Options: function, torch
+
+init_path: chenyaofo/pytorch-cifar-models
+init_name: cifar10_resnet20
+weight_path: ./artifacts/models/reloaded/cifar10_resnet20_cifar10.pt
+model_kwargs:
+  # arg1: value1
+  # arg2: value2
+pretrained:  # Set to true to load with pretrained weights
+
+validate: false  # Whether to validate the model after loading
+
+# Dataset configuration
+dataset: cifar10  # Options: cifar10, cifar100, imagenet
+dataset_save_dir: ./data  # Where dataset files are stored
+
+# Model saving and evaluation
+save_dir: ./output_models  # Where to save processed models
+model_eval: true  # Whether to evaluate the model
+
+# Performance settings
+batch_size: 128
+
+wandb:
+  enabled: true
+
+seed: 42  # Random seed for reproducibility
