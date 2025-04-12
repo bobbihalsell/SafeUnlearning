@@ -8,8 +8,8 @@ class LiRAValidator(InputValidator):
 
     def _validate_dataset_params(self):
         super()._validate_dataset_params()
-        if self.dataset_cfg['num_splits'] is None:
-            raise ConfigError('Missing required parameter num_splits for LiRA')
+        if self.dataset_cfg["num_splits"] is None:
+            raise ConfigError("Missing required parameter num_splits for LiRA")
 
-        if self.dataset_cfg['num_forgets'] is None:
-            raise ConfigError('Missing required parameter num_forgets for LiRA')
+        if self.dataset_cfg["num_forgets"] is None:
+            raise ConfigError("Missing required parameter num_forgets for LiRA")

@@ -1,16 +1,15 @@
 import os
 from pathlib import Path
+
 import hydra
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import DictConfig, OmegaConf
 
-from src.unlearning.utils import save_model, set_seed, setup_device
-from src.unlearning.main import UnlearnApp
-
+from src.attacks.lira.compute_lira import run as lira_score
 from src.attacks.lira.config_validation import LiRAValidator
+from src.attacks.lira.generate_predictions import run as generate_predictions
 from src.attacks.lira.generate_splits import run as generate_splits
 from src.attacks.lira.train_lira import main as tl_main
-from src.attacks.lira.generate_predictions import run as generate_predictions
-from src.attacks.lira.compute_lira import run as lira_score
+from src.unlearning.utils import set_seed, setup_device
 
 
 class LiRAApp:
@@ -21,16 +20,12 @@ class LiRAApp:
         LiRAValidator(self.config)
 
         self.device = setup_device()
-        print(f'Using device: {self.device}')
-        self.seed = self.config['seed']
+        print(f"Using device: {self.device}")
+        self.seed = self.config["seed"]
         set_seed(self.seed)
 
-        # Output directory
-        self.output_dir = self.config.get('root', 'artifacts/attacks/lira/')
-        os.makedirs(self.output_dir, exist_ok=True)
-
-    def configure_data(self):
-        generate_splits(self.config)
+        self.root = Path("artifacts/attacks/lira" / self.config.exp_name)
+        os.makedirs(self.root, exist_ok=True)
 
     def train_base_models(self):
         # call finetune unlearner
@@ -51,7 +46,7 @@ class LiRAApp:
         lira_score(self.config)
 
     def run(self):
-        self.configure_data()
+        generate_splits(self.root, self.config)
         self.train_base_models()
         self.train_test_models()
         self.unlearn_models()

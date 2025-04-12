@@ -1,8 +1,10 @@
 import os
-import torch
-from utils import get_retain_forget_val_indices, get_loaders_from_indices
 from pathlib import Path
+
 import numpy as np
+import torch
+from utils import get_loaders_from_indices, get_retain_forget_val_indices
+
 from src.unlearning.main import UnlearnApp
 
 
@@ -11,24 +13,28 @@ class UnlearnAppForLiRA(UnlearnApp):
         super().__init__(config)
 
     def run(self, dataloaders):
-        print('running...')
+        print("running...")
         # Step 1: Initialize the model
         original_model = self.load_model_from_disk(self.model_ckpt_path)
 
         # Step 2: Unlearning
         unlearner = self.initialize_unlearner()
-        print('unlearner initialized')
-        unlearned_model, losses = unlearner.unlearn(original_model,
-                                                    data_dict=dataloaders,
-                                                    verbose=self.verbose,
-                                                    **self.unlearn_params)
-        print('model unlearned')
+        print("unlearner initialized")
+        unlearned_model, losses = unlearner.unlearn(
+            original_model,
+            data_dict=dataloaders,
+            verbose=self.verbose,
+            **self.unlearn_params,
+        )
+        print("model unlearned")
 
         # Step 3: Save the unlearned model
-        directory = f'{self.output_dir}/unlearn/{self.unlearning_algorithm}'
+        directory = f"{self.output_dir}/unlearn/{self.unlearning_algorithm}"
         os.makedirs(directory, exist_ok=True)  # Ensure the directory exists
 
-        filepath = os.path.join(directory, f'{self.model_name}_{self.seed}_{self.model_type}.pt')
+        filepath = os.path.join(
+            directory, f"{self.model_name}_{self.seed}_{self.model_type}.pt"
+        )
         torch.save(unlearned_model.state_dict(), filepath)
 
 

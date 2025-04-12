@@ -1,11 +1,17 @@
 from copy import deepcopy
 from pathlib import Path
+from typing import Tuple
+
 import numpy as np
+from numpy.typing import NDArray as Array
+from omegaconf import DictConfig
 
 from src.datasets.load_datasets import load_train_val_test_datasets
 
 
-def generate_lira_train_tests(lira_dev_indices, num_attempts, ratio=0.5):
+def generate_lira_train_tests(
+    lira_dev_indices: Array, num_attempts: int, ratio: float = 0.5
+) -> Tuple[Array, Array]:
     test_size = int(len(lira_dev_indices) * ratio)
     train_size = len(lira_dev_indices) - test_size
     indices = np.zeros(shape=(num_attempts, len(lira_dev_indices)), dtype=int)
@@ -23,7 +29,9 @@ def generate_lira_train_tests(lira_dev_indices, num_attempts, ratio=0.5):
     return train_indices, test_indices
 
 
-def generate_all_forgets(train_matrices, num_attempts, ratio):
+def generate_all_forgets(
+    train_matrices: Array, num_attempts: int, ratio: int
+) -> Tuple[Array, Array]:
     retains, forgets = [], []
     for row in train_matrices:
         retain, forget = generate_lira_train_tests(row, num_attempts, ratio)
@@ -34,17 +42,16 @@ def generate_all_forgets(train_matrices, num_attempts, ratio):
     return retains, forgets
 
 
-def run(config):
-    root = config.root
+def run(config: DictConfig, root: Path) -> None:
     dataset = config.dataset.name
     data_seed = config.seed
     val_ratio = config.dataset.val_ratio
     forget_ratio = config.dataset.forget_ratio
-    num_splits = config.dataset.num_splits
-    num_forgets = config.dataset.num_forgets
-    save_dir = config.dataset.save_dir
+    num_splits = config.attack.cfg.num_splits
+    num_forgets = config.attack.cfg.num_forgets
+    save_dir = config.dataset.save_path
 
-    train, test = load_train_val_test_datasets(dataset, 1, val_ratio, '', save_dir)
+    train, _, test = load_train_val_test_datasets(dataset, 1, val_ratio, save_dir, save_dir)
     train_len, test_len = len(train), len(test)
 
     indices = np.arange(train_len + test_len)

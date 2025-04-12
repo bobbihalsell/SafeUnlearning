@@ -3,6 +3,7 @@ import torchvision.datasets as datasets
 import numpy as np
 import os
 import torch
+import torchvision
 from torchvision.transforms import ToPILImage
 
 
@@ -32,7 +33,8 @@ def load_train_val_test_datasets(dataset_name: str,
                                  proportion: float,
                                  val_ratio: float,
                                  dataset_load_dir: str,
-                                 dataset_save_dir: str):
+                                 dataset_save_dir: str,
+                                 transform: torchvision.transforms = None):
     """ Load, optionally filter, and save dataset in ImageFolder format. """
 
     # For CIFAR datasets, download if necessary and filter
@@ -40,31 +42,31 @@ def load_train_val_test_datasets(dataset_name: str,
         raw_train = datasets.CIFAR10(root=dataset_load_dir,
                                      train=True,
                                      download=True,
-                                     transform=None)
+                                     transform=transform)
         raw_test = datasets.CIFAR10(root=dataset_load_dir,
                                     train=False,
                                     download=True,
-                                    transform=None)
+                                    transform=transform)
 
     elif dataset_name == 'cifar100':
         raw_train = datasets.CIFAR100(root=dataset_load_dir,
                                       train=True,
                                       download=True,
-                                      transform=None)
+                                      transform=transform)
         raw_test = datasets.CIFAR100(root=dataset_load_dir,
                                      train=False,
                                      download=True,
-                                     transform=None)
+                                     transform=transform)
 
     elif dataset_name == 'cifar5':
         raw_train = datasets.CIFAR10(root=dataset_load_dir,
                                      train=True,
                                      download=True,
-                                     transform=None)
+                                     transform=transform)
         raw_test = datasets.CIFAR10(root=dataset_load_dir,
                                     train=False,
                                     download=True,
-                                    transform=None)
+                                    transform=transform)
 
         # Filter for classes 0–4
         train_indices = [i for i, (_, label) in
@@ -78,13 +80,13 @@ def load_train_val_test_datasets(dataset_name: str,
         # Load in the dataset for filtering by proportion
         raw_train = datasets.ImageFolder(
             root=os.path.join(dataset_load_dir, "train"),
-            transform=None
+            transform=transform
         )
         # If val path does not exist, then do not save a test set
         if os.path.exists(os.path.join(dataset_load_dir, "val")):
             raw_test = datasets.ImageFolder(
                 root=os.path.join(dataset_load_dir, "val"),
-                transform=None
+                transform=transform
             )
         else:
             raw_test = None
@@ -113,7 +115,7 @@ def load_train_val_test_datasets(dataset_name: str,
                              root_path=dataset_save_dir,
                              name='test')
 
-    return None
+    return raw_train_subset, raw_val_subset, raw_test
 
 
 def _save_as_imagefolder(dataset, root_path, name="train"):

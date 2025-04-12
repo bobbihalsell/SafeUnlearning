@@ -1,38 +1,25 @@
-experiment:
-  name: lira_test_config
-  seed: 42
-  model_name: resnet18
-  device: cuda
-
-data:
-  dataset_name: cifar10
-  num_classes: 10
+dataset:
+  name: cifar10
   save_path: ./data
-  num_splits: 10
-  num_forgets: 5
+  val_ratio: 0.2
+  forget_ratio: 0.2
 
 model:
   name: resnet18
   num_classes: 10
-  model_ckpt_path: # You must specify a path to the original model.
+  pretrained: false
 
-Unlearner:
-  name: neggrad  # Options: neggrad, neggradplus, scrub, euk, cfk, finetune
-  evaluate: true
+unlearner:
+  name: neggradplus
+
+attack:
+  name: lira
   cfg:
-    # Common parameters for all unlearners
-    lr: 0.001
-    epochs: 5 # Ignored for scrub
-    # Specific parameters for some unlearners (will be ignored for others)
-    beta: 0.5  # For neggradplus  beta = 0: forget only, beta = 1: retain only
-    min_epochs: 2  # For scrub  retain aligning steps
-    max_epochs: 5  # For scrub  forget away steps
-    alpha: 0.5  # For scrub  retain loss; gamma: cross-entropy weight
-    gamma: 0.5  # For scrub  retain loss; alpha: KL divergence weight
-    k: 3  # For euk/cfk
-    method: CFk  # For kunlearn (CFk or EUk)
-    reinit_method: randn  # For euk (randn or zero or xaiver)
+    num_splits: 10
+    num_forgets: 5
 
-output:
-  dir: src/artifacts/
-verbose: true
+exp_name: lira_test_config
+seed: 42
+device: cpu
+batch_size: 1024
+num_workers: 4

@@ -2,17 +2,23 @@ import pickle
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-from torch.utils.data import ConcatDataset
+
 import numpy as np
 from numpy.typing import NDArray as Array
+from omegaconf import DictConfig
 from scipy.stats import norm
+from torch.utils.data import ConcatDataset
 
 from src.datasets.load_datasets import load_train_val_test_datasets
 
 
 def predicted_membership_probability(
-    z, forget_mean, forget_sigma, never_mean, never_sigma
-):
+    z: float,
+    forget_mean: float,
+    forget_sigma: float,
+    never_mean: float,
+    never_sigma: float,
+) -> float:
     numerator = norm.pdf(z, forget_mean, forget_sigma)
     denominator = norm.pdf(z, forget_mean, forget_sigma) + norm.pdf(
         z, never_mean, never_sigma
@@ -20,7 +26,9 @@ def predicted_membership_probability(
     return numerator / denominator
 
 
-def compute_membership_probabilities(id_to_correct_probas):
+def compute_membership_probabilities(
+    id_to_correct_probas: Dict[int, ProbasNeverAndForgotten],
+) -> Dict[int, List[float]]:
     ndx_to_membership = defaultdict(list)
 
     # For every sample ndx in the dataset, we have computed the
@@ -39,7 +47,9 @@ def compute_membership_probabilities(id_to_correct_probas):
         # For each predicted probability in the 'forgotten' vector (A),
         # compute the membership probability
         for proba in id_to_correct_probas[ndx].forgotten:
-            membership_prob = predicted_membership_probability(proba, forget_mean, forget_std, never_mean, never_std)
+            membership_prob = predicted_membership_probability(
+                proba, forget_mean, forget_std, never_mean, never_std
+            )
             ndx_to_membership[ndx].append(membership_prob)
     return ndx_to_membership
 
@@ -81,7 +91,7 @@ class ProbasNeverAndForgotten:
 
 def extract_correct_probabilities(
     probas: Array, targets: Array, indices: Dict[int, NeverAndForgotten]
-):
+) -> Dict[int, ProbasNeverAndForgotten]:
     indices_to_correct_probas_never_and_forgotten = {}
     for ndx in sorted(indices):
         indices_to_correct_probas_never_and_forgotten[ndx] = ProbasNeverAndForgotten()
@@ -101,40 +111,50 @@ def extract_correct_probabilities(
     return indices_to_correct_probas_never_and_forgotten
 
 
-def reconstruct_split_and_forget(lira_root: Path, num_splits: int):
+def reconstruct_split_and_forget(root: Path, num_splits: int) -> Array:
     reconstructed = []
     for split_ndx in range(num_splits):
-        forgets = lira_root / str(split_ndx) / "forgets.npy"
+        forgets = root / "splits" / str(split_ndx) / "forgets.npy"
         data = np.load(forgets)
         reconstructed.append(data)
     return np.stack(reconstructed)
 
 
-def get_preds(lira_root: Path, model: str, unlearner: str, num_splits: int, num_forgets: int, seed: int):
+def get_preds(
+    root: Path,
+    model: str,
+    unlearner: str,
+    num_splits: int,
+    num_forgets: int,
+) -> Array:
     storage = []
     for split_ndx in range(num_splits):
         forgets = []
         for forget_ndx in range(num_forgets):
-            model = f"{model}_{seed}_{split_ndx}_{forget_ndx}.npy"
-            preds = np.load(lira_root / unlearner / model)
+            model = f"{model}_{split_ndx}_{forget_ndx}.npy"
+            preds = np.load(root / unlearner / "predictions" / model, allow_pickle=True)
             forgets.append(preds)
         storage.append(np.stack(forgets))
     res = np.transpose(np.stack(storage), (2, 0, 1, 3))
     return res
 
 
-def run(config):
+def run(config: DictConfig, root: Path) -> None:
     unlearner = config.unlearner.name
-    lira_root = config.root
-    num_splits = config.dataset.num_splits
-    num_forgets = config.dataset.num_forgets
-    test_indices = np.load(lira_root / "splits" / "test_matrices.npy")
+    num_splits = config.attack.cfg.num_splits
+    num_forgets = config.attack.cfg.num_forgets
+    test_indices = np.load(root / "splits" / "test_matrices.npy")
+    save_dir = config.dataset.save_path
 
-    train, test = load_train_val_test_datasets(config.dataset.name, 1, 0, '', config.dataset.save_dir)
-    dataset = ConcatDataset([train, test])
+    train, val, test = load_train_val_test_datasets(
+        config.dataset.name, 1, config.dataset.val_ratio, save_dir, save_dir
+    )
+    dataset = ConcatDataset([train, val, test])
     targets = np.concatenate([dataset.datasets[ndx].targets for ndx in range(2)])
 
-    forgets_splits_and_forget_indices = reconstruct_split_and_forget(lira_root, num_splits)
+    forgets_splits_and_forget_indices = reconstruct_split_and_forget(
+        root, num_splits
+    )
 
     id_to_forgotten_never_seen = {}
     for split_ndx, row in enumerate(test_indices):
@@ -151,10 +171,12 @@ def run(config):
                     (split_ndx, forget_ndx)
                 )
 
-    storage = get_preds(lira_root, config.model.name, unlearner, num_splits, num_forgets, config.seed)
+    storage = get_preds(
+        root, config.model.name, unlearner, num_splits, num_forgets
+    )
     id_to_correct_probas = extract_correct_probabilities(
         storage, targets, id_to_forgotten_never_seen
     )
     ndx_to_membership = compute_membership_probabilities(id_to_correct_probas)
-    with open(lira_root / f"{unlearner}_membership.npy", "wb") as out_fo:
+    with open(root / f"{unlearner}_membership.npy", "wb") as out_fo:
         pickle.dump(obj=ndx_to_membership, file=out_fo)
