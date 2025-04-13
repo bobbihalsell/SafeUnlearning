@@ -254,8 +254,8 @@ class GGLReconstructor():
         If `initial_z` is provided, it starts from there instead of a random initialization.
         """
         label = self.label[0] #TODO: change for multiple instances
-        x_path = f"/vol/bitbucket/oap24/pipeline_code/safe-unlearning/src/artifacts/reconstructed/GGL/results_report2/TEST_norm_{self.exp_name}_labels{label}_{self.unlearning_method}_lr{self.lr}_updates{self.num_updates}_budget{self.budget}_loss{self.type}_BO_seed42_gp{self.gp_optim}_{self.initial_lr}_scheduler{self.use_scheduler}.png"
-        z_path = f"/vol/bitbucket/oap24/pipeline_code/safe-unlearning/src/artifacts/reconstructed/GGL/results_report2/TEST_norm{self.exp_name}_labels{label}_{self.unlearning_method}_lr{self.lr}_updates{self.num_updates}_budget{self.budget}_loss{self.type}_BO_seed42_gp{self.gp_optim}_{self.initial_lr}_scheduler{self.use_scheduler}"
+        x_path = f"/vol/bitbucket/oap24/pipeline_code/safe-unlearning/src/artifacts/reconstructed/GGL/results_report2/{self.exp_name}_labels{label}_{self.unlearning_method}_lr{self.lr}_updates{self.num_updates}_budget{self.budget}_loss{self.type}_BO_seed42_gp{self.gp_optim}_{self.initial_lr}_scheduler{self.use_scheduler}.png"
+        z_path = f"/vol/bitbucket/oap24/pipeline_code/safe-unlearning/src/artifacts/reconstructed/GGL/results_report2/{self.exp_name}_labels{label}_{self.unlearning_method}_lr{self.lr}_updates{self.num_updates}_budget{self.budget}_loss{self.type}_BO_seed42_gp{self.gp_optim}_{self.initial_lr}_scheduler{self.use_scheduler}"
         labels = torch.tensor([label])  # Assign a label
         f = lambda z: self.evaluate_loss(z, labels, loss_type=self.type)  # Define the objective function
         labels = labels.to(self.device)
