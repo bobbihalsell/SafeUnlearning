@@ -6,13 +6,36 @@ import torch.nn.functional as F
 import copy
 from dataclasses import dataclass
 from collections import defaultdict, OrderedDict
-from InverseGrad.modules import MetaMonkey
 from InverseGrad.medianfilt import MedianPool2d
+import torchvision.transforms as transforms
+
+from ..utils import set_seed
 
 from copy import deepcopy
 
 @dataclass
 class InverseGradConfig:
+    """
+    Configuration for the Inverse Gradient Reconstructor.
+    Attributes:
+        grad_diff_lr (float): Learning rate for gradient difference.
+        signed (bool): Whether to use signed gradients.
+        boxed (bool): Whether to box the input data.
+        cost_fn (str): Distance function to use for reconstruction.
+        indices (str): Layers to use in calculating reconstruction cost.
+        weights (str): Weighting of the layers in the reconstruction cost.
+        optim (str): Optimizer to use for reconstruction.
+        num_runs (int): Number of runs for reconstruction. The best result
+            will be chosen based on the scoring choice.
+        recon_iterations (int): Number of iterations in a reconstruction.
+        total_variation (float): Total variation regularization parameter.
+        init (str): Initialization method for the input image.
+        lr_decay (bool): Whether to use learning rate decay.
+        scoring_choice (str): Scoring method to use for reconstruction.
+        eval (bool): Whether to use evaluation mode for the model.
+        filter (bool): Whether to apply median filtering to the reconstructed image every 500 iterations.
+
+    """
     grad_diff_lr: float = 1e-4
     signed: bool = False
     boxed: bool = True
@@ -27,7 +50,7 @@ class InverseGradConfig:
     lr_decay: bool = True
     scoring_choice: str = 'loss'
     eval: bool = True
-    filter: str = 'none'
+    filter: bool = False
 
     def __post_init__(self): #TODO: this can be enforced by hydra
     # Force conversion to float if the value is passed as a string
@@ -36,31 +59,49 @@ class InverseGradConfig:
 
 
 class InverseGradReconstructor():
-    """Instantiate a reconstruction algorithm.
-    This class is used to reconstruct an image from the gradients of a model.
-    It is used in the InverseGrad algorithm. """
+    """
+    Implements a gradient inversion attack as introduced in
+    "Inverting Gradients -- How Easy Is It to Break Privacy in Federated Learning?"
+    (https://arxiv.org/abs/2003.14053v1)
 
-    def __init__(self, device, original_model, unlearned_model,  
-                 config: InverseGradConfig = InverseGradConfig()):
-        """Initialise with algorithm setup."""
+    This class reconstructs input images from gradients by optimizing dummy inputs 
+    via gradient descent. The optimization process attempts to match the gradients 
+    produced by the reconstructed input with those of the original unlearned image.
+
+    This adaptation of the original algorithm takes in the gradient difference between the
+    original model and the unlearned model.The loss function used for optimization is a
+    combination of cross-entropy loss and Kullback-Leibler divergence, 
+    which helps to ensure that the reconstructed image is similar to the original
+    image in terms of both pixel values and class probabilities.
+    """
+
+    def __init__(self, 
+                 device, 
+                 original_model, 
+                 unlearned_model,  
+                 config: InverseGradConfig = InverseGradConfig(),
+                 seed = 42
+                 ):
+        """
+        Initialise with algorithm setup.
+
+        Args:
+            device (torch.device): Device to run the reconstruction on (CPU or GPU).
+            original_model (torch.nn.Module): The original model before unlearning.
+            unlearned_model (torch.nn.Module): The model after unlearning.
+            config (InverseGradConfig): Configuration object for the reconstruction process.
+        """
         self.config = config
+
         self.original_model = original_model
         self.unlearned_model = unlearned_model
         self.device = device
 
         self.loss_fn_ce = torch.nn.CrossEntropyLoss()
         self.loss_fn = DistillKL(2)
-        self.iDLG = True
         self.input_gradient = self._gradient_difference(config.grad_diff_lr)
+        set_seed(seed)
 
-
-
-    def _gradient_difference(
-            self,
-            grad_lr = 1e-4):
-        param_old = [p.clone().detach() for p in self.original_model.parameters()]
-        param_new = [p.clone().detach() for p in self.unlearned_model.parameters()]
-        return [(new.detach() - old.detach()) / grad_lr for old, new in zip(param_old, param_new)]
 
     def reconstruct(self, labels, image_size=[3, 32, 32], 
                     image_mean = [0.5, 0.5, 0.5],
@@ -77,9 +118,12 @@ class InverseGradReconstructor():
         labels = torch.as_tensor(labels, device = self.device)
         self.num_images = labels.shape[0]
 
+        if self.num_images > 1 and self.config.scoring_choice in ['pixelmean', 'pixelmedian']:
+            raise ValueError('Pixel mean/median scoring choice can only be performed on one image.')
+
+        self.normalizer = transforms.Normalize(image_mean, image_std)
         
-        
-        if eval:
+        if eval: #TODO: maybe remove this 
             self.original_model.eval()
 
         input_data = self.input_gradient
@@ -88,21 +132,22 @@ class InverseGradReconstructor():
         scores = torch.zeros(self.config.num_runs, device=self.device)
 
         if labels is None:
-            if self.num_images == 1 and self.iDLG:
-                # iDLG trick:
-                last_weight_min = torch.argmin(torch.sum(input_data[-2], dim=-1), dim=-1)
-                labels = last_weight_min.detach().reshape((1,)).requires_grad_(False)
-                self.reconstruct_label = False
-            else:
-                # DLG label recovery
-                # However this also improves conditioning for some LBFGS cases
-                self.reconstruct_label = True
+            # if self.num_images == 1 and self.iDLG:
+            # last_weight_min = torch.argmin(torch.sum(input_data[-2], dim=-1), dim=-1)
+            # labels = last_weight_min.detach().reshape((1,)).requires_grad_(False)
+            # self.reconstruct_label = False
+            self.reconstruct_label = True
+        # else:
+            # DLG label recovery
+            # However this also improves conditioning for some LBFGS cases
+            # self.reconstruct_label = True
+            # self.reconstruct_label = False
 
-                def loss_fn(pred, labels):
-                    labels = torch.nn.functional.softmax(labels, dim=-1)
-                    return torch.mean(torch.sum(- labels * torch.nn.functional.log_softmax(pred, dim=-1), 1))
-                self.loss_fn_ce = loss_fn
-                self.loss_fn = DistillKL(2)
+            def loss_fn(pred, labels):
+                labels = torch.nn.functional.softmax(labels, dim=-1)
+                return torch.mean(torch.sum(- labels * torch.nn.functional.log_softmax(pred, dim=-1), 1))
+            self.loss_fn_ce = loss_fn
+                # self.loss_fn = DistillKL(2)
         else:
             self.reconstruct_label = False
 
@@ -110,7 +155,6 @@ class InverseGradReconstructor():
             for trial in range(self.config.num_runs):
                 x_trial, labels = self._run_trial(x[trial].to(self.device), input_data, labels)
                 # Finalize
-                print(f'Finalizing trial {trial} ...')
                 scores[trial] = self._score_trial(x_trial, input_data, labels)
                 print(f'Score: {scores[trial]:2.4f}')
                 x[trial] = x_trial.to(self.device)
@@ -132,7 +176,14 @@ class InverseGradReconstructor():
             x_optimal = x[optimal_index]
 
         return x_optimal.detach(), stats['opt']
-
+    
+    def _gradient_difference(
+            self,
+            grad_lr = 1e-4):
+        param_old = [p.clone().detach() for p in self.original_model.parameters()]
+        param_new = [p.clone().detach() for p in self.unlearned_model.parameters()]
+        return [(new.detach() - old.detach()) / grad_lr for old, new in zip(param_old, param_new)]
+    
     def _init_images(self):
         if self.config.init == 'randn':
             return torch.randn((self.config.num_runs, self.num_images, *self.image_size), device = self.device)
@@ -176,33 +227,26 @@ class InverseGradReconstructor():
             scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
                                                              milestones=[recon_iterations // 2.667, recon_iterations // 1.6,
 
-                                                                         recon_iterations // 1.142], gamma=0.1)   # 3/8 5/8 7/8
+                                                                         recon_iterations // 1.142], gamma=0.5)   # 3/8 5/8 7/8
         try:
             self.model_copy = copy.deepcopy(self.original_model)
             for iteration in range(recon_iterations):
-                closure = self._gradient_closure(optimizer, x_trial.to(self.device), input_data, labels)
+                if self.config.boxed:
+                    x_trial.data  = torch.clamp(x_trial.data, 0, 1)
+
+                closure = self._gradient_closure(optimizer, x_trial, input_data, labels)
                 rec_loss = optimizer.step(closure)
                 if self.config.lr_decay:
                     scheduler.step()
-
-                with torch.no_grad():
-                    # Project into image space
-                    if self.config.boxed:
-                        lower = -self.dm / self.ds
-                        upper = (1 - self.dm) / self.ds
-                        x_trial.data = torch.clamp(x_trial, min=lower, max=upper)
-
 
                     if (iteration + 1 == recon_iterations) or iteration % 500 == 0 and self.verbose:
                         print(f'It: {iteration}. Rec. loss: {rec_loss.item():2.4f}.')
 
                     if (iteration + 1) % 500 == 0:
-                        if self.config.filter== 'none':
-                            pass
-                        elif self.config.filter== 'median':
+                        if self.config.filter == 'median':
                             x_trial.data = MedianPool2d(kernel_size=3, stride=1, padding=1, same=False)(x_trial)
                         else:
-                            raise ValueError()
+                            pass
 
 
         except KeyboardInterrupt:
@@ -215,8 +259,9 @@ class InverseGradReconstructor():
         def closure():
             optimizer.zero_grad()
             self.original_model.zero_grad()
-            loss_ce = self.loss_fn_ce(self.original_model(x_trial.to(self.device)), label)
-            loss_kl = self.loss_fn(self.original_model(x_trial.to(self.device)), self.model_copy(x_trial.to(self.device)))
+            loss_ce = self.loss_fn_ce(self.original_model(self.normalizer(x_trial.to(self.device))), label)
+
+            loss_kl = self.loss_fn(self.original_model(self.normalizer(x_trial.to(self.device))), self.model_copy(self.normalizer(x_trial.to(self.device))))
             loss = loss_ce + loss_kl
 
             gradient = torch.autograd.grad(loss, self.original_model.parameters(), create_graph=True)
@@ -236,8 +281,8 @@ class InverseGradReconstructor():
         if self.config.scoring_choice == 'loss':
             self.original_model.zero_grad()
             x_trial.grad = None
-            loss_ce = self.loss_fn_ce(self.original_model(x_trial), label)
-            loss_kl = self.loss_fn(self.original_model(x_trial), self.model_copy(x_trial))
+            loss_ce = self.loss_fn_ce(self.original_model((x_trial)), label)
+            loss_kl = self.loss_fn(self.original_model((x_trial)), self.model_copy(self.normalizer(x_trial)))
             loss =  loss_ce + loss_kl
 
             gradient = torch.autograd.grad(loss, self.original_model.parameters(), create_graph=False)
@@ -246,7 +291,7 @@ class InverseGradReconstructor():
                                         weights=self.config.weights)
         elif self.config.scoring_choice== 'tv':
             return total_variation(x_trial)
-        elif self.config.scoring_choice in ['pixelmean', 'pixelmedian']:
+        elif self.config.scoring_choice in ['pixelmean', 'pixelmedians']:
             return 0.0
         else:
             raise ValueError()
@@ -260,8 +305,9 @@ class InverseGradReconstructor():
 
         self.original_model.zero_grad()
         if self.reconstruct_label:
-            labels = self.original_model(x_optimal).softmax(dim=1) #TODO: change loss here
-        loss = self.loss(self.original_model(x_optimal), labels)
+            labels = self.original_model(x_optimal).softmax(dim=1) #TODO: change loss here,
+        loss = self.loss_fn_ce(self.original_model(x_optimal), labels) #TODO: use kl?
+
         gradient = torch.autograd.grad(loss, self.original_model.parameters(), create_graph=False)
         stats['opt'] = reconstruction_costs([gradient], input_data,
                                             cost_fn=self.config.cost_fn,
@@ -283,78 +329,6 @@ class DistillKL(nn.Module):
         p_t = F.softmax(y_t / self.T, dim=1)
         loss = F.kl_div(p_s, p_t, size_average=False) * (self.T**2) / y_s.shape[0]
         return loss
-
-class MultiStepReconstructor(InverseGradReconstructor):
-    """Reconstruct an image from weights after n gradient descent steps."""
-
-    def __init__(self, model, mean_std=(0.0, 1.0), local_steps=2, local_lr=1e-4,
-                 config: InverseGradConfig = InverseGradConfig(), num_images=1, use_updates=True, batch_size=0):
-        """Initialize with model, (mean, std) and config."""
-        super().__init__(model, mean_std, config, num_images)
-        self.local_steps = local_steps
-        self.local_lr = local_lr
-        self.use_updates = use_updates
-        self.batch_size = batch_size
-
-    def _gradient_closure(self, optimizer, x_trial, input_parameters, labels):
-        def closure():
-            optimizer.zero_grad()
-            self.original_model.zero_grad()
-            parameters = loss_steps(self.original_model, x_trial, labels, loss_fn=self.loss_fn,
-                                    local_steps=self.local_steps, lr=self.local_lr,
-                                    use_updates=self.use_updates,
-                                    batch_size=self.batch_size)
-            rec_loss = reconstruction_costs([parameters], input_parameters,
-                                            cost_fn=self.config.cost_fn, indices=self.config.indices,
-                                            weights=self.config.weights)
-
-            if self.config.total_variation > 0:
-                rec_loss += self.config.total_variation * total_variation(x_trial)
-            rec_loss.backward()
-            if self.config.signed:
-                x_trial.grad.sign_()
-            return rec_loss
-        return closure
-
-    def _score_trial(self, x_trial, input_parameters, labels):
-        if self.config.scoring_choice == 'loss':
-            self.original_model.zero_grad()
-            parameters = loss_steps(self.original_model, x_trial, labels, loss_fn=self.loss_fn,
-                                    local_steps=self.local_steps, lr=self.local_lr, use_updates=self.use_updates)
-            return reconstruction_costs([parameters], input_parameters,
-                                        cost_fn=self.config.cost_fn, indices=self.config.indices,
-                                        weights=self.config.weights)
-        elif self.config.scoring_choice== 'tv':
-            return total_variation(x_trial)
-
-
-def loss_steps(model, inputs, labels, loss_fn=torch.nn.CrossEntropyLoss(), lr=1e-4, local_steps=4, use_updates=True, batch_size=0):
-    """Take a few gradient descent steps to fit the model to the given input."""
-    patched_model = MetaMonkey(model)
-    if use_updates:
-        patched_model_origin = deepcopy(patched_model)
-    for i in range(local_steps):
-        if batch_size == 0:
-            outputs = patched_model(inputs, patched_model.parameters)
-            labels_ = labels
-        else:
-            idx = i % (inputs.shape[0] // batch_size)
-            outputs = patched_model(inputs[idx * batch_size:(idx + 1) * batch_size], patched_model.parameters)
-            labels_ = labels[idx * batch_size:(idx + 1) * batch_size]
-        loss_ce = loss_fn(outputs, labels_).sum()
-    
-        grad = torch.autograd.grad(loss, patched_model.parameters.values(),
-                                   retain_graph=True, create_graph=True, only_inputs=True)
-
-        patched_model.parameters = OrderedDict((name, param + lr * grad_part)
-                                               for ((name, param), grad_part)
-                                               in zip(patched_model.parameters.items(), grad))
-
-    if use_updates:
-        patched_model.parameters = OrderedDict((name, param - param_origin)
-                                               for ((name, param), (name_origin, param_origin))
-                                               in zip(patched_model.parameters.items(), patched_model_origin.parameters.items()))
-    return list(patched_model.parameters.values())
 
 
 def reconstruction_costs(gradients, input_gradient, cost_fn='l2', indices='def', weights='equal'):
