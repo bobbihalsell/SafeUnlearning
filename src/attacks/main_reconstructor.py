@@ -158,13 +158,15 @@ class ReconstructorApp(InputValidator):
         config = self.reconstructor_params.copy() 
         config['type'] = self.reconstructor_name
         config['reconstructor_lr'] = self.reconstructor_lr  
+        config.update(self.extra_config)
         
         wandb.init(
-            project = "reconstruction",
-            config =  config,
-            group=self.experiment_name
+            project = self.wandb_project,
+            config = config,
+            group = self.experiment_name
             )
         
+
         # Step 4: Reconstruction
         reconstructor = self.initialize_reconstructor(unlearned_model, original_model)
         print('reconstructor initialized')
