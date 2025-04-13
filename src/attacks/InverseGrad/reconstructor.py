@@ -6,8 +6,9 @@ import torch.nn.functional as F
 import copy
 from dataclasses import dataclass
 from collections import defaultdict, OrderedDict
-from InverseGrad.medianfilt import MedianPool2d
+from attacks.InverseGrad.medianfilt import MedianPool2d
 import torchvision.transforms as transforms
+
 
 from ..utils import set_seed
 

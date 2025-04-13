@@ -62,7 +62,9 @@ class InputValidator:
                                      'alpha', 'gamma', 'min_epochs',
                                      'max_epochs', 'batch_size',
                                      'loss_models', 'budget',
-                                     'search_dim', 'use_tanh']
+                                     'search_dim', 'use_tanh', 
+                                     'gp_optim', 'use_scheduler', 
+                                     'initial_lr']
             missing_ggl_params = []
             for param in required_ggl_params:
                 if param not in self.reconstructor_params:
