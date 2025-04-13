@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import copy
 import torch.nn.functional as F
-from base import BaseUnlearner
+from unlearning.base import BaseUnlearner
 from typing import Dict
 from torch.utils.data import DataLoader, TensorDataset
 

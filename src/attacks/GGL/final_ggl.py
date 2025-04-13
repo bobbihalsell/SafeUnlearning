@@ -31,19 +31,12 @@ def get_transform(dataset_name):
                                 [0.229, 0.224, 0.225])
         ])
     
-def set_seed(seed):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
 
 
 
 class GGLReconstructor():
     #def __init__(self, original_model, target_model, generator, loss_fn, unlearning_method, loss_models='l1', num_classes=1000, num_updates=None, lr=0.01, search_dim=128, use_tanh=False, budget=500, alpha=None, gamma=None, min_epochs=None, max_epochs=None, label=None, save_img=None, save_z=None, batch_size=1):
-    def __init__(self, original_model, target_model, loss_fn, search_dim=128, use_tanh=False, budget=500, loss_models='l1', unlearning_method='neggrad', num_classes=1000, num_updates=None, lr=0.01,  alpha=None, gamma=None, min_epochs=None, max_epochs=None, labels=None, exp_name='ggl', initial_z=None, batch_size=1):
+    def __init__(self, original_model, target_model, loss_fn, search_dim=128, use_tanh=False, budget=500, loss_models='l1', unlearning_method='neggrad', num_classes=1000, num_updates=None, lr=0.01,  alpha=None, gamma=None, min_epochs=None, max_epochs=None, labels=None, exp_name='ggl', initial_z=None, batch_size=1, gp_optim="AdamW", use_scheduler=False, initial_lr=1):
         """
         original_model: The original model (pre-update).
         target_model: The target model (unlearned model).
@@ -77,6 +70,9 @@ class GGLReconstructor():
         self.label = labels
         self.exp_name = exp_name
         self.initial_z_path = initial_z
+        self.gp_optim = gp_optim
+        self.use_scheduler=use_scheduler
+        self.initial_lr=initial_lr
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -85,6 +81,8 @@ class GGLReconstructor():
         Evaluates the interpolation-based loss for the given latent vector z.
         """
         generated_image = self.generate_image(z, labels)
+        
+
         # Create a copy
         recon = copy.deepcopy(self.original_model)
         recon.eval()
@@ -239,13 +237,13 @@ class GGLReconstructor():
         
         # Convert labels to one-hot encoding for BigGAN
         c = torch.nn.functional.one_hot(label_tensor, num_classes=self.num_classes).float().to(self.device)
-
         # Use BigGAN to generate an image
         with torch.no_grad():
             generated_image = self.generator(noise_vector, c, 1)  # 1 is the truncation value
 
         # Rescale image to 224x224 
         generated_image = nn.functional.interpolate(generated_image, size=(224, 224), mode='area')
+
         
         return generated_image
 
@@ -255,11 +253,12 @@ class GGLReconstructor():
         Optimize the latent vector z using Turbo Bayesian Optimization.
         If `initial_z` is provided, it starts from there instead of a random initialization.
         """
-        label = self.label #TODO: change for multiple instances
-        x_path = f"/vol/bitbucket/oap24/pipeline_code/safe-unlearning/src/artifacts/reconstructed/GGL/results_report2/{self.exp_name}_labels{label}_{self.unlearning_method}_lr{self.lr}_updates{self.num_updates}_budget{self.budget}_loss{self.type}_BO_seed42_gp_AdamW_1_scheduler.png"
-        z_path = f"/vol/bitbucket/oap24/pipeline_code/safe-unlearning/src/artifacts/reconstructed/GGL/results_report2/{self.exp_name}_labels{label}_{self.unlearning_method}_lr{self.lr}_updates{self.num_updates}_budget{self.budget}_loss{self.type}_BO_seed42_gp_AdamW_1_scheduler"
+        label = self.label[0] #TODO: change for multiple instances
+        x_path = f"/vol/bitbucket/oap24/pipeline_code/safe-unlearning/src/artifacts/reconstructed/GGL/results_report2/TEST_norm_{self.exp_name}_labels{label}_{self.unlearning_method}_lr{self.lr}_updates{self.num_updates}_budget{self.budget}_loss{self.type}_BO_seed42_gp{self.gp_optim}_{self.initial_lr}_scheduler{self.use_scheduler}.png"
+        z_path = f"/vol/bitbucket/oap24/pipeline_code/safe-unlearning/src/artifacts/reconstructed/GGL/results_report2/TEST_norm{self.exp_name}_labels{label}_{self.unlearning_method}_lr{self.lr}_updates{self.num_updates}_budget{self.budget}_loss{self.type}_BO_seed42_gp{self.gp_optim}_{self.initial_lr}_scheduler{self.use_scheduler}"
         labels = torch.tensor([label])  # Assign a label
         f = lambda z: self.evaluate_loss(z, labels, loss_type=self.type)  # Define the objective function
+        labels = labels.to(self.device)
 
         # Define search space
         z_lb = -2 * np.ones(self.search_dim)
@@ -282,6 +281,9 @@ class GGLReconstructor():
             min_cuda=1024,
             device=device_str,
             dtype="float32",
+            gp_optim=self.gp_optim,
+            use_scheduler=self.use_scheduler,
+            initial_lr=self.initial_lr
         )
 
         # If an initial z is provided, use it instead of a random start

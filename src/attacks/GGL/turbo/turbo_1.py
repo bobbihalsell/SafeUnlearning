@@ -62,6 +62,9 @@ class Turbo1:
         min_cuda=1024,
         device="cpu",
         dtype="float64",
+        gp_optim="AdamW",
+        use_scheduler=False,
+        initial_lr=1
     ):
 
         # Very basic input checks
@@ -127,6 +130,11 @@ class Turbo1:
         # Initialize parameters
         self._restart()
 
+
+        self.gp_optim = gp_optim
+        self.use_scheduler = use_scheduler
+        self.initial_lr = initial_lr
+
     def _restart(self):
         self._X = []
         self._fX = []
@@ -171,7 +179,8 @@ class Turbo1:
             X_torch = torch.tensor(X).to(device=device, dtype=dtype)
             y_torch = torch.tensor(fX).to(device=device, dtype=dtype)
             gp = train_gp(
-                train_x=X_torch, train_y=y_torch, use_ard=self.use_ard, num_steps=n_training_steps, hypers=hypers
+                train_x=X_torch, train_y=y_torch, use_ard=self.use_ard, num_steps=n_training_steps, hypers=hypers,
+                 gp_optim=self.gp_optim, use_scheduler=self.use_scheduler, initial_lr=self.initial_lr
             )
 
             # Save state dict
