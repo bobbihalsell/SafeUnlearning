@@ -14,6 +14,8 @@ class InputValidator:
         self.seed = config['seed']
         self.verbose = config['verbose']
 
+        self.wandb = config['wandb']
+
         data_config = config['data']
         self.model_name = data_config['model_name']
         self.labels = data_config['labels']
@@ -28,16 +30,9 @@ class InputValidator:
         self.reconstructor_lr = config['reconstructor']['lr']
         self.reconstructor_params = config['reconstructor']['cfg']
 
-        print(self.reconstructor_name)
+        self.wandb_project = config['wandb']['project']
+        self.extra_config = self.wandb.get('extra_config', {})
 
-        print(self.reconstructor_params)
-
-        # if self.reconstructor_name == 'ggl':
-        #     self.reconstructor_params = config["reconstructor"]['GGL']
-
-
-        # elif self.reconstructor_name == 'inversegrad':
-        #     self.reconstructor_params = config["reconstructor"]['InverseGrad']
 
         
         self._validate_experiment_params()
