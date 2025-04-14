@@ -1,0 +1,12 @@
+defaults:
+  - experiment: ???
+  - data: ???
+  - reconstructor: ???
+seed: 42
+verbose: true
+wandb: # optional Weights and Biases configuration
+  project: MU reconstruction
+  # extra_config:  # optional extra configuration to be logged in wandb
+  #   unlearning_method: 'neggrad'
+  #   beta: 0
+  #   epochs: 1
