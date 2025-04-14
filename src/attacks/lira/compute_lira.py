@@ -9,7 +9,7 @@ from omegaconf import DictConfig
 from scipy.stats import norm
 from torch.utils.data import ConcatDataset
 
-from src.datasets.load_datasets import load_train_val_test_datasets
+from datasets.load_datasets import load_train_val_test_datasets
 
 
 def predicted_membership_probability(

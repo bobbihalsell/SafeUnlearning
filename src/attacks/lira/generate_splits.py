@@ -6,7 +6,7 @@ import numpy as np
 from numpy.typing import NDArray as Array
 from omegaconf import DictConfig
 
-from src.datasets.load_datasets import load_train_val_test_datasets
+from datasets.load_datasets import load_train_val_test_datasets
 
 
 def generate_lira_train_tests(

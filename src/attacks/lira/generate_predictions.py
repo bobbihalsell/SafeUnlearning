@@ -6,9 +6,9 @@ import torch.nn as nn
 from torch.nn.functional import softmax
 from torch.utils.data import ConcatDataset, DataLoader
 
-from src.attacks.lira.utils import load_model
-from src.datasets.load_datasets import load_train_val_test_datasets
-from src.datasets.cifar10 import get_cifar10_test_transform
+from attacks.lira.utils import load_model
+from datasets.load_datasets import load_train_val_test_datasets
+from datasets.cifar10 import get_cifar10_test_transform
 
 
 def run(config: DictConfig, root: Path, unlearner: str) -> None:

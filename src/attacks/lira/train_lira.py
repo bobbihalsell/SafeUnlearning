@@ -3,19 +3,25 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from utils import get_loaders_from_indices, get_retain_forget_val_indices
+from attacks.lira.utils import get_loaders_from_indices, get_retain_forget_val_indices
 
-from src.unlearning.main import UnlearnApp
+from unlearning.main import UnlearnApp
 
 
 class UnlearnAppForLiRA(UnlearnApp):
-    def __init__(self, config):
+    def __init__(self, config, unlearner_name):
         super().__init__(config)
+        self.unlearner_name = unlearner_name
 
-    def run(self, dataloaders):
+    def run(self, dataloaders, model_ckpt_path):
         print("running...")
         # Step 1: Initialize the model
-        original_model = self.load_model_from_disk(self.model_ckpt_path)
+        original_model = self.initialize_model()
+        if model_ckpt_path:
+            # Load state dict
+            checkpoint = torch.load(model_ckpt_path, map_location=self.device)
+            original_model.load_state_dict(checkpoint['model_state_dict'])
+        original_model.to(self.device)
 
         # Step 2: Unlearning
         unlearner = self.initialize_unlearner()
@@ -27,30 +33,18 @@ class UnlearnAppForLiRA(UnlearnApp):
             **self.unlearn_params,
         )
         print("model unlearned")
-
-        # Step 3: Save the unlearned model
-        directory = f"{self.output_dir}/unlearn/{self.unlearning_algorithm}"
-        os.makedirs(directory, exist_ok=True)  # Ensure the directory exists
-
-        filepath = os.path.join(
-            directory, f"{self.model_name}_{self.seed}_{self.model_type}.pt"
-        )
-        torch.save(unlearned_model.state_dict(), filepath)
+        return unlearned_model
 
 
-def main(config, unlearner):
-    model_name = config.model.name
-    dataset_name = config.dataset.name
-    root = config.root
-    seed = config.seed
-    num_splits = config.dataset.num_splits
-    num_forgets = config.dataset.num_forgets
+def run(config, unlearner, root, save_path):
+    num_splits = config.attack.cfg.num_splits
+    num_forgets = config.attack.cfg.num_forgets
 
-    name_save_path = root + "unlearn"
+    name_save_path = root / save_path / "models"
     if not Path(name_save_path).exists():
         Path(name_save_path).mkdir(parents=True, exist_ok=True)
 
-    app = UnlearnAppForLiRA(config)
+    app = UnlearnAppForLiRA(config, unlearner)
 
     for split_ndx in range(num_splits):
         for forget_ndx in range(num_forgets):
@@ -59,10 +53,25 @@ def main(config, unlearner):
                 split_ndx=split_ndx,
                 forget_ndx=forget_ndx,
             )
+            if save_path == "original":
+                retain = np.concatenate([retain, forget])
 
-            retain_loader, forget_loader, val_loader = get_loaders_from_indices(
-                root=root,
-                indices=[retain, forget, val],
+            loaders = get_loaders_from_indices(
                 config=config,
+                indices=[retain, forget, val],
             )
-            app.run([retain_loader, forget_loader, val_loader])
+
+            model_ckpt_path = ""
+            if save_path not in ["original", "naive"]:
+                model_ckpt_path = (
+                    root
+                    / "original" / "models"
+                    / f"{config.model.name}_{split_ndx}_{forget_ndx}.pth"
+                )
+            unlearned_model = app.run(loaders, model_ckpt_path)
+            torch.save(
+                unlearned_model.state_dict(),
+                root
+                / save_path / "models"
+                / f"{config.model.name}_{split_ndx}_{forget_ndx}.pth"
+            )

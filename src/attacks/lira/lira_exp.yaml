@@ -3,14 +3,29 @@ dataset:
   save_path: ./data
   val_ratio: 0.2
   forget_ratio: 0.2
+  cfg:
+    batch_sizes:
+      retain: 32
+      forget: 32
+      val: 32
+    num_workers: 4
 
 model:
   name: resnet18
   num_classes: 10
   pretrained: false
+  model_ckpt_path: "artifacts/attacks/lira/test_exp/in/models/test.pth"
+  output_dir: lira_test_config
 
 unlearner:
   name: neggradplus
+  cfg:
+    lr: 0.0005
+    weight_decay: 0
+    use_l2_penalty: false
+    epochs: 2 # Ignored for scrub
+    beta: 0.99  # For neggradplus  beta = 0: forget only, beta = 1: retain only
+
 
 attack:
   name: lira
@@ -23,3 +38,4 @@ seed: 42
 device: cpu
 batch_size: 1024
 num_workers: 4
+verbose: true

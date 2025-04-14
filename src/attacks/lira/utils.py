@@ -1,14 +1,17 @@
 from pathlib import Path
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 from numpy.typing import NDArray as Array
 from omegaconf import DictConfig
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
+from torch.utils.data import ConcatDataset, DataLoader, Subset
 import torchvision
 import timm
+
+from datasets.load_datasets import load_train_val_test_datasets
+from datasets.cifar10 import get_cifar10_test_transform
 
 
 def get_retain_forget_val_indices(
@@ -29,40 +32,30 @@ def get_retain_forget_val_indices(
 
 
 def get_loaders_from_indices(
-    root: Path,
-    indices: List[Array],
     config: DictConfig,
-) -> List[DataLoader]:
-    dataset_root = root / "datasets"
-    dataset_name = dataset_cfg.name
-    non_augmented_dataset, _ = get_dataset_and_lengths(
-        dataset_root, dataset_name, get_train_transform(dataset_name)
-    )
-    augmented_dataset, _ = get_dataset_and_lengths(
-        dataset_root, dataset_name, get_test_transform(dataset_name)
-    )
+    indices: List[Array],
+) -> Dict[str, DataLoader]:
+    dataset = config.dataset.name
+    save_dir = config.dataset.save_path
+    transform = get_cifar10_test_transform()
+
+    train, val, test = load_train_val_test_datasets(dataset, 1, config.dataset.val_ratio, save_dir, save_dir, transform)
+    dataset = ConcatDataset([train, val, test])
 
     retain_indices, forget_indices, val_indices = indices
-    loaders = []
+    loaders = {}
     for split_name, indices in zip(
         ["retain", "forget", "val"], [retain_indices, forget_indices, val_indices]
     ):
-        data_set = get_dataset_based_on_split_state(
-            non_augmented_dataset,
-            augmented_dataset,
-            getattr(unlearner_cfg.loaders, split_name).state,
-            indices,
-        )
+        data_set = Subset(dataset, indices)
         loader = DataLoader(
             data_set,
-            batch_size=unlearner_cfg.batch_size,
-            shuffle=getattr(unlearner_cfg.loaders, split_name).shuffle,
-            num_workers=get_num_workers_from_shuffle(
-                getattr(unlearner_cfg.loaders, split_name).shuffle
-            ),
+            batch_size=config.batch_size,
+            shuffle=False,
+            num_workers=config.num_workers,
             pin_memory=False,
         )
-        loaders.append(loader)
+        loaders[split_name] = loader
 
     return loaders
 

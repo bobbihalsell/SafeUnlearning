@@ -1,5 +1,5 @@
-from src.unlearning.config_validation import InputValidator
-from src.unlearning.utils import ConfigError
+from unlearning.config_validation import InputValidator
+from unlearning.utils import ConfigError
 
 
 class LiRAValidator(InputValidator):
