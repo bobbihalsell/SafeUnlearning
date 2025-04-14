@@ -195,7 +195,7 @@ class TrainApp:
             return None
 
         wandb.init(
-            project="TEST",
+            project=wandb_project_name,
             config={
                 "epochs": num_epochs,
                 "batch_size": self.batch_sizes['train'],
