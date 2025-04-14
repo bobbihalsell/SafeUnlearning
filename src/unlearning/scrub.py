@@ -4,7 +4,7 @@ import copy
 import torch.nn.functional as F
 from unlearning.base import BaseUnlearner
 from typing import Dict
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
 
 
 class SCRUB(BaseUnlearner):
@@ -221,26 +221,21 @@ class SCRUB(BaseUnlearner):
         Returns:
             Tuple of (unlearned_model, losses) where losses contains
             tracked losses for each dataset type
-
-        Raises:
-            ValueError: If epochs are less than 1 or required data is missing
         """
         model.to(self.device)
         unlearned_model = copy.deepcopy(model)
 
         # Validate and extract common hyperparameters
         loss_fn, _, lr, weight_decay, _ = self.valid_args(**kwargs)
-        #if min_epochs < 1 or max_epochs < 1:
-            #raise ValueError("Number of min and max epochs must be greater than 0.")
-        
-        # Check for required datasets
-        if 'retain' not in data_dict.keys() and 'forget' not in data_dict.keys():
-            raise ValueError("'forget' and 'retain' data must be in data_dict.")
+
+        if ('retain' not in data_dict.keys() or
+                'forget' not in data_dict.keys()):
+            raise KeyError("forget and retain data must be in data_dict.")
 
         # Extract additional hyperparameters
-        alpha = kwargs.get('alpha', 1.0)
-        gamma = kwargs.get('gamma', 1.0)
-        if alpha < 0 or gamma < 0:  
+        alpha = kwargs['alpha']
+        gamma = kwargs['gamma']
+        if alpha < 0 or gamma < 0:
             raise ValueError("Alpha and gamma must be non-negative.")
 
         # Initialize loss tracking
