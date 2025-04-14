@@ -14,7 +14,7 @@ class SCRUB(BaseUnlearner):
 
     SCRUB employs a bi-level optimization strategy to:
     1. Maximize divergence on forget data (maximize KL divergence)
-    2. Minimize divergence on retain data (minimize KL divergence + classification error)
+    2. Minimize divergence on retain data (minimize KL divergence + CE loss)
 
     This approach ensures the model "forgets" specific data while maintaining
     performance on data that should be retained.
@@ -242,47 +242,40 @@ class SCRUB(BaseUnlearner):
         optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
                                     lr=lr,
                                     weight_decay=weight_decay)
-        if min_epochs > 0:
-            eval_dataloaders = (['val', 'forget'] if
-                                data_dict['val'] is not None else ['forget'])
-        else:
-            eval_dataloaders = ['retain', 'forget', 'val']
+
+        eval_dataloaders = (['val', 'forget'] if
+                            data_dict['val'] is not None else ['forget'])
 
         # Calculate total number of epochs and initialize counters
-        num_epochs = max(min_epochs, max_epochs)
-        min_i = 0
-        max_i = 0
+        total_epochs = max_epochs + min_epochs
 
-        for e in range(num_epochs):
+        for e in range(total_epochs):
             model.eval()
             unlearned_model.eval()
 
             # Maximize divergence on forget data
-            if max_i < max_epochs:
-                self.max_epoch(model,
-                               unlearned_model,
-                               data_dict['forget'],
-                               optimizer)
-                max_i += 1
+            if e < max_epochs:
+                self.max_epoch(
+                    model,
+                    unlearned_model,
+                    data_dict['forget'],
+                    optimizer)
 
             # Minimize divergence on retain data
-            if min_i < min_epochs:
-                retain_loss = self.min_epoch(
-                                    model,
-                                    unlearned_model,
-                                    data_dict['retain'],
-                                    optimizer,
-                                    alpha=alpha,
-                                    gamma=gamma,
-                                )
-                min_i += 1
+            retain_loss = self.min_epoch(
+                                model,
+                                unlearned_model,
+                                data_dict['retain'],
+                                optimizer,
+                                alpha=alpha,
+                                gamma=gamma,
+                            )
 
-            if verbose and min_epochs > 0:
+            if verbose:
                 print(f'Epoch {e}: Retain Loss: {retain_loss}')
 
             if self.evaluate:
-                if min_epochs > 0:
-                    losses['retain_losses'].append(retain_loss)
+                losses['retain_losses'].append(retain_loss)
 
                 unlearned_model.eval()
                 # Evaluate model on other datasets
