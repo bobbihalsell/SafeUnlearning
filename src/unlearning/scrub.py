@@ -225,6 +225,11 @@ class SCRUB(BaseUnlearner):
 
         optimizer = self.initialize_optimizer(unlearned_model,
                                               optimizer_name=self.optimizer)
+        if (self.epochs_per_lr_decay is not None and
+                self.lr_decay_factor is not None):
+            scheduler = self.initialize_scheduler(optimizer=optimizer)
+        else:
+            scheduler = None
 
         eval_dataloaders = (['val', 'forget'] if
                             data_dict['val'] is not None else ['forget'])
@@ -253,7 +258,11 @@ class SCRUB(BaseUnlearner):
                             )
 
             if verbose:
-                print(f'Epoch {e+1}: Retain Loss: {retain_loss}')
+                if scheduler is not None:
+                    current_lr = scheduler.optimizer.param_groups[0]['lr']
+                else:
+                    current_lr = optimizer.param_groups[0]['lr']
+                print(f'Epoch {e+1}: Retain Loss: {retain_loss} LR: {current_lr:.5f}')
 
             if self.evaluate:
                 losses['retain_losses'].append(retain_loss)
@@ -270,5 +279,8 @@ class SCRUB(BaseUnlearner):
                               end='  ')
                 if verbose:
                     print()
+
+            if scheduler is not None:
+                scheduler.step()
 
         return unlearned_model, losses
