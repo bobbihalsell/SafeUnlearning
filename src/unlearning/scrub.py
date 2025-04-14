@@ -33,8 +33,8 @@ class SCRUB(BaseUnlearner):
         """
         super().__init__(device, evaluate)
 
-    def _kl_divergence(self, 
-                       model1_logits: torch.Tensor, 
+    def _kl_divergence(self,
+                       model1_logits: torch.Tensor,
                        model2_logits: torch.Tensor
                        ) -> torch.Tensor:
         """
@@ -65,8 +65,8 @@ class SCRUB(BaseUnlearner):
 
     def forget_loss(self, original_out, unl_out):
         """
-        Compute the training loss for forgetting data.
-        For forget data, we want to maximize the KL divergence between the original
+        Compute the training loss over a set of forget data.
+        For forget data, we want to maximize the KL divergence between original
         and unlearned model outputs.
 
         Args:
@@ -74,19 +74,20 @@ class SCRUB(BaseUnlearner):
             unl_out: Output logits from the unlearned model
 
         Returns:
-            Normalized KL divergence loss for forget data
+            Tuple of normalized KL divergence, unnormalized KL divergence
         """
         # Get batch size for normalization
         Nf = len(original_out)
         # Compute KL divergence between original and unlearned model outputs
         forget_kl = self._kl_divergence(original_out, unl_out)
+
         return forget_kl/Nf, forget_kl
 
     def retain_loss(self, original_out, unl_out, true_y, alpha, gamma, criterion):
         """
-        Compute the composite loss for retaining data.
+        Compute the composite loss over a set of retain data.
 
-        For retain data, we want to: 
+        For retain data, we want to:
             - Minimize KL divergence between original and unlearned models
             - Maintain classification accuracy through cross-entropy loss
 
@@ -101,15 +102,17 @@ class SCRUB(BaseUnlearner):
         Returns:
             Tuple containing:
             - Combined weighted loss (KL + CE)
-            - KL divergence component (normalized)
-            - Cross-entropy component (normalized)
+            - KL divergence component (raw)
+            - Cross-entropy component (raw)
         """
         Nr = len(original_out)
         retain_kl = self._kl_divergence(original_out, unl_out)
         retain_ce = criterion(unl_out, true_y)
+
         return (alpha * retain_kl + gamma * retain_ce)/Nr, retain_kl, retain_ce
 
-    def max_epoch(self, model, unlearned_model, forget_loader, optimizer, step=True):
+    def max_epoch(self, model, unlearned_model,
+                  forget_loader, optimizer, step=True):
         """
         Perform one epoch of maximizing divergence on forget data.
         This is the "forgetting" step where we make the model outputs diverge
@@ -124,25 +127,23 @@ class SCRUB(BaseUnlearner):
             Average loss across all batches
         """
         avg_loss = 0.0
-        avg_kl_loss = 0.0
         for forget_batch in forget_loader:
             forget_x = forget_batch[0]
             forget_x = forget_x.to(self.device)
             # Compute divergence loss
             original_out = model(forget_x)
             unl_out = unlearned_model(forget_x)
-            loss, forget_kl = self.forget_loss(original_out, unl_out)
+            loss, _ = self.forget_loss(original_out, unl_out)
             if step:
                 optimizer.zero_grad()
                 # We negate the loss because we want to maximize divergence
                 (-loss).backward()
                 optimizer.step()
             avg_loss += loss
-            avg_kl_loss += forget_kl
         # Normalize by number of batches
         avg_loss = avg_loss/len(forget_loader)
-        avg_kl_loss = avg_kl_loss/len(forget_loader)
-        return avg_loss, avg_kl_loss
+
+        return avg_loss
 
     def min_epoch(self, model, unlearned_model, retain_loader, optimizer, alpha, gamma, criterion):
         """
@@ -175,7 +176,6 @@ class SCRUB(BaseUnlearner):
             # Compute retain losses
             original_out = model(retain_x)
             unl_out = unlearned_model(retain_x)
-            loss = self.forget_loss(original_out, unl_out)
             loss, kl_loss, ce_loss = self.retain_loss(original_out, unl_out, retain_y, alpha, gamma, criterion)
             optimizer.zero_grad()
             # Perform optimization using combined loss
@@ -261,7 +261,10 @@ class SCRUB(BaseUnlearner):
 
             # Maximize divergence on forget data
             if max_i < max_epochs:
-                self.max_epoch(model, unlearned_model, data_dict['forget'], optimizer)
+                self.max_epoch(model,
+                               unlearned_model,
+                               data_dict['forget'],
+                               optimizer)
                 max_i += 1
 
             # Minimize divergence on retain data
