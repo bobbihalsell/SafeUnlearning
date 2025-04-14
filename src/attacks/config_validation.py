@@ -7,9 +7,9 @@ class InputValidator:
     def __init__(self, config):
         assert isinstance(config, dict)
 
-        self.experiment_name = config['experiment']['name']
-        self.original_weights = config['experiment']['original_weights']
-        self.unlearned_weights = config['experiment']['unlearned_weights']
+        self.experiment_name = config['experiment_name']
+        self.original_weights = config['original_weights']
+        self.unlearned_weights = config['unlearned_weights']
 
         self.seed = config['seed']
         self.verbose = config['verbose']
@@ -21,9 +21,9 @@ class InputValidator:
         self.labels = data_config['labels']
         self.dataset_name = data_config['dataset_name']
         self.num_classes = data_config['num_classes']
-        self.image_mean = data_config['image_mean']
-        self.image_std = data_config['image_std']
-        self.image_size = data_config['image_size']
+        # self.image_mean = data_config['image_mean']
+        # self.image_std = data_config['image_std']
+        # self.image_size = data_config['image_size']
         self.data_root = data_config['data_root']
 
         self.reconstructor_name = config['reconstructor']['type']

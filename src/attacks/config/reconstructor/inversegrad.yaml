@@ -9,7 +9,7 @@ cfg:
   weights: equal
   optim: adamw
   num_runs: 1
-  recon_iterations: 100
+  recon_iterations: 5000
   total_variation: 1e-1
   init: randn
   lr_decay: True
