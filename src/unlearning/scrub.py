@@ -110,7 +110,7 @@ class SCRUB(BaseUnlearner):
         retain_kl = self._kl_divergence(original_out, unl_out)
         retain_ce = self.criterion(unl_out, true_y)
 
-        return (alpha * retain_kl + gamma * retain_ce)/Nr, retain_kl, retain_ce
+        return (alpha * retain_kl)/Nr + gamma * retain_ce, retain_kl, retain_ce
 
     def max_epoch(self, model, unlearned_model,
                   forget_loader, optimizer, step=True):
@@ -125,7 +125,7 @@ class SCRUB(BaseUnlearner):
             step: Whether to perform optimization step (True) or just compute loss (False)
 
         Returns:
-            Average loss across all batches
+            Average KL loss across all batches
         """
         avg_loss = 0.0
         for forget_batch in forget_loader:
@@ -160,10 +160,7 @@ class SCRUB(BaseUnlearner):
             gamma: Weight for the cross-entropy component
 
         Returns:
-            Tuple containing average values for:
-            - Combined loss
-            - KL divergence component
-            - Cross-entropy component
+            Cross-entropy component of loss, for performance reporting
         """
         # Average CE loss is only for reporting
         avg_ce_loss = 0.0
