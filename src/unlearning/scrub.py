@@ -81,6 +81,7 @@ class SCRUB(BaseUnlearner):
         # Compute KL divergence between original and unlearned model outputs
         forget_kl = self._kl_divergence(original_out, unl_out)
         return forget_kl/Nf, forget_kl
+
     def retain_loss(self, original_out, unl_out, true_y, alpha, gamma, criterion):
         """
         Compute the composite loss for retaining data.
@@ -107,27 +108,21 @@ class SCRUB(BaseUnlearner):
         retain_kl = self._kl_divergence(original_out, unl_out)
         retain_ce = criterion(unl_out, true_y)
         return (alpha * retain_kl + gamma * retain_ce)/Nr, retain_kl, retain_ce
-    def max_epoch(self, model, unlearned_model, forget_data, optimizer, step=True):
+
+    def max_epoch(self, model, unlearned_model, forget_loader, optimizer, step=True):
         """
         Perform one epoch of maximizing divergence on forget data.
         This is the "forgetting" step where we make the model outputs diverge
         from the original model on data that should be forgotten.
 
         Args:
-            forget_data: The data to forget (tuple of tensors or DataLoader)
+            forget_loader: The forget DataLoader
             optimizer: Optimizer for updating model parameters
             step: Whether to perform optimization step (True) or just compute loss (False)
 
         Returns:
             Average loss across all batches
         """
-        # Convert tuple input to DataLoader if needed
-        if isinstance(forget_data, tuple):
-            forget_dataset = TensorDataset(*forget_data)
-            forget_loader = DataLoader(forget_dataset, batch_size=len(forget_dataset), shuffle=False)
-        else:
-            forget_loader = forget_data
-
         avg_loss = 0.0
         avg_kl_loss = 0.0
         for forget_batch in forget_loader:
@@ -148,7 +143,8 @@ class SCRUB(BaseUnlearner):
         avg_loss = avg_loss/len(forget_loader)
         avg_kl_loss = avg_kl_loss/len(forget_loader)
         return avg_loss, avg_kl_loss
-    def min_epoch(self, model, unlearned_model, retain_data, optimizer, alpha, gamma, criterion):
+
+    def min_epoch(self, model, unlearned_model, retain_loader, optimizer, alpha, gamma, criterion):
         """
         Perform one epoch of minimizing divergence on retain data.
 
@@ -156,7 +152,7 @@ class SCRUB(BaseUnlearner):
         performance on data that should be retained.
 
         Args:
-            retain_data: The data to retain (tuple of tensors or DataLoader)
+            retain_loader: The retain DataLoader
             optimizer: Optimizer for updating model parameters
             alpha: Weight for the KL divergence component
             gamma: Weight for the cross-entropy component
@@ -168,12 +164,6 @@ class SCRUB(BaseUnlearner):
             - KL divergence component
             - Cross-entropy component
         """
-        # Convert tuple input to DataLoader if needed
-        if isinstance(retain_data, tuple):
-            retain_dataset = TensorDataset(*retain_data)
-            retain_loader = DataLoader(retain_dataset, batch_size=len(retain_dataset), shuffle=False)
-        else:
-            retain_loader = retain_data
         avg_loss = 0.0
         avg_kl_loss = 0.0
         avg_ce_loss = 0.0
@@ -264,8 +254,6 @@ class SCRUB(BaseUnlearner):
                                 data_dict['val'] is not None else ['forget'])
         else:
             eval_dataloaders = ['retain', 'forget', 'val']
-        
-
 
         # Calculate total number of epochs and initialize counters
         num_epochs = max(min_epochs, max_epochs)
