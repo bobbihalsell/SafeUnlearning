@@ -165,8 +165,7 @@ class SCRUB(BaseUnlearner):
             - KL divergence component
             - Cross-entropy component
         """
-        avg_loss = 0.0
-        avg_kl_loss = 0.0
+        # Average CE loss is only for reporting
         avg_ce_loss = 0.0
 
         for retain_batch in retain_loader:
@@ -176,19 +175,18 @@ class SCRUB(BaseUnlearner):
             # Compute retain losses
             original_out = model(retain_x)
             unl_out = unlearned_model(retain_x)
-            loss, kl_loss, ce_loss = self.retain_loss(original_out, unl_out, retain_y, alpha, gamma, criterion)
+            loss, kl_loss, ce_loss = self.retain_loss(
+                original_out, unl_out, retain_y, alpha, gamma, criterion
+                )
             optimizer.zero_grad()
             # Perform optimization using combined loss
             loss.backward()
             optimizer.step()
-            avg_loss += loss
-            avg_kl_loss += kl_loss
+
             avg_ce_loss += ce_loss
-        avg_loss = avg_loss/len(retain_loader)
-        avg_kl_loss = avg_kl_loss/len(retain_loader)
         avg_ce_loss = avg_ce_loss/len(retain_loader)
 
-        return avg_loss, avg_kl_loss, avg_ce_loss
+        return avg_ce_loss
 
     def unlearn(self,
                 model: nn.Module,
@@ -269,7 +267,7 @@ class SCRUB(BaseUnlearner):
 
             # Minimize divergence on retain data
             if min_i < min_epochs:
-                _, _, retain_loss = self.min_epoch(
+                retain_loss = self.min_epoch(
                                     model,
                                     unlearned_model,
                                     data_dict['retain'],
@@ -278,13 +276,13 @@ class SCRUB(BaseUnlearner):
                                     gamma=gamma,
                                     criterion=loss_fn
                                 )
-                min_i+=1
+                min_i += 1
 
-            if verbose and min_epochs>0:
+            if verbose and min_epochs > 0:
                 print(f'Epoch {e}: Retain Loss: {retain_loss}')
 
             if self.evaluate:
-                if min_epochs>0:
+                if min_epochs > 0:
                     losses['retain_losses'].append(retain_loss)
 
                 unlearned_model.eval()
@@ -299,4 +297,5 @@ class SCRUB(BaseUnlearner):
                               end='  ')
                 if verbose:
                     print()
+
         return unlearned_model, losses
