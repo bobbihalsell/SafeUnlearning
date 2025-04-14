@@ -9,16 +9,16 @@ import torch
 
 def _get_stratified_split(dataset: torch.utils.data.Dataset,
                           proportion: float):
-    """ Get a stratified split of a dataset into 2 subsets. 
+    """ Get a stratified split of a dataset into 2 subsets.
 
     This will retain class distributions.
     """
     targets = np.array(dataset.targets)
-    num_classes = len(set(targets))
+    unique_classes = np.unique(targets)
     indices = []
     remainder_indices = []
 
-    for cls in range(num_classes):
+    for cls in unique_classes:
         cls_indices = np.where(targets == cls)[0]
         np.random.shuffle(cls_indices)
         num_samples = int(len(cls_indices) * proportion)
@@ -101,7 +101,7 @@ def load_train_val_test_datasets(dataset_name: str,
     # Perform train/val split
     raw_train_subset, raw_val_subset = _get_stratified_split(raw_train,
                                                              1 - val_ratio)
-
+    print('save dir', dataset_save_dir)
     # Save datasets to ImageFolder format
     _save_as_imagefolder(raw_train_subset,
                          root_path=dataset_save_dir,
