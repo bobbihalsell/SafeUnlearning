@@ -126,9 +126,19 @@ class BaseUnlearner:
         return optimizer
 
     def initialize_scheduler(self, optimizer):
-        scheduler = torch.optim.lr_scheduler.StepLR(
-            optimizer=optimizer,
-            step_size=self.steps_before_lr_decay,
-            gamma=self.lr_decay_factor)
+        """ Initialize a learning rate scheduler from hyperparameters."""
+        epochs_per_lr_decay = getattr(self, "epochs_per_lr_decay")
+        lr_decay_factor = getattr(self, "lr_decay_factor")
 
-        return scheduler
+        if epochs_per_lr_decay is not None and lr_decay_factor is not None:
+            scheduler = torch.optim.lr_scheduler.StepLR(
+                optimizer=optimizer,
+                step_size=epochs_per_lr_decay,
+                gamma=lr_decay_factor)
+
+            return scheduler
+
+        else:
+            raise Exception(
+                'Attempted to initialize scheduler, but '
+                'schedule information not available.')
