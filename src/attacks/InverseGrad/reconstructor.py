@@ -133,16 +133,7 @@ class InverseGradReconstructor():
         scores = torch.zeros(self.config.num_runs, device=self.device)
 
         if labels is None:
-            # if self.num_images == 1 and self.iDLG:
-            # last_weight_min = torch.argmin(torch.sum(input_data[-2], dim=-1), dim=-1)
-            # labels = last_weight_min.detach().reshape((1,)).requires_grad_(False)
-            # self.reconstruct_label = False
             self.reconstruct_label = True
-        # else:
-            # DLG label recovery
-            # However this also improves conditioning for some LBFGS cases
-            # self.reconstruct_label = True
-            # self.reconstruct_label = False
 
             def loss_fn(pred, labels):
                 labels = torch.nn.functional.softmax(labels, dim=-1)
@@ -169,7 +160,6 @@ class InverseGradReconstructor():
         if self.config.scoring_choice in ['pixelmean', 'pixelmedian']:
             x_optimal, stats = self._average_trials(x, labels, input_data, stats)
         else:
-            print('Choosing optimal result ...')
             scores = scores[torch.isfinite(scores)]  # guard against NaN/-Inf scores?
             optimal_index = torch.argmin(scores)
             print(f'Optimal result score: {scores[optimal_index]:2.4f}')
@@ -298,7 +288,6 @@ class InverseGradReconstructor():
             raise ValueError()
 
     def _average_trials(self, x, labels, input_data, stats):
-        print(f'Computing a combined result via {self.config.scoring_choice} ...')
         if self.config.scoring_choice == 'pixelmedian':
             x_optimal, _ = x.median(dim=0, keepdims=False)
         elif self.config.scoring_choice == 'pixelmean':
@@ -314,7 +303,8 @@ class InverseGradReconstructor():
                                             cost_fn=self.config.cost_fn,
                                             indices=self.config.indices,
                                             weights=self.config.weights)
-        print(f'Optimal result score: {stats["opt"]:2.4f}')
+        if self.verbose:
+            print(f'Optimal result score: {stats["opt"]:2.4f}')
         return x_optimal, stats
 
 

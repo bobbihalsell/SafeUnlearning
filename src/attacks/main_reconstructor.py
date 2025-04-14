@@ -183,6 +183,7 @@ class ReconstructorApp(InputValidator):
 
         # Step 4: Reconstruction
         self.initalise_image_params()
+        
         reconstructor = self.initialize_reconstructor(unlearned_model, original_model)
         print('reconstructor initialized')
 

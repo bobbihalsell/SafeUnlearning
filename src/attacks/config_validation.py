@@ -18,12 +18,9 @@ class InputValidator:
 
         data_config = config['data']
         self.model_name = data_config['model_name']
-        self.labels = data_config['labels']
+        self.labels = self._load_labels(data_config['labels'])
         self.dataset_name = data_config['dataset_name']
         self.num_classes = data_config['num_classes']
-        # self.image_mean = data_config['image_mean']
-        # self.image_std = data_config['image_std']
-        # self.image_size = data_config['image_size']
         self.data_root = data_config['data_root']
 
         self.reconstructor_name = config['reconstructor']['type']
@@ -40,6 +37,14 @@ class InputValidator:
 
         self._validate_reconstructor_params()
         
+    def _load_labels(self, labels_cfg):
+        if isinstance(labels_cfg, str) and os.path.isfile(labels_cfg):
+            with open(labels_cfg, 'r') as f:
+                return [int(line.strip()) for line in f if line.strip()]
+        elif isinstance(labels_cfg, list):
+            return labels_cfg
+        else:
+            raise ValueError("Unsupported label format: must be a list or path to a file.")        
 
     def _validate_reconstructor_params(self):
         """
