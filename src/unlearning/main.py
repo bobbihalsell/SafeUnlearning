@@ -164,7 +164,7 @@ class UnlearnApp(InputValidator):
             dataloaders[split] = DataLoader(
                 dataset,
                 batch_size=batch_size,
-                shuffle=(split == 'train'),  # Only shuffle train set
+                shuffle=(split == 'retain'),  # Only shuffle retain set
                 num_workers=self.num_workers,
                 pin_memory=True
             )
@@ -172,7 +172,6 @@ class UnlearnApp(InputValidator):
         return dataloaders
 
     def run(self):
-        print('running...')
         # Step 1: Load in datasets as datalaoders
         dataloaders = self.initialize_dataloaders()
 
@@ -188,12 +187,12 @@ class UnlearnApp(InputValidator):
 
         # Step 4: Unlearning
         unlearner = self.initialize_unlearner()
-        print('unlearner initialized')
+        print('Unlearning algorithm initialized.')
         unlearned_model, losses = unlearner.unlearn(original_model,
                                                     data_dict=dataloaders,
                                                     verbose=self.verbose,
                                                     **self.unlearn_params)
-        print('model unlearned')
+        print('Model unlearning complete.')
 
         # Step 5: Save the unlearned model
         save_model(unlearned_model,
