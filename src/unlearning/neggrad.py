@@ -55,11 +55,8 @@ class NegGrad(BaseUnlearner):
                 - use_l2_penalty: Whether to add L2 regularization penalty (default: False).
 
         Returns:
-            If self.evaluate is True:
-                Tuple of (unlearned_model, losses_dict) where losses_dict contains
-                tracked losses for each dataset type.
-            Otherwise:
-                The unlearned model.
+            Tuple of (unlearned_model, losses) where losses contains
+            tracked losses for each dataset type.
 
         Raises:
             ValueError: If 'forget' data is not in data_dict.
@@ -81,9 +78,8 @@ class NegGrad(BaseUnlearner):
                                     lr=lr,
                                     weight_decay=weight_decay)
 
-        eval_only_data = [data for data in data_dict.keys() if
-                          data != 'forget' and
-                          data_dict[data] is not None]
+        eval_dataloaders = (['retain', 'val'] if
+                            data_dict['val'] is not None else ['retain'])
 
         # Main training loop
         for e in range(num_epochs):
@@ -120,21 +116,25 @@ class NegGrad(BaseUnlearner):
                 losses['forget_losses'].append(avg_epoch_forget_loss)
                 unlearned_model.eval()
                 # Evaluate model on other datasets
-                for data_type in eval_only_data:
-                    loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
+                for data_type in eval_dataloaders:
+                    loader_loss = self._evaluate(
+                        unlearned_model,
+                        data_dict[data_type],
+                        loss_fn).mean()
                     losses[f"{data_type}_losses"].append(loader_loss.item())
                     if verbose:
-                        print(f'{data_type.capitalize()} Loss: {loader_loss}', end='  ')
+                        print(f'{data_type.capitalize()} Loss: {loader_loss}',
+                              end='  ')
                 if verbose:
                     print()
 
         return unlearned_model, losses
-    
+
 
 class NegGradPlus(BaseUnlearner):
     """
     Implements NegGrad+ unlearning as introduced in https://openreview.net/pdf?id=OveBaTtUAT
-    
+
     NegGrad+ extends NegGrad by incorporating a trade-off between retaining performance
     on keep data while forgetting the forget data. It balances gradient descent on retain
     data with gradient ascent on forget data, controlled by a beta parameter.
@@ -147,7 +147,7 @@ class NegGradPlus(BaseUnlearner):
     ):
         """
         Initialize the NegGrad+ unlearning object.
-        
+
         Args:
             device: Computing device (CPU/GPU) to use for computations.
                    If None, will be automatically determined.
@@ -156,12 +156,12 @@ class NegGradPlus(BaseUnlearner):
         super(NegGradPlus, self).__init__(device, evaluate)
 
     def _calculate_loss(
-        self, 
-        beta: float, 
-        criterion: nn.Module, 
-        retain_outputs: torch.Tensor, 
+        self,
+        beta: float,
+        criterion: nn.Module,
+        retain_outputs: torch.Tensor,
         retain_targets: torch.Tensor,
-        forget_outputs: torch.Tensor, 
+        forget_outputs: torch.Tensor,
         forget_targets: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
@@ -215,11 +215,8 @@ class NegGradPlus(BaseUnlearner):
                   PLEASE USE NegGrad FOR BETA = 0, FinetuneUnlearner FOR BETA = 1.
 
         Returns:
-            If self.evaluate is True:
-                Tuple of (unlearned_model, losses_dict) where losses_dict contains
-                tracked losses for each dataset type.
-            Otherwise:
-                The unlearned model.
+            Tuple of (unlearned_model, losses) where losses contains
+            tracked losses for each dataset type.
 
         Raises:
             ValueError: If either 'forget' or 'retain' data is missing from data_dict,
@@ -249,10 +246,7 @@ class NegGradPlus(BaseUnlearner):
                                     lr=lr,
                                     weight_decay=weight_decay)
 
-        eval_only_data = [data for data in data_dict.keys() if 
-                          data not in ['forget', 'retain'] and 
-                          data_dict[data] is not None]
-
+        eval_dataloaders = ['val'] if data_dict['val'] is not None else []
         # Main training loop
         for e in range(num_epochs):
             total_forget_loss, total_retain_loss = 0, 0
@@ -298,21 +292,31 @@ class NegGradPlus(BaseUnlearner):
                 total_forget_loss += forget_loss.item()
                 total_retain_loss += retain_loss.item()
 
+            # Use retain batch length due to cycle algorithm for forget set
+            avg_epoch_forget_loss = total_forget_loss/len(data_dict["retain"])
+            avg_epoch_retain_loss = total_retain_loss/len(data_dict["retain"])
+
             if verbose:
-                print(f'Epoch {e}: Retain Loss: {total_retain_loss/len(data_dict["retain"])}, Forget Loss: {total_forget_loss/len(data_dict["retain"])}')
+                print(f'Epoch {e}: Retain Loss: {avg_epoch_retain_loss}, '
+                      f'Forget Loss: {avg_epoch_forget_loss}')
 
             if self.evaluate:
                 # Calculate average retain loss for this epoch
-                losses['retain_losses'].append(total_retain_loss/len(data_dict["retain"]))
-                losses['forget_losses'].append(total_forget_loss/len(data_dict["retain"]))
+                losses['retain_losses'].append(avg_epoch_retain_loss)
+                losses['forget_losses'].append(avg_epoch_forget_loss)
                 unlearned_model.eval()
                 # Evaluate model on other datasets
-                for data_type in eval_only_data:
-                    loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
+                for data_type in eval_dataloaders:
+                    loader_loss = self._evaluate(
+                        unlearned_model,
+                        data_dict[data_type],
+                        loss_fn).mean()
                     losses[f"{data_type}_losses"].append(loader_loss.item())
+
                     if verbose:
-                        print(f'{data_type.capitalize()} Loss: {loader_loss}', end='  ')
+                        print(f'{data_type.capitalize()} Loss: {loader_loss}',
+                              end='  ')
                 if verbose:
                     print()
-                
+
         return unlearned_model, losses

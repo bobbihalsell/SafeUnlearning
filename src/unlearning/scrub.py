@@ -229,11 +229,8 @@ class SCRUB(BaseUnlearner):
                 - use_l2_penalty: Whether to add L2 regularization (default: False)
 
         Returns:
-            If self.evaluate is True:
-                Tuple of (unlearned_model, losses_dict) where losses_dict contains
-                tracked losses for each dataset type
-            Otherwise:
-                The unlearned model
+            Tuple of (unlearned_model, losses) where losses contains
+            tracked losses for each dataset type
 
         Raises:
             ValueError: If epochs are less than 1 or required data is missing

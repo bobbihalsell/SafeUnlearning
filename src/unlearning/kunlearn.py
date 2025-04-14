@@ -127,11 +127,8 @@ class KUnlearn(FinetuneUnlearner):
                         - use_l2_penalty: Whether to add L2 regularization
 
             Returns:
-                If self.evaluate is True:
-                    Tuple of (unlearned_model, losses_dict) where losses_dict contains
-                    tracked losses for each dataset type
-                Otherwise:
-                    The unlearned model
+                Tuple of (unlearned_model, losses_dict) where losses_dict contains
+                tracked losses for each dataset type
                     
             Raises:
                 ValueError: If k is larger than the number of layers in the model

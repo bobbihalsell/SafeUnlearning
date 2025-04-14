@@ -78,9 +78,8 @@ class FinetuneUnlearner(BaseUnlearner):
                                     lr=lr,
                                     weight_decay=weight_decay)
 
-        eval_only_data = [data for data in data_dict.keys() if 
-                          data != 'retain' and
-                          data_dict[data] is not None]
+        eval_dataloaders = (['forget', 'val'] if
+                            data_dict['val'] is not None else ['forget'])
 
         # Main training loop
         for e in range(num_epochs):
@@ -106,20 +105,25 @@ class FinetuneUnlearner(BaseUnlearner):
 
                 retain_loss.backward()
                 optimizer.step()
+            
+            avg_epoch_retain_loss = total_retain_loss/len(data_dict["retain"])
 
             if verbose:
-                print(f'Epoch {e}: Retain Loss: {total_retain_loss/len(data_dict["retain"])}')
+                print(f'Epoch {e}: Retain Loss: {avg_epoch_retain_loss}')
 
             if self.evaluate:
                 # Calculate average retain loss for this epoch
-                losses['retain_losses'].append(total_retain_loss/len(data_dict["retain"]))
+                losses['retain_losses'].append(avg_epoch_retain_loss)
                 unlearned_model.eval()
                 # Evaluate model on other datasets
-                for data_type in eval_only_data:
-                    loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
+                for data_type in eval_dataloaders:
+                    loader_loss = self._evaluate(unlearned_model,
+                                                 data_dict[data_type],
+                                                 loss_fn).mean()
                     losses[f"{data_type}_losses"].append(loader_loss.item())
                     if verbose:
-                        print(f'{data_type.capitalize()} Loss: {loader_loss}', end='  ')
+                        print(f'{data_type.capitalize()} Loss: {loader_loss}',
+                              end='  ')
                 if verbose:
                     print()
 
