@@ -290,7 +290,7 @@ class InverseGradReconstructor():
             return reconstruction_costs([gradient], input_gradient,
                                         cost_fn=self.config.cost_fn, indices=self.config.indices,
                                         weights=self.config.weights)
-        elif self.config.scoring_choice== 'tv':
+        elif self.config.scoring_choice == 'tv':
             return total_variation(x_trial)
         elif self.config.scoring_choice in ['pixelmean', 'pixelmedians']:
             return 0.0

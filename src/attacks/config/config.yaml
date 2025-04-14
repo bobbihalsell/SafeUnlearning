@@ -1,7 +1,10 @@
 defaults:
-  - experiment: ???
   - data: ???
   - reconstructor: ???
+experiment_name: "reconstruction_experiment"
+original_weights: ???
+unlearned_weights: ???
+output_dir: ./artifacts_test/
 seed: 42
 verbose: true
 wandb: # optional Weights and Biases configuration

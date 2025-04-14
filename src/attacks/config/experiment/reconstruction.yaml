@@ -1,5 +1,0 @@
-name: "reconstruction_experiment"
-original_weights: ??
-unlearned_weights: ??
-output:
-  dir: src/artifacts/

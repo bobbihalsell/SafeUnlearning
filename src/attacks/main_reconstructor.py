@@ -4,18 +4,17 @@ import timm
 import torch
 import torch.nn as nn
 import torchvision
-from torchvision.datasets import ImageFolder
-from torch.utils.data import DataLoader
+
 import hydra
 from omegaconf import OmegaConf, DictConfig
 from omegaconf.errors import MissingMandatoryValue
 import wandb
 
 from attacks.utils import set_seed, setup_device, safe_dataclass_load, SaveImage
-from datasets.cifar10 import get_cifar10_test_transform
-from datasets.cifar100 import get_cifar100_test_transform
-from datasets.imagenet import get_imagenet_test_transform
-from attacks.config_validation import InputValidator #change this later 
+from datasets.cifar10 import CIFAR10_MEAN, CIFAR10_STD
+from datasets.cifar100 import CIFAR100_MEAN, CIFAR_100_STD
+from datasets.imagenet import IMAGENET_MEAN, IMAGENET_STD
+from attacks.config_validation import InputValidator  
 from attacks.GGL.final_ggl import GGLReconstructor
 from attacks.InverseGrad.reconstructor import InverseGradReconstructor,InverseGradConfig
 
@@ -34,7 +33,7 @@ class ReconstructorApp(InputValidator):
         set_seed(self.seed)
 
         # Output directory
-        self.output_dir = config.get('output_dir', 'src/artifacts/')
+        self.output_dir = config.get('output_dir', './artifacts/')
         os.makedirs(self.output_dir, exist_ok=True)
 
     def initialize_model(self):
@@ -101,10 +100,25 @@ class ReconstructorApp(InputValidator):
         except Exception as e:
             raise Exception(f'Error loading model: {e}')
 
+    def initalise_image_params(self):
+        if self.dataset_name == 'cifar10':
+            self.image_mean = CIFAR10_MEAN
+            self.image_std = CIFAR10_STD
+            self.image_size = [3, 32, 32] 
+        elif self.dataset_name == 'cifar100':
+            self.image_mean = CIFAR100_MEAN
+            self.image_std = CIFAR_100_STD
+            self.image_size = [3, 32, 32]
+        elif self.dataset_name == 'imagenet':
+            self.image_mean = IMAGENET_MEAN
+            self.image_std = IMAGENET_STD
+            self.image_size = [3, 224, 224]
+        else:
+            raise ValueError(f"Dataset {self.dataset_name} not supported.")
+        
+
     def initialize_reconstructor(self, unlearned_model, original_model):
         """ Initialize the correct unlearner from user specification."""
-
-
 
         loss_fn = nn.CrossEntropyLoss()
         if self.reconstructor_name == 'ggl':
@@ -168,6 +182,7 @@ class ReconstructorApp(InputValidator):
         
 
         # Step 4: Reconstruction
+        self.initalise_image_params()
         reconstructor = self.initialize_reconstructor(unlearned_model, original_model)
         print('reconstructor initialized')
 
