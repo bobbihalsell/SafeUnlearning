@@ -259,12 +259,11 @@ class SCRUB(BaseUnlearner):
         optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
                                     lr=lr,
                                     weight_decay=weight_decay)
-        if min_epochs > 0: 
-            eval_only_data = [data for data in data_dict.keys() if 
-                            data not in ['retain'] and 
-                            data_dict[data] is not None]
+        if min_epochs > 0:
+            eval_dataloaders = (['val', 'forget'] if
+                                data_dict['val'] is not None else ['forget'])
         else:
-            eval_only_data = [data for data in data_dict.keys()]
+            eval_dataloaders = ['retain', 'forget', 'val']
         
 
 
@@ -301,15 +300,17 @@ class SCRUB(BaseUnlearner):
             if self.evaluate:
                 if min_epochs>0:
                     losses['retain_losses'].append(retain_loss)
-                # Calculate average retain loss for this epoch
-                #losses['retain_losses'].append(retain_loss)
+
                 unlearned_model.eval()
                 # Evaluate model on other datasets
-                for data_type in eval_only_data:
-                    loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
+                for data_type in eval_dataloaders:
+                    loader_loss = self._evaluate(unlearned_model,
+                                                 data_dict[data_type],
+                                                 loss_fn).mean()
                     losses[f"{data_type}_losses"].append(loader_loss.item())
                     if verbose:
-                        print(f'{data_type.capitalize()} Loss: {loader_loss}', end='  ')
+                        print(f'{data_type.capitalize()} Loss: {loader_loss}',
+                              end='  ')
                 if verbose:
                     print()
         return unlearned_model, losses
