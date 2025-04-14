@@ -18,10 +18,13 @@ class InputValidator:
         self.batch_sizes = self.dataset_cfg['batch_sizes']
 
         model_config = config['model']
-        self.model_name = model_config['name']
+        self.init_method = model_config['init_method']
+        self.init_path = model_config.get('init_path', None)
+        self.init_name = model_config['init_name']
         self.model_ckpt_path = model_config['model_ckpt_path']
-        self.num_classes = model_config['num_classes']
+        self.model_kwargs = model_config['model_kwargs']
         self.output_dir = model_config['output_dir']
+        # self.num_classes = model_config['num_classes']
 
         self.verbose = config['verbose']
 
@@ -105,6 +108,6 @@ class InputValidator:
         This validates only some of the model parameters, as it is more
         efficient to use the EAFP approach for model name and
         initialization checking."""
-        if not os.path.exists(self.model_ckpt_path):
-            raise ConfigError("Model weights file not found: "
-                              f"{self.model_ckpt_path}")
+        # if not os.path.exists(self.model_ckpt_path):
+        #     raise ConfigError("Model weights file not found: "
+        #                       f"{self.model_ckpt_path}")

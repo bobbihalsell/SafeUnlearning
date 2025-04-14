@@ -37,8 +37,19 @@ python src/datasets/main.py forget=class dataset=cifar10 forget.forget_idx="[5]"
 To remove a specific number of classes: (use a dict)
 python src/datasets/main.py forget=classnum dataset=cifar10 forget.forget_idx="{1:10, 5:10}" dataset.init_dir=./raw dataset.save_dir=./data
 
-1. (b) Train a model or load model
-to load python src/import_model/main.py load_method=torch init_path=chenyaofo/pytorch-cifar-models init_name=cifar10_resnet20 pretrained=true dataset=cifar10 save_dir=./artifacts/models
+1. (b) Train a model optional
+to load 
+<!-- python src/import_model/main.py load_method=torch init_path=chenyaofo/pytorch-cifar-models init_name=cifar10_resnet20 pretrained=true dataset=cifar10 save_dir=./artifacts/models -->
 
 
-2. 
+2. unlearn eg
+python src/unlearning/main.py dataset=cifar10 model=classloaded unlearner=neggrad dataset.save_path=./data model.num_classes=10
+
+
+
+run
+python src/datasets/main.py forget=classnum dataset=cifar10 forget.forget_idx="{5:500}" dataset.init_dir=./raw dataset.save_dir=./data
+
+python src/import_model/main.py load_method=torch init_path=chenyaofo/pytorch-cifar-models init_name=cifar10_resnet20 pretrained=true dataset=cifar10 save_dir=./artifacts/models
+
+

@@ -152,8 +152,9 @@ class SGRU(BaseUnlearner):
                         if batch_grads:
                             group_grads.append(torch.cat(batch_grads))
                     
-                    # Compute principal components if we have enough gradient data
-                    if len(group_grads) > 0:
+                    # Compute principal components 
+                    # if len(group_grads) > 0:
+                    #     grads_matrix = torch.stack(group_grads)
                         grads_matrix = torch.stack(group_grads)
                         
                         # Check for NaN in gradient matrix
@@ -185,7 +186,7 @@ class SGRU(BaseUnlearner):
                                                                     
                             except Exception as e:
                                 print(f"SVD failed for {group_name}: {e}")
-                                # Fallback - use random orthogonal directions for randomisation
+                                # Fallback - use random orthogonal directions for randomisation adding noise for fogetting
                                 random_dirs = torch.randn(grads_matrix.size(1), k, device=self.device)
                                 forget_directions[group_name], _ = torch.linalg.qr(random_dirs)
         

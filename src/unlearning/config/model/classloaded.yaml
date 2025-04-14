@@ -1,0 +1,12 @@
+init_method: function  
+
+init_path: ./modelloadtest
+init_name:  SimpleCIFAR10Model
+model_ckpt_path: ./saved_models/cifar10_model_1744618737.pth
+model_kwargs:
+
+num_classes: 10
+
+# Model saving and evaluation
+output_dir: ./artifacts/models
+save_name:

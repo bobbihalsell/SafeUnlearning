@@ -1,0 +1,12 @@
+init_method: torchvision  # Options: function, torchhub, ...
+
+init_path: 
+init_name: mobilenet_v2
+model_ckpt_path:
+model_kwargs:
+
+num_classes: 10
+
+# Model saving and evaluation
+output_dir: ./artifacts/models
+save_name:

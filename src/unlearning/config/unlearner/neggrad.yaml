@@ -4,4 +4,4 @@ cfg:
   lr: 0.0005
   weight_decay: 0
   use_l2_penalty: false
-  epochs: 2
+  epochs: 1

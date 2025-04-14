@@ -17,6 +17,8 @@ from unlearning.scrub import SCRUB
 from unlearning.kunlearn import KUnlearn
 from unlearning.neggrad import NegGrad, NegGradPlus
 from unlearning.utils import save_model, set_seed, setup_device, ConfigError
+from unlearning.importmodel import ImportModel
+
 
 
 class UnlearnApp(InputValidator):
@@ -35,68 +37,17 @@ class UnlearnApp(InputValidator):
         self.output_dir = config['model'].get('output_dir', 'artifacts/')
         os.makedirs(self.output_dir, exist_ok=True)
 
-    def initialize_model(self):
+    def load_model(self):
         """Initialize the model based on model name from user configuration."""
-        if hasattr(torchvision.models, self.model_name):
-            model = torchvision.models.get_model(
-                self.model_name,
-                weights=None,
-            )
-
-            # Adjust the last layer based on model type
-            if hasattr(model, "fc"):  # ResNet-style
-                model.fc = torch.nn.Linear(
-                    model.fc.in_features, self.num_classes
-                )
-            elif hasattr(model, "classifier"):  # MobileNet, EfficientNet, VGG, DenseNet
-                if isinstance(model.classifier, torch.nn.Sequential):
-                    # Handle cases like MobileNet where classifier is Sequential
-                    last_layer_idx = len(model.classifier) - 1
-                    model.classifier[last_layer_idx] = torch.nn.Linear(
-                        model.classifier[last_layer_idx].in_features,
-                        self.num_classes
-                    )
-                else:
-                    model.classifier = torch.nn.Linear(
-                        model.classifier.in_features, self.num_classes
-                    )
-            else:
-                raise AttributeError(
-                    f"Unknown classification layer for {self.model_name}"
-                )
-
-        else:
-            print(f"Couldn't find {self.model_name} in torchvision. "
-                  "Looking in timm.")
-            try:
-                model = timm.create_model(
-                    self.model_name,
-                    num_classes=self.num_classes,
-                )
-            except Exception:
-                raise AttributeError(
-                    f"{self.model_name} not found in torchvision or timm."
-                )
-
-        return model
-
-    def load_model_from_disk(self, model_path):
-        """Load model from disk."""
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(f"Model file {model_path} not found.")
-
-        try:
-            # Initialize appropriate model architecture
-            model = self.initialize_model()
-            # Load state dict
-            checkpoint = torch.load(model_path, map_location=self.device)
-            model.load_state_dict(checkpoint['model_state_dict'])
-            model = model.to(self.device)
-            print(f"Loaded model from {model_path}")
-            return model
-
-        except Exception as e:
-            raise Exception(f'Error loading model: {e}')
+        modelimport = ImportModel(self.init_method, 
+                                    self.init_path, 
+                                    self.init_name, 
+                                    self.model_ckpt_path,
+                                    self.seed,
+                                    self.model_kwargs, 
+                                    )
+        
+        return modelimport.model
 
     def initialize_unlearner(self):
         """ Initialize the correct unlearner from user specification."""
@@ -191,14 +142,15 @@ class UnlearnApp(InputValidator):
     def run(self):
         # Step 1: Load retain/val/forget datalaoders
         dataloaders = self.initialize_dataloaders()
-
-        # Step 2: Initialize the pretrained model
-        original_model = self.load_model_from_disk(self.model_ckpt_path)
-
+        print('Loaders loaded')
+        # Step 3: Initialize the pretrained model
+        original_model = self.load_model()
+        print('Original model loaded')
+        
         save_model(original_model,
                    output_dir=self.output_dir,
                    unlearning_algorithm=self.unlearner_name,
-                   model_name=self.model_name,
+                   model_name=self.init_name,
                    seed=self.seed,
                    model_type='original')
 
@@ -215,7 +167,7 @@ class UnlearnApp(InputValidator):
         save_model(unlearned_model,
                    output_dir=self.output_dir,
                    unlearning_algorithm=self.unlearner_name,
-                   model_name=self.model_name,
+                   model_name=self.init_name,
                    seed=self.seed,
                    model_type='unlearned',
                    payload=losses)
