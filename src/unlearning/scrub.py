@@ -32,6 +32,8 @@ class SCRUB(BaseUnlearner):
             evaluate: Whether to track and return evaluation metrics during unlearning.
         """
         super().__init__(device, evaluate)
+        # Following authors' specification
+        self.criterion = nn.CrossEntropyLoss()
 
     def _kl_divergence(self,
                        model1_logits: torch.Tensor,
@@ -83,7 +85,7 @@ class SCRUB(BaseUnlearner):
 
         return forget_kl/Nf, forget_kl
 
-    def retain_loss(self, original_out, unl_out, true_y, alpha, gamma, criterion):
+    def retain_loss(self, original_out, unl_out, true_y, alpha, gamma):
         """
         Compute the composite loss over a set of retain data.
 
@@ -97,7 +99,6 @@ class SCRUB(BaseUnlearner):
             true_y: Ground truth labels
             alpha: Weight for the KL divergence component
             gamma: Weight for the cross-entropy component
-            criterion: Loss function for classification error
 
         Returns:
             Tuple containing:
@@ -107,7 +108,7 @@ class SCRUB(BaseUnlearner):
         """
         Nr = len(original_out)
         retain_kl = self._kl_divergence(original_out, unl_out)
-        retain_ce = criterion(unl_out, true_y)
+        retain_ce = self.criterion(unl_out, true_y)
 
         return (alpha * retain_kl + gamma * retain_ce)/Nr, retain_kl, retain_ce
 
@@ -145,7 +146,7 @@ class SCRUB(BaseUnlearner):
 
         return avg_loss
 
-    def min_epoch(self, model, unlearned_model, retain_loader, optimizer, alpha, gamma, criterion):
+    def min_epoch(self, model, unlearned_model, retain_loader, optimizer, alpha, gamma):
         """
         Perform one epoch of minimizing divergence on retain data.
 
@@ -157,7 +158,6 @@ class SCRUB(BaseUnlearner):
             optimizer: Optimizer for updating model parameters
             alpha: Weight for the KL divergence component
             gamma: Weight for the cross-entropy component
-            criterion: Loss function for classification error
 
         Returns:
             Tuple containing average values for:
@@ -176,7 +176,7 @@ class SCRUB(BaseUnlearner):
             original_out = model(retain_x)
             unl_out = unlearned_model(retain_x)
             loss, kl_loss, ce_loss = self.retain_loss(
-                original_out, unl_out, retain_y, alpha, gamma, criterion
+                original_out, unl_out, retain_y, alpha, gamma
                 )
             optimizer.zero_grad()
             # Perform optimization using combined loss
@@ -197,11 +197,11 @@ class SCRUB(BaseUnlearner):
                 **kwargs):
         """
         Perform SCRUB unlearning
-        
+
         SCRUB alternates between two optimization objectives:
         1. Maximizing the divergence on forget data
         2. Minimizing the divergence and classification error on retain data
-        
+
         Args:
             model: The original model to unlearn from
             data_dict: Dictionary containing dataloaders for different datasets
@@ -274,7 +274,6 @@ class SCRUB(BaseUnlearner):
                                     optimizer,
                                     alpha=alpha,
                                     gamma=gamma,
-                                    criterion=loss_fn
                                 )
                 min_i += 1
 
