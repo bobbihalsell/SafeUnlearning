@@ -103,30 +103,36 @@ class UnlearnApp(InputValidator):
         if self.unlearner_name == 'finetune':
             unlearner = FinetuneUnlearner(
                 self.device,
+                self.evaluate
             )
         elif self.unlearner_name == 'neggrad':
             unlearner = NegGrad(
                 self.device,
+                self.evaluate
             )
         elif self.unlearner_name == 'neggradplus':
             unlearner = NegGradPlus(
                 self.device,
+                self.evaluate
             )
         elif self.unlearner_name == 'scrub':
             unlearner = SCRUB(
                 self.device,
+                self.evaluate
             )
         elif self.unlearner_name == 'euk':
             unlearner = KUnlearn(
                 k=self.unlearn_params['k'],
                 method=self.unlearner_name,
                 device=self.device,
+                evaluate=self.evaluate
                 )
         elif self.unlearner_name == 'cfk':
             unlearner = KUnlearn(
                 k=self.unlearn_params['k'],
                 method=self.unlearner_name,
                 device=self.device,
+                evaluate=self.evaluate
                 )
         else:
             raise ValueError(f'unlearner_name {self.unlearner_name}'
@@ -156,7 +162,7 @@ class UnlearnApp(InputValidator):
         for split in splits:
             batch_size = self.batch_sizes[split]
             split_dir = os.path.join(self.dataset_save_dir, split)
-            if not os.path.exists(split_dir):
+            if not os.path.exists(split_dir) and self.evaluate:
                 raise Exception(f'{split_dir} does not exist. Is the dataset '
                                 'in ImageFolder format?')
 
@@ -172,10 +178,10 @@ class UnlearnApp(InputValidator):
         return dataloaders
 
     def run(self):
-        # Step 1: Load in datasets as datalaoders
+        # Step 1: Load retain/val/forget datalaoders
         dataloaders = self.initialize_dataloaders()
 
-        # Step 3: Initialize the pretrained model
+        # Step 2: Initialize the pretrained model
         original_model = self.load_model_from_disk(self.model_ckpt_path)
 
         save_model(original_model,
@@ -185,7 +191,7 @@ class UnlearnApp(InputValidator):
                    seed=self.seed,
                    model_type='original')
 
-        # Step 4: Unlearning
+        # Step 3: Perform unlearning
         unlearner = self.initialize_unlearner()
         print('Unlearning algorithm initialized.')
         unlearned_model, losses = unlearner.unlearn(original_model,
@@ -194,7 +200,7 @@ class UnlearnApp(InputValidator):
                                                     **self.unlearn_params)
         print('Model unlearning complete.')
 
-        # Step 5: Save the unlearned model
+        # Step 4: Save the unlearned model
         save_model(unlearned_model,
                    output_dir=self.output_dir,
                    unlearning_algorithm=self.unlearner_name,
@@ -202,8 +208,6 @@ class UnlearnApp(InputValidator):
                    seed=self.seed,
                    model_type='unlearned',
                    payload=losses)
-
-        return unlearned_model
 
 
 @hydra.main(version_base=None,

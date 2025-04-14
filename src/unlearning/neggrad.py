@@ -81,7 +81,7 @@ class NegGrad(BaseUnlearner):
                                     lr=lr,
                                     weight_decay=weight_decay)
 
-        eval_only_data = [data for data in data_dict.keys() if 
+        eval_only_data = [data for data in data_dict.keys() if
                           data != 'forget' and
                           data_dict[data] is not None]
 
@@ -111,12 +111,13 @@ class NegGrad(BaseUnlearner):
                 optimizer.step()
                 total_forget_loss += forget_loss.item()
 
+            avg_epoch_forget_loss = total_forget_loss/len(data_dict["forget"])
             if verbose:
-                print(f'Epoch {e}: Forget Loss: {total_forget_loss/len(data_dict["forget"])}')
+                print(f'Epoch {e}: Forget Loss: {avg_epoch_forget_loss}')
 
             if self.evaluate:
                 # Calculate average retain loss for this epoch
-                losses['forget_losses'].append(total_forget_loss/len(data_dict["forget"]))
+                losses['forget_losses'].append(avg_epoch_forget_loss)
                 unlearned_model.eval()
                 # Evaluate model on other datasets
                 for data_type in eval_only_data:
