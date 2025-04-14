@@ -162,18 +162,25 @@ class UnlearnApp(InputValidator):
         for split in splits:
             batch_size = self.batch_sizes[split]
             split_dir = os.path.join(self.dataset_save_dir, split)
-            if not os.path.exists(split_dir) and self.evaluate:
-                raise Exception(f'{split_dir} does not exist. Is the dataset '
-                                'in ImageFolder format?')
+            if not os.path.exists(split_dir):
+                if split == 'val':
+                    dataloaders['val'] = None
+                    continue
+                else:
+                    raise Exception(
+                        f'{split_dir} does not exist. Is the dataset '
+                        'in ImageFolder format?')
 
-            dataset = RobustImageFolder(root=split_dir, transform=transform)
-            dataloaders[split] = DataLoader(
-                dataset,
-                batch_size=batch_size,
-                shuffle=(split == 'retain'),  # Only shuffle retain set
-                num_workers=self.num_workers,
-                pin_memory=True
-            )
+            else:
+                dataset = RobustImageFolder(root=split_dir,
+                                            transform=transform)
+                dataloaders[split] = DataLoader(
+                    dataset,
+                    batch_size=batch_size,
+                    shuffle=(split == 'retain'),  # Only shuffle retain set
+                    num_workers=self.num_workers,
+                    pin_memory=True
+                )
 
         return dataloaders
 
