@@ -185,8 +185,6 @@ class SCRUB(BaseUnlearner):
     def unlearn(self,
                 model: nn.Module,
                 data_dict: Dict[str, DataLoader],
-                min_epochs: int,
-                max_epochs: int,
                 verbose: bool = False,
                 **kwargs):
         """
@@ -200,8 +198,6 @@ class SCRUB(BaseUnlearner):
             model: The original model to unlearn from
             data_dict: Dictionary containing dataloaders for different datasets
                        Must include both 'forget' and 'retain' keys
-            min_epochs: Number of epochs for the minimization phase (retain)
-            max_epochs: Number of epochs for the maximization phase (forget)
 
             **kwargs: Additional hyperparameters for SCRUB
 
@@ -234,14 +230,14 @@ class SCRUB(BaseUnlearner):
                             data_dict['val'] is not None else ['forget'])
 
         # Calculate total number of epochs and initialize counters
-        total_epochs = max_epochs + min_epochs
+        total_epochs = self.max_epochs + self.min_epochs
 
         for e in range(total_epochs):
             model.eval()
             unlearned_model.eval()
 
             # Maximize divergence on forget data
-            if e < max_epochs:
+            if e < self.max_epochs:
                 self.max_epoch(
                     model,
                     unlearned_model,
@@ -257,7 +253,7 @@ class SCRUB(BaseUnlearner):
                             )
 
             if verbose:
-                print(f'Epoch {e}: Retain Loss: {retain_loss}')
+                print(f'Epoch {e+1}: Retain Loss: {retain_loss}')
 
             if self.evaluate:
                 losses['retain_losses'].append(retain_loss)
