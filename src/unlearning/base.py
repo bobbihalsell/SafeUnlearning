@@ -18,8 +18,8 @@ class BaseUnlearner:
             device: Computing device (GPU/CPU) to use for computations.
                    If None, will be automatically determined.
         """
-        self.device = device if device is not None else setup_device()   
-        self.evaluate = evaluate     
+        self.device = device if device is not None else setup_device()
+        self.evaluate = evaluate
 
     @abstractmethod
     def unlearn(
@@ -86,22 +86,15 @@ class BaseUnlearner:
             **kwargs: Arbitrary keyword arguments containing hyperparameters.
 
         Returns:
-            tuple: A tuple containing (loss_fn, num_epochs, lr, weight_decay, use_l2_penalty).
+            None
 
         Raises:
             ValueError: If any of the parameters fails validation checks.
         """
         lr = kwargs['lr']
-        # Extract parameters with default values
-        num_epochs = kwargs.get('epochs', 1)
-        weight_decay = kwargs.get('weight_decay', 0)
-        loss_fn = kwargs.get('loss_fn')
-        use_l2_penalty = kwargs.get('use_l2_penalty', False)
+        weight_decay = kwargs['weight_decay']
+        use_l2_penalty = kwargs['use_l2_penalty']
 
-        if not callable(loss_fn):
-            raise ValueError("loss_fn must be a callable loss function.")
-        if not isinstance(num_epochs, int) or num_epochs <= 0:
-            raise ValueError("num_epochs must be a positive integer.")
         if not isinstance(lr, (int, float)) or lr <= 0:
             raise ValueError("lr must be a positive number.")
         if not isinstance(weight_decay, (int, float)) or weight_decay < 0:
@@ -109,4 +102,33 @@ class BaseUnlearner:
         if not isinstance(use_l2_penalty, bool):
             raise ValueError("use_l2_penalty must be a boolean.")
 
-        return loss_fn, num_epochs, lr, weight_decay, use_l2_penalty
+    def extract_hyperparameters(self, **kwargs):
+        """ Extract unlearning hyperparameters from kwargs"""
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+    def initialize_optimizer(self, model: nn.Module, optimizer_name: str):
+        """ Initialize an optimizer."""
+        if optimizer_name == 'adam':
+            optimizer = torch.optim.Adam(model.parameters(),
+                                         lr=self.lr,
+                                         weight_decay=self.weight_decay)
+        elif optimizer_name == 'sgd':
+            optimizer = torch.optim.SGD(model.parameters(),
+                                        lr=self.lr,
+                                        momentum=self.momentum,
+                                        weight_decay=self.weight_decay)
+        else:
+            raise ValueError(
+                'Only adam and sgd optimizers supported. '
+                f'Received {optimizer_name}.')
+
+        return optimizer
+
+    def initialize_scheduler(self, optimizer):
+        scheduler = torch.optim.lr_scheduler.StepLR(
+            optimizer=optimizer,
+            step_size=self.steps_before_lr_decay,
+            gamma=self.lr_decay_factor)
+
+        return scheduler

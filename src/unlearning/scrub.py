@@ -85,7 +85,7 @@ class SCRUB(BaseUnlearner):
 
         return forget_kl/Nf, forget_kl
 
-    def retain_loss(self, original_out, unl_out, true_y, alpha, gamma):
+    def retain_loss(self, original_out, unl_out, true_y):
         """
         Compute the composite loss over a set of retain data.
 
@@ -97,8 +97,6 @@ class SCRUB(BaseUnlearner):
             original_out: Output logits from the original model
             unl_out: Output logits from the unlearned model
             true_y: Ground truth labels
-            alpha: Weight for the KL divergence component
-            gamma: Weight for the cross-entropy component
 
         Returns:
             Tuple containing:
@@ -110,7 +108,7 @@ class SCRUB(BaseUnlearner):
         retain_kl = self._kl_divergence(original_out, unl_out)
         retain_ce = self.criterion(unl_out, true_y)
 
-        return (alpha * retain_kl)/Nr + gamma * retain_ce, retain_kl, retain_ce
+        return (self.alpha * retain_kl)/Nr + self.gamma * retain_ce, retain_kl, retain_ce
 
     def max_epoch(self, model, unlearned_model,
                   forget_loader, optimizer, step=True):
@@ -146,7 +144,7 @@ class SCRUB(BaseUnlearner):
 
         return avg_loss
 
-    def min_epoch(self, model, unlearned_model, retain_loader, optimizer, alpha, gamma):
+    def min_epoch(self, model, unlearned_model, retain_loader, optimizer):
         """
         Perform one epoch of minimizing divergence on retain data.
 
@@ -156,8 +154,6 @@ class SCRUB(BaseUnlearner):
         Args:
             retain_loader: The retain DataLoader
             optimizer: Optimizer for updating model parameters
-            alpha: Weight for the KL divergence component
-            gamma: Weight for the cross-entropy component
 
         Returns:
             Cross-entropy component of loss, for performance reporting
@@ -173,7 +169,7 @@ class SCRUB(BaseUnlearner):
             original_out = model(retain_x)
             unl_out = unlearned_model(retain_x)
             loss, kl_loss, ce_loss = self.retain_loss(
-                original_out, unl_out, retain_y, alpha, gamma
+                original_out, unl_out, retain_y
                 )
             optimizer.zero_grad()
             # Perform optimization using combined loss
@@ -181,7 +177,8 @@ class SCRUB(BaseUnlearner):
             optimizer.step()
 
             avg_ce_loss += ce_loss
-        avg_ce_loss = avg_ce_loss/len(retain_loader)
+        avg_ce_loss = (avg_ce_loss/len(retain_loader) if
+                       len(retain_loader) > 0 else 0)
 
         return avg_ce_loss
 
@@ -205,13 +202,8 @@ class SCRUB(BaseUnlearner):
                        Must include both 'forget' and 'retain' keys
             min_epochs: Number of epochs for the minimization phase (retain)
             max_epochs: Number of epochs for the maximization phase (forget)
-            alpha: Weight for the KL divergence term in retain loss
-            gamma: Weight for the cross-entropy term in retain loss
-            **kwargs: Additional arguments including:
-                - loss_fn: Loss function to use for training
-                - lr: Learning rate (default: 1e-2)
-                - weight_decay: Weight decay parameter (default: 0)
-                - use_l2_penalty: Whether to add L2 regularization (default: False)
+
+            **kwargs: Additional hyperparameters for SCRUB
 
         Returns:
             Tuple of (unlearned_model, losses) where losses contains
@@ -220,25 +212,23 @@ class SCRUB(BaseUnlearner):
         model.to(self.device)
         unlearned_model = copy.deepcopy(model)
 
-        # Validate and extract common hyperparameters
-        loss_fn, _, lr, weight_decay, _ = self.valid_args(**kwargs)
+        # Validate and extract hyperparameters
+        self.valid_args(**kwargs)
+        self.extract_hyperparameters(**kwargs)
 
         if ('retain' not in data_dict.keys() or
                 'forget' not in data_dict.keys()):
             raise KeyError("forget and retain data must be in data_dict.")
 
         # Extract additional hyperparameters
-        alpha = kwargs['alpha']
-        gamma = kwargs['gamma']
-        if alpha < 0 or gamma < 0:
+        if self.alpha < 0 or self.gamma < 0:
             raise ValueError("Alpha and gamma must be non-negative.")
 
         # Initialize loss tracking
         losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
 
-        optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
-                                    lr=lr,
-                                    weight_decay=weight_decay)
+        optimizer = self.initialize_optimizer(unlearned_model,
+                                              optimizer_name=self.optimizer)
 
         eval_dataloaders = (['val', 'forget'] if
                             data_dict['val'] is not None else ['forget'])
@@ -263,9 +253,7 @@ class SCRUB(BaseUnlearner):
                                 model,
                                 unlearned_model,
                                 data_dict['retain'],
-                                optimizer,
-                                alpha=alpha,
-                                gamma=gamma,
+                                optimizer
                             )
 
             if verbose:
@@ -279,7 +267,7 @@ class SCRUB(BaseUnlearner):
                 for data_type in eval_dataloaders:
                     loader_loss = self._evaluate(unlearned_model,
                                                  data_dict[data_type],
-                                                 loss_fn).mean()
+                                                 self.criterion).mean()
                     losses[f"{data_type}_losses"].append(loader_loss.item())
                     if verbose:
                         print(f'{data_type.capitalize()} Loss: {loader_loss}',

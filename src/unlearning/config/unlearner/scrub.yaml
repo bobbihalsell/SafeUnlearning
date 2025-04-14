@@ -1,6 +1,7 @@
 name: scrub
 evaluate: true
 cfg:
+  optimizer: adam
   lr: 0.0005
   lr_decay: 0.1
   momentum: 0.9

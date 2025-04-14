@@ -9,6 +9,7 @@ class InputValidator:
 
         self.unlearner_name = config['unlearner']['name']
         self.unlearn_params = config['unlearner']['cfg']
+        self.evaluate = config['unlearner']['evaluate']
 
         self.dataset_name = config['dataset']['name']
         self.dataset_save_dir = config['dataset']['save_path']
@@ -22,7 +23,6 @@ class InputValidator:
         self.num_classes = model_config['num_classes']
         self.output_dir = model_config['output_dir']
 
-        self.evaluate = config['unlearner']['evaluate']
         self.verbose = config['verbose']
 
         self._validate_unlearner_params()
