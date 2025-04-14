@@ -32,7 +32,7 @@ class UnlearnApp(InputValidator):
 
         self.unlearn_params['loss_fn'] = nn.CrossEntropyLoss()
         # Output directory
-        self.output_dir = config.get('output_dir', 'artifacts/')
+        self.output_dir = config['model'].get('output_dir', 'artifacts/')
         os.makedirs(self.output_dir, exist_ok=True)
 
     def initialize_model(self):
