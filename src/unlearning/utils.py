@@ -35,7 +35,7 @@ def save_model(model: nn.Module,
 
     # Save only the state_dict
     save_data = {
-        'state_dict': model.state_dict(),
+        'model_state_dict': model.state_dict(),
         'model_name': model_name,
         'unlearning_algorithm': unlearning_algorithm
     }
