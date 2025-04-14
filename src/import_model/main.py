@@ -7,11 +7,11 @@ from datasets.imagenet import get_imagenet_test_transform
 from unlearning.utils import ConfigError
 from train.utils import setup_device, set_seed
 import os
+import sys
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.errors import MissingMandatoryValue
 import torch
-from urllib.parse import urlparse
 import importlib
 import wandb
 
@@ -27,41 +27,53 @@ class LoadModelApp:
         set_seed(self.seed)
         
         # Extract configuration parameters
-        self.load_method = config.get('load_method', None)
-        self.init_path = config.get('init_path', None)
-        self.init_name = config.get('init_name', None)
-        self.weight_path = config.get('weight_path', None)
+        # Extract configuration parameters with proper defaults
+        self.load_method = config.get('load_method')
+        self.init_path = config.get('init_path')
+        self.init_name = config.get('init_name')
+        self.weight_path = config.get('weight_path')
+        self.save_dir = config.get('save_dir')
+        self.save_name = config.get('save_name')
         self.model_kwargs = config.get('model_kwargs', {})
-        self.validate = self.config.get('validate', False)
-        self.dataset_name = self.config.get('dataset', None)
-        self.save_dir = self.config.get('save_dir', None)
-        self.model_eval = self.config.get('model_eval', True)
-        self.dataset_save_dir = self.config.get('dataset_save_dir', './data')
-        self.batch_size = self.config.get('batch_size', 128)
+        self.validate = config.get('validate', False)
+        self.model_eval = config.get('model_eval', False)
+        
+        # Extract evaluation parameters if needed
+        if self.validate or self.model_eval:
+            self.dataset_name = config.get('dataset')
+            self.dataset_save_dir = config.get('dataset_save_dir', './data')
+            self.batch_size = config.get('batch_size', 128)
         
         # Validate configuration
         self.validate_config()
         
-        # Initialize model and dataset
+        # Initialize model and dataset (to be set in respective methods)
         self.model = None
         self.dataloaders = None
+        
+        # logger.info(f"LoadModelApp initialized with load method: {self.load_method}")
 
     def validate_config(self):
-        """Validate the configuration settings."""
-        if not self.load_method: 
-            raise ConfigError("Load method must be specified.")
-            
-        # Validate load method specific requirements
+        """
+        Validate the configuration settings to ensure all required parameters are present.
         
-        
-        if not self.dataset_name:
-            raise ConfigError("Dataset name must be specified.")
+        Raises:
+            ConfigError: If any required configuration parameter is missing
+        """
+        # Always required parameters
+        if not self.load_method:
+            raise ConfigError("Load method must be specified")
         
         if not self.save_dir:
-            raise ConfigError("Save directory must be specified.")
+            raise ConfigError("Save directory must be specified")
             
-        # Create save directory if it doesn't exist
-        os.makedirs(self.save_dir, exist_ok=True)
+        # Validate load_method specific requirements
+        if self.load_method not in ['function', 'torch']:
+            raise ConfigError(f"Unknown load method: {self.load_method}")
+        
+        # Validate evaluation parameters if needed
+        if (self.validate or self.model_eval) and not self.dataset_name:
+            raise ConfigError("Dataset name must be specified for validation or evaluation")
 
     def load_model(self):
         """ 
@@ -71,30 +83,48 @@ class LoadModelApp:
         - function: Load by importing a class or calling a function from a module
         - torch: Load from torch hub
         """
-        try:
-            print(f"Loading model using method: {self.load_method}")
-            
-            # Get model initialization kwargs from config if provided
+        try:            
             self.model_kwargs = self.config.get('model_kwargs', {})
-            # Ensure model_kwargs is a dictionary, even if None was provided in the config
             if self.model_kwargs is None:
                 self.model_kwargs = {}
-            elif self.model_kwargs:
-                print(f"Using model kwargs: {self.model_kwargs}")
 
-            # Initialize model based on method
             if self.load_method == 'function':
                 try:
-                    # Import the module and get the class/function
-                    module = importlib.import_module(self.init_path)
+                    # Check if init_path is a file path or module
+                    if self.init_path.startswith('./') or self.init_path.startswith('/') or '/' in self.init_path:
+                        # It's a file path
+                        module_path = os.path.abspath(self.init_path)
+                        
+                        # Remove .py extension if present
+                        if module_path.endswith('.py'):
+                            module_path = module_path[:-3]
+                            
+                        # Get the directory and module name
+                        directory = os.path.dirname(module_path)
+                        module_name = os.path.basename(module_path)
+                        
+                        # Add directory to sys.path temporarily
+                        sys.path.insert(0, directory)
+                        
+                        try:
+                            # Import the module
+                            module = importlib.import_module(module_name)
+                        finally:
+                            # Remove the directory from sys.path
+                            sys.path.pop(0)
+                    else:
+                        # Standard import (module name)
+                        module = importlib.import_module(self.init_path)
+                    
+                    # Get the class/function from the module
                     model_init = getattr(module, self.init_name)
                     
                     # Initialize the model
                     self.model = model_init(**self.model_kwargs)
                     print(f"Initialized model using {self.init_name}")
                     
-                except ImportError:
-                    raise ConfigError(f"Could not import module {self.init_path}")
+                except ImportError as e:
+                    raise ConfigError(f"Could not import module {self.init_path}: {str(e)}")
                 except AttributeError:
                     raise ConfigError(f"{self.init_name} not found in module {self.init_path}")
                 except Exception as e:
@@ -126,25 +156,62 @@ class LoadModelApp:
                 try:
                     print(f"Loading weights from {self.weight_path}")
                     
-                    # Check if file exists
                     if not os.path.exists(self.weight_path):
                         raise ConfigError(f"Weight file not found: {self.weight_path}")
                     
-                    # Load the weights
-                    state_dict = torch.load(self.weight_path, map_location=self.device)
+                    checkpoint = torch.load(self.weight_path, map_location=self.device)
+
+                    if 'model_state_dict' in checkpoint:
+                        state_dict = checkpoint['model_state_dict']
+                        print("Found model_state_dict key in checkpoint")
+                    else:
+                        state_dict = checkpoint
+                        print("Using checkpoint directly as state dict")
                     
-                    # Handle potential DataParallel wrapping
-                    if isinstance(state_dict, dict) and list(state_dict.keys())[0].startswith('module.'):
-                        state_dict = {k[7:]: v for k, v in state_dict.items()}
+                    # # Handle potential DataParallel wrapping
+                    # if isinstance(state_dict, dict) and list(state_dict.keys())[0].startswith('module.'):
+                    #     state_dict = {k[7:]: v for k, v in state_dict.items()}
                     
-                    # Load the state dict
                     self.model.load_state_dict(state_dict)
                     print(f"Successfully loaded weights from {self.weight_path}")
                     
                 except Exception as e:
                     raise ConfigError(f"Failed to load weights: {str(e)}")
             
-            # Move model to device and set to eval mode
+            self.model = self.model.to(self.device)
+            self.model.eval()
+            print(f"Model loaded successfully and set to evaluation mode on {self.device}")
+
+            return self.model
+            
+        except Exception as e:
+            raise ConfigError(f"Error in load_model: {str(e)}")
+
+    def load_modela(self):
+        """ 
+        Load the model based on the specified loading method from config.
+        
+        Supported methods:
+        - function: Load by importing a class or calling a function from a module
+        - torch: Load from torch hub
+        """
+        try:
+            # Get model_kwargs with proper default
+            self.model_kwargs = self.config.get('model_kwargs', {}) or {}
+            
+            # Load the model based on the specified method
+            if self.load_method == 'function':
+                self._load_from_function()
+            elif self.load_method == 'torch':
+                self._load_from_torch_hub()
+            else:
+                raise ConfigError(f"Unknown model loading method: {self.load_method}")
+            
+            # Load weights if specified
+            if hasattr(self, 'weight_path') and self.weight_path:
+                self._load_weights()
+            
+            # Finalize model setup
             self.model = self.model.to(self.device)
             self.model.eval()
             print(f"Model loaded successfully and set to evaluation mode on {self.device}")
@@ -153,6 +220,98 @@ class LoadModelApp:
             
         except Exception as e:
             raise ConfigError(f"Error in load_model: {str(e)}")
+
+    def _load_from_function(self):
+        """Load model by importing a class from a module and initializing it."""
+        try:
+            module = self._import_module(self.init_path)
+            model_init = getattr(module, self.init_name)
+            # Initialize the model
+            self.model = model_init(**self.model_kwargs)
+            print(f"Initialized model using {self.init_name}")
+            
+        except ImportError as e:
+            raise ConfigError(f"Could not import module {self.init_path}: {str(e)}")
+        except AttributeError:
+            raise ConfigError(f"{self.init_name} not found in module {self.init_path}")
+        except Exception as e:
+            raise ConfigError(f"Failed to initialize model: {str(e)}")
+
+    def _import_module(self, module_path):
+        """Import a module from either a file path or module name."""
+        # Check if it's a file path or module name
+        if module_path.startswith('./') or module_path.startswith('/') or '/' in module_path:
+            abs_path = os.path.abspath(module_path)
+            # Get the directory and module name
+            directory = os.path.dirname(abs_path)
+            module_name = os.path.basename(abs_path)
+            sys.path.insert(0, directory)
+            try:
+                return importlib.import_module(module_name)
+            finally:
+                sys.path.pop(0)
+        else:
+            return importlib.import_module(module_path)
+
+    def _load_from_torch_hub(self):
+        """Load model from torch hub."""
+        pretrained = self.config.get('pretrained', False)
+        try:
+            # Try with 'weights' parameter first
+            try:
+                weights_param = 'DEFAULT' if pretrained else None
+                self.model = torch.hub.load(
+                    self.init_path, 
+                    self.init_name, 
+                    weights=weights_param, 
+                    **self.model_kwargs
+                )
+                print(f"Loaded model from torch.hub using 'weights' parameter")
+            except (TypeError, ValueError):
+                # Fall back to 'pretrained' parameter
+                self.model = torch.hub.load(
+                    self.init_path, 
+                    self.init_name, 
+                    pretrained=pretrained, 
+                    **self.model_kwargs
+                )
+                print(f"Loaded model from torch.hub using 'pretrained' parameter")
+            
+            print(f"Loaded model from torch.hub: {self.init_path}/{self.init_name} (pretrained: {pretrained})")
+            
+        except Exception as e:
+            raise ConfigError(f"Failed to load model from torch.hub: {str(e)}")
+
+    def _load_weights(self):
+        """Load weights from a checkpoint file."""
+        try:
+            print(f"Loading weights from {self.weight_path}")
+            
+            if not os.path.exists(self.weight_path):
+                raise ConfigError(f"Weight file not found: {self.weight_path}")
+            
+            # Load checkpoint and handle different formats
+            checkpoint = torch.load(self.weight_path, map_location=self.device)
+            
+            # Extract state dict
+            if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+                state_dict = checkpoint['model_state_dict']
+                print("Found model_state_dict key in checkpoint")
+            else:
+                state_dict = checkpoint
+                print("Using checkpoint directly as state dict")
+            
+            # Handle DataParallel wrapping if needed
+            if isinstance(state_dict, dict) and any(k.startswith('module.') for k in state_dict.keys()):
+                state_dict = {k.replace('module.', '', 1): v for k, v in state_dict.items()}
+                print("Removed 'module.' prefix from state dict keys")
+            
+            # Load the state dict
+            self.model.load_state_dict(state_dict)
+            print(f"Successfully loaded weights from {self.weight_path}")
+            
+        except Exception as e:
+            raise ConfigError(f"Failed to load weights: {str(e)}")
 
     def get_transform(self):
         if self.dataset_name == 'cifar10':
@@ -272,8 +431,9 @@ class LoadModelApp:
             raise ConfigError("Model must be loaded before saving.")
             
         if path is None:
-            model_name = self.init_name.split('.')[-1] if self.init_name else "model"
-            path = os.path.join(self.save_dir, f"{model_name}_{self.dataset_name}.pt") 
+            if self.save_name is None:
+                self.save_name = self.init_name.split('.')[-1] if self.init_name else "model"
+            path = os.path.join(self.save_dir, f"{self.save_name}.pt") 
         
         os.makedirs(os.path.dirname(path), exist_ok=True)
         torch.save(self.model.state_dict(), path)
