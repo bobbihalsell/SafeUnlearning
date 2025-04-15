@@ -204,12 +204,6 @@ class ReconstructorApp(InputValidator):
             print(f"Reconstruction Losses: {losses}")
 
 
-        wandb.log({
-            'reconstruction_time': total_time,
-            'losses': losses,
-            'reconstruction': wandb.Image(reconstruction),
-        })
-
         # # Step 5: Save the reconstructed image
         image_saver = self.save_results()
         image_saver.save_png(reconstruction,
@@ -217,8 +211,26 @@ class ReconstructorApp(InputValidator):
         
         # # Step 6: Calculate metrics
         ref_batch = load_from_directory(self.data_root)
-        calculate_metrics(reconstruction, ref_batch)
+        num_images = reconstruction.shape[0]
+        psnr_value, mse_value, lpips_value, mse_r_value = calculate_metrics(reconstruction, ref_batch, num_images, self.verbose)
 
+        # # Step 7: Save metrics
+        table = wandb.Table(columns=["img_id", "psnr", "best_ref_index"])
+        for i, (p, idx) in enumerate(psnr_value):
+            table.add_data(i, p, idx)
+
+        psnr_max = max([p for p, _ in psnr_value])
+
+        wandb.log({
+            'reconstruction_time': total_time,
+            'losses': losses,
+            'reconstruction': wandb.Image(reconstruction),
+            'psnr_table': table,
+            'max_psnr': psnr_max,
+            'mse_image_space': mse_value,
+            'lpips': lpips_value,
+            'mse_representation_space': mse_r_value,
+        })
         wandb.finish()
         
 @hydra.main(version_base=None,
