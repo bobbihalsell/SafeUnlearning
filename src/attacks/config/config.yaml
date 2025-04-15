@@ -4,12 +4,12 @@ defaults:
 experiment_name: "reconstruction_experiment"
 original_weights: ???
 unlearned_weights: ???
-output_dir: ./artifacts_test/
+output_dir: ./artifacts/
 seed: 42
 verbose: true
 wandb: # optional Weights and Biases configuration
   project: MU reconstruction
-  # extra_config:  # optional extra configuration to be logged in wandb
-  #   unlearning_method: 'neggrad'
-  #   beta: 0
-  #   epochs: 1
+  extra_config:  # optional extra configuration to be logged in wandb
+    unlearning_method: 'neggrad'
+    beta: 0
+    epochs: 1
