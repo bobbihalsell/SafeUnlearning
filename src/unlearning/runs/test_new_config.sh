@@ -1,0 +1,1 @@
+python src/unlearning/main.py model_loading=torchhub model_loading.model_name=cifar10_resnet20 unlearner=finetune model_loading.num_classes=10 model_loading.init_path=chenyaofo/pytorch-cifar-models model_loading.model_kwargs.pretrained=true output_dir=artifact_hydra dataset=cifar10 dataset.save_path=./data 

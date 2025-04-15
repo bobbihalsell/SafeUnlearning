@@ -1,7 +1,8 @@
 defaults:
   - _self_
-  - model: ???
+  - model_loading: ???
   - dataset: ???
   - unlearner: ???
 seed: 42
 verbose: true
+output_dir: ???

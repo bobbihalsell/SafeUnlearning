@@ -118,14 +118,16 @@ class ImportModel:
                 self.model = torch.hub.load(
                     self.init_path, 
                     self.init_name, 
-                    weights=weights_param
+                    weights=weights_param,
+                    trust_repo="check"
                 )
             except (TypeError, ValueError):
                 # Fall back to 'pretrained' parameter
                 self.model = torch.hub.load(
                     self.init_path, 
                     self.init_name, 
-                    pretrained=pretrained
+                    pretrained=pretrained,
+                    trust_repo="check"
                 )
             
             print(f"Loaded model from torch.hub: {self.init_path}/{self.init_name}")

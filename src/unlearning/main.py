@@ -34,14 +34,14 @@ class UnlearnApp(InputValidator):
 
         self.unlearn_params['loss_fn'] = nn.CrossEntropyLoss()
         # Output directory
-        self.output_dir = config['model'].get('output_dir', 'artifacts/')
+        self.output_dir = config['output_dir']
         os.makedirs(self.output_dir, exist_ok=True)
 
     def load_model(self):
         """Initialize the model based on model name from user configuration."""
         modelimport = ImportModel(self.init_method, 
                                     self.init_path, 
-                                    self.init_name, 
+                                    self.model_name, 
                                     self.model_ckpt_path,
                                     self.seed,
                                     self.model_kwargs, 
@@ -150,7 +150,7 @@ class UnlearnApp(InputValidator):
         save_model(original_model,
                    output_dir=self.output_dir,
                    unlearning_algorithm=self.unlearner_name,
-                   model_name=self.init_name,
+                   model_name=self.model_name,
                    seed=self.seed,
                    model_type='original')
 
@@ -167,7 +167,7 @@ class UnlearnApp(InputValidator):
         save_model(unlearned_model,
                    output_dir=self.output_dir,
                    unlearning_algorithm=self.unlearner_name,
-                   model_name=self.init_name,
+                   model_name=self.model_name,
                    seed=self.seed,
                    model_type='unlearned',
                    payload=losses)

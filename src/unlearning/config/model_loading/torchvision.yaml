@@ -1,0 +1,4 @@
+init_method: torchvision
+model_name:  ???
+model_ckpt_path: ???
+num_classes: ???

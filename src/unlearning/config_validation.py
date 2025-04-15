@@ -7,6 +7,8 @@ class InputValidator:
     def __init__(self, config):
         assert isinstance(config, dict)
 
+        self.output_dir = config['output_dir']
+
         self.unlearner_name = config['unlearner']['name']
         self.unlearn_params = config['unlearner']['cfg']
         self.evaluate = config['unlearner']['evaluate']
@@ -17,14 +19,14 @@ class InputValidator:
         self.num_workers = self.dataset_cfg['num_workers']
         self.batch_sizes = self.dataset_cfg['batch_sizes']
 
-        model_config = config['model']
+        model_config = config['model_loading']
         self.init_method = model_config['init_method']
         self.init_path = model_config.get('init_path', None)
-        self.init_name = model_config['init_name']
+        self.path_to_class = model_config.get('path_to_class', None)
+        self.model_name = model_config['model_name']
         self.model_ckpt_path = model_config['model_ckpt_path']
-        self.model_kwargs = model_config['model_kwargs']
-        self.output_dir = model_config['output_dir']
-        # self.num_classes = model_config['num_classes']
+        self.model_kwargs = model_config.get('model_kwargs', None)
+        self.num_classes = model_config['num_classes']
 
         self.verbose = config['verbose']
 

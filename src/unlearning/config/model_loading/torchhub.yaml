@@ -1,0 +1,7 @@
+init_method: torchhub
+init_path: ???
+model_name:  ???
+model_ckpt_path:
+model_kwargs:
+  pretrained: true 
+num_classes: ???
