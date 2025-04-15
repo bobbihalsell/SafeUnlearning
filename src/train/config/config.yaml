@@ -2,5 +2,6 @@ defaults:
   - _self_
   - model: ???
   - dataset: ???
+  - train_cfg: ???
+  - wandb_cfg: ???
 seed: 42
-run_id: melon

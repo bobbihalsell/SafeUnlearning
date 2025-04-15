@@ -1,7 +1,7 @@
-name: neggrad
+name: finetune
 evaluate: true
 cfg:
-  lr: 0.0005
-  weight_decay: 0
+  lr: 0.001
+  weight_decay: 0.00001
   use_l2_penalty: false
   epochs: 2

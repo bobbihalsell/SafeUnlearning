@@ -1,12 +1,14 @@
-name: scrub  # Options: neggrad, neggradplus, scrub, euk, cfk, finetune
+name: scrub
 evaluate: true
 cfg:
-  # Common parameters for all unlearners
-  lr: 0.0005
-  weight_decay: 0
+  optimizer: sgd
+  lr: 0.01
+  lr_decay_factor: 0.1  # Multiplicative learning rate decay factor. Leave empty if not using LR scheduling
+  epochs_per_lr_decay: 2 # Number of epoch intervals before the decay factor is applied to LR. Leave empty if not using LR scheduling.
+  momentum: 0.9
+  weight_decay: 0.1
   use_l2_penalty: false
-  # Specific parameters for some unlearners (will be ignored for others)
-  min_epochs: 2  # For scrub  retain aligning steps
-  max_epochs: 5  # For scrub  forget away steps
+  min_epochs: 4  # For scrub  retain aligning steps
+  max_epochs: 2  # For scrub  forget away steps
   alpha: 0.5  # For scrub  retain loss; gamma: cross-entropy weight
   gamma: 0.5  # For scrub  retain loss; alpha: KL divergence weight

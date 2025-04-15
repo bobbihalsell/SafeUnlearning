@@ -37,8 +37,11 @@ class TrainApp:
         self.batch_sizes = dataset_cfg['batch_sizes']
         self.num_workers = dataset_cfg.get('num_workers', 1)
 
-        self.train_cfg = model_cfg['train_cfg']
-        self.run_id = config['run_id']
+        self.train_cfg = config['train_cfg']
+
+        wandb_cfg = config['wandb_cfg']
+        self.run_id = wandb_cfg['run_id']
+        self.project_name = wandb_cfg['project_name']
 
         self.checkpoint_path = model_cfg.get('checkpoint_path', None)
         self.from_checkpoint = False  # Flag to determine whether to train from checkpoint
@@ -197,7 +200,7 @@ class TrainApp:
             return None
 
         wandb.init(
-            project="TEST",
+            project=self.project_name,
             config={
                 "epochs": num_epochs,
                 "batch_size": self.batch_sizes['train'],
