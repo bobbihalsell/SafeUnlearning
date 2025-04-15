@@ -2,7 +2,7 @@ name: neggrad
 evaluate: true
 cfg:
   optimizer: adam
-  lr: 0.01
+  lr: 0.001
   lr_decay_factor: 0.1
   epochs_per_lr_decay: 2
   weight_decay: 0

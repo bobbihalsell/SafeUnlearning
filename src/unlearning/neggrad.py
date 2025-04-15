@@ -132,6 +132,9 @@ class NegGrad(BaseUnlearner):
                     verbose=verbose
                 )
 
+            if scheduler is not None:
+                scheduler.step()
+
         return unlearned_model, losses
 
 
@@ -244,9 +247,14 @@ class NegGradPlus(BaseUnlearner):
         # Initialize loss tracking
         losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
 
-        optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
-                                    lr=self.lr,
-                                    weight_decay=self.weight_decay)
+        optimizer = self.initialize_optimizer(unlearned_model,
+                                              optimizer_name=self.optimizer)
+
+        if (self.epochs_per_lr_decay is not None and
+                self.lr_decay_factor is not None):
+            scheduler = self.initialize_scheduler(optimizer=optimizer)
+        else:
+            scheduler = None
 
         eval_dataloaders = [key for key in data_dict.keys() if
                             key not in ['retain', 'forget']]
@@ -300,8 +308,11 @@ class NegGradPlus(BaseUnlearner):
             avg_epoch_retain_loss = total_retain_loss/len(data_dict["retain"])
 
             if verbose:
-                print(f'Epoch {e}: Retain Loss: {avg_epoch_retain_loss}, '
-                      f'Forget Loss: {avg_epoch_forget_loss}')
+                if scheduler is not None:
+                    current_lr = scheduler.optimizer.param_groups[0]['lr']
+                else:
+                    current_lr = optimizer.param_groups[0]['lr']
+                print(f'Epoch {e+1}: Retain Loss: {retain_loss} LR: {current_lr:.5f}')
 
             if self.evaluate:
                 losses['retain_losses'].append(avg_epoch_retain_loss)
@@ -313,5 +324,8 @@ class NegGradPlus(BaseUnlearner):
                     losses=losses,
                     verbose=verbose
                 )
+
+            if scheduler is not None:
+                scheduler.step()
 
         return unlearned_model, losses
