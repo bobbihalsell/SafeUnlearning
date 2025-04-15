@@ -18,7 +18,7 @@ class InputValidator:
 
         data_config = config['data']
         self.model_name = data_config['model_name']
-        self.labels = self._load_labels(data_config['labels'])
+        self.labels = self._load_labels(data_config.get('labels', None))
         self.dataset_name = data_config['dataset_name']
         self.num_classes = data_config['num_classes']
         self.data_root = data_config['data_root']
@@ -44,7 +44,7 @@ class InputValidator:
         elif isinstance(labels_cfg, list):
             return labels_cfg
         else:
-            raise ValueError("Unsupported label format: must be a list or path to a file.")        
+            return None    
 
     def _validate_reconstructor_params(self):
         """
@@ -109,8 +109,13 @@ class InputValidator:
                               'load the dataset from must be provided. '
                               'data_root cannot be empty.')
         
-        if not isinstance(self.labels, list) or not all(isinstance(label, int) for label in self.labels):
-            raise ConfigError('Labels must be a list of integers.')
+        if self.labels:
+            if not isinstance(self.labels, list) or not all(isinstance(label, int) for label in self.labels):
+                raise ConfigError('Labels must be a list of integers.')
+        else:
+            if not isinstance(self.reconstructor_params['num_images'], int):
+                raise ConfigError('Either labels or num_images must be provided.')
+
         
     def _validate_experiment_params(self):
         """ Check some of the model-related config params from the YAML file.

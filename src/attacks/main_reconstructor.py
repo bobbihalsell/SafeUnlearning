@@ -193,6 +193,7 @@ class ReconstructorApp(InputValidator):
             reconstruction, z_res, losses = reconstructor.reconstruct()
         elif self.reconstructor_name == 'inversegrad':
             reconstruction, losses = reconstructor.reconstruct(labels = self.labels,
+                                                               num_images = self.reconstructor_params['num_images'],
                                                             image_size= self.image_size,
                                                             image_mean= self.image_mean,
                                                             image_std=self.image_std,
@@ -217,7 +218,8 @@ class ReconstructorApp(InputValidator):
         
         self.calculate_metrics()
 
-
+        wandb.finish()
+        
 @hydra.main(version_base=None,
             config_path="config",
             config_name="config")

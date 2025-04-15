@@ -104,7 +104,7 @@ class InverseGradReconstructor():
         set_seed(seed)
 
 
-    def reconstruct(self, labels, image_size=[3, 32, 32], 
+    def reconstruct(self, labels, num_images, image_size=[3, 32, 32], 
                     image_mean = [0.5, 0.5, 0.5],
                     image_std = [0.5, 0.5, 0.5],
                     lr = 0.1, verbose = True):
@@ -116,15 +116,18 @@ class InverseGradReconstructor():
         self.ds = image_std[0]
         self.lr = lr
         self.verbose = verbose
-        labels = torch.as_tensor(labels, device = self.device)
-        self.num_images = labels.shape[0]
+        if labels:
+            labels = torch.as_tensor(labels, device = self.device)
+            self.num_images = labels.shape[0]
+        else:
+            self.num_images = num_images
 
         if self.num_images > 1 and self.config.scoring_choice in ['pixelmean', 'pixelmedian']:
             raise ValueError('Pixel mean/median scoring choice can only be performed on one image.')
 
         self.normalizer = transforms.Normalize(image_mean, image_std)
         
-        if eval: #TODO: maybe remove this 
+        if eval: 
             self.original_model.eval()
 
         input_data = self.input_gradient
@@ -139,7 +142,6 @@ class InverseGradReconstructor():
                 labels = torch.nn.functional.softmax(labels, dim=-1)
                 return torch.mean(torch.sum(- labels * torch.nn.functional.log_softmax(pred, dim=-1), 1))
             self.loss_fn_ce = loss_fn
-                # self.loss_fn = DistillKL(2)
         else:
             self.reconstruct_label = False
 
@@ -189,7 +191,7 @@ class InverseGradReconstructor():
         x_trial.requires_grad = True
         if self.reconstruct_label:
             output_test = self.original_model(x_trial)
-            labels = torch.randn(output_test.shape[1]).to(**self.device).requires_grad_(True)
+            labels = torch.randn(output_test.shape[1]).to(self.device).requires_grad_(True)
 
             if self.config.optim == 'adam':
                 optimizer = torch.optim.Adam([x_trial, labels], lr=self.lr)
@@ -274,7 +276,7 @@ class InverseGradReconstructor():
             x_trial.grad = None
             loss_ce = self.loss_fn_ce(self.original_model((x_trial)), label)
             loss_kl = self.loss_fn(self.original_model((x_trial)), self.model_copy(self.normalizer(x_trial)))
-            loss =  loss_ce + loss_kl
+            loss =  loss_ce + 0*loss_kl
 
             gradient = torch.autograd.grad(loss, self.original_model.parameters(), create_graph=False)
             return reconstruction_costs([gradient], input_gradient,
