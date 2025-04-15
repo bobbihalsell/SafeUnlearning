@@ -1,0 +1,9 @@
+method: timm  
+
+model_name: mobilenet_v2
+model_ckpt_path:
+
+num_classes: 10
+
+# Model saving and evaluation
+output_dir: ./artifacts/models
