@@ -1,0 +1,1 @@
+python src/unlearning/main.py model_loading=torchvision model_loading.model_name=mobilenet_v2 unlearner=neggrad dataset=cifar10 dataset.save_path=./data model_loading.num_classes=10 model_loading.model_ckpt_path=./artifacts/models/cifar_test/mobilenet_v2_42_original.pt output_dir=artifacts-hydra

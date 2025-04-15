@@ -35,16 +35,6 @@ class UnlearnApp(InputValidator):
 
     def load_model(self):
         """Initialize the model based on model name from user configuration."""
-<<<<<<< HEAD
-        modelimport = ImportModel(self.init_method, 
-                                    self.init_path, 
-                                    self.model_name, 
-                                    self.model_ckpt_path,
-                                    self.seed,
-                                    self.model_kwargs, 
-                                    )
-        
-=======
         modelimport = ImportModel(self.init_method,
                                   self.init_path,
                                   self.init_name,
@@ -53,7 +43,6 @@ class UnlearnApp(InputValidator):
                                   self.model_kwargs,
                                   )
 
->>>>>>> a032d56 (indivulual yamls for diff loading methods, clearer args)
         return modelimport.model
 
     def initialize_unlearner(self):
