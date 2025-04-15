@@ -181,7 +181,7 @@ class UnlearnApp(InputValidator):
             dataloaders[split] = DataLoader(
                 dataset,
                 batch_size=batch_size,
-                shuffle=(split == 'retain'),  # Only shuffle retain set
+                shuffle=(split in ['retain', 'forget']),
                 num_workers=self.num_workers,
                 pin_memory=True
             )

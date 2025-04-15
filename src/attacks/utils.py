@@ -82,11 +82,12 @@ class SaveImage:
             plt.axis('off')
         else:
             if n_cols is None:
-                n_cols = int(np.ceil(self.num_images / 2))
+                max_cols = 8
+                n_cols = min(max_cols, self.num_images)
             n_rows = int(np.ceil(self.num_images / n_cols))
 
             _, h, w = images[0].shape
-            scale = 1.5
+            scale = 2.5
             fig_width = (w * n_cols * scale) / 100
             fig_height = (h * n_rows * scale) / 100
             fig_size = (fig_width, fig_height)
@@ -95,7 +96,8 @@ class SaveImage:
             axes = np.array(axes).flatten()
 
             for i, im in enumerate(images):
-                axes[i].imshow(im.permute(1, 2, 0).cpu())
+                clipped_images = torch.clamp(im, 0.0, 1.0)
+                axes[i].imshow(clipped_images.permute(1, 2, 0).cpu())
                 axes[i].axis('off')
 
             # Hide any unused subplots
@@ -186,7 +188,7 @@ if __name__ == "__main__":
                            experiment_name="example_experiment")
     
     # Create a dummy tensor of images
-    images = torch.randn(50, 3, 64, 64)  
+    images = torch.randn(32, 3, 64, 64)  
 
     # Save the images with custom parameters
 
@@ -197,5 +199,4 @@ if __name__ == "__main__":
     print(f"Loaded images shape: {loaded_images.shape}")
 
     save_image.save_png(loaded_images, 
-                         n_cols=10, 
-                         normalise=True)
+                         normalize=True)
