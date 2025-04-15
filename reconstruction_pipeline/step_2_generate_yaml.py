@@ -1,4 +1,8 @@
 import os 
+from utils import FORGET_POOL, FORGET_ROOT
+import shutil
+
+
 def create_base_yaml():
     base_yamls = {
         "src/unlearning/config/model/resnet18_exp.yaml": """
@@ -10,7 +14,7 @@ output_dir: ./artifacts
 
         "src/unlearning/config/dataset/cifar10_exp.yaml": """
 name: cifar10
-save_path: ./data
+save_path: ./data/forget
 cfg:
   batch_sizes:
     retain: 32
@@ -68,5 +72,12 @@ data_root: ./data
 
 
 if __name__ == "__main__":
-    create_base_yaml()
+        if not os.path.exists("reconstruction_pipeline/labels"):
+                os.makedirs("reconstruction_pipeline/labels")
+
+        if not os.path.exists("./forget_pool"):
+                os.rename("./data/forget", "./data/forget_pool")
+                shutil.move("./data/forget_pool", "./")
+
+        create_base_yaml()
     
