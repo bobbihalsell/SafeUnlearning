@@ -39,7 +39,9 @@ def get_loaders_from_indices(
     save_dir = config.dataset.save_path
     transform = get_cifar10_test_transform()
 
-    train, val, test = load_train_val_test_datasets(dataset, 1, config.dataset.val_ratio, save_dir, save_dir, transform)
+    train, val, test = load_train_val_test_datasets(
+        dataset, 1, config.dataset.val_ratio, save_dir, save_dir, transform
+    )
     dataset = ConcatDataset([train, val, test])
 
     retain_indices, forget_indices, val_indices = indices
@@ -66,31 +68,22 @@ def load_model(model_name: str, num_classes: int, checkpoint_path: Path) -> nn.M
 
         # Adjust the last layer based on model type
         if hasattr(model, "fc"):  # ResNet-style
-            model.fc = nn.Linear(
-                model.fc.in_features,
-                num_classes
-            )
+            model.fc = nn.Linear(model.fc.in_features, num_classes)
         elif hasattr(model, "classifier"):
             # MobileNet, EfficientNet, VGG, DenseNet
             if isinstance(model.classifier, nn.Sequential):
                 # Handle cases where classifier is Sequential
                 last_layer_idx = len(model.classifier) - 1
                 model.classifier[last_layer_idx] = nn.Linear(
-                    model.classifier[last_layer_idx].in_features,
-                    num_classes
+                    model.classifier[last_layer_idx].in_features, num_classes
                 )
             else:
-                model.classifier = nn.Linear(
-                    model.classifier.in_features,
-                    num_classes
-                )
+                model.classifier = nn.Linear(model.classifier.in_features, num_classes)
         else:
-            raise AttributeError("Unknown classification layer "
-                                 f'for {model_name}')
+            raise AttributeError(f"Unknown classification layer for {model_name}")
 
     else:
-        print(f'Could not find {model_name} in torchvision.'
-              ' Looking in timm.')
+        print(f"Could not find {model_name} in torchvision. Looking in timm.")
         try:
             model = timm.create_model(
                 model_name,

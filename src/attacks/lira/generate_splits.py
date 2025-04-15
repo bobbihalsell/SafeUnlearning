@@ -51,7 +51,9 @@ def run(config: DictConfig, root: Path) -> None:
     num_forgets = config.attack.cfg.num_forgets
     save_dir = config.dataset.save_path
 
-    train, _, test = load_train_val_test_datasets(dataset, 1, val_ratio, save_dir, save_dir)
+    train, _, test = load_train_val_test_datasets(
+        dataset, 1, val_ratio, save_dir, save_dir
+    )
     train_len, test_len = len(train), len(test)
 
     indices = np.arange(train_len + test_len)

@@ -12,6 +12,41 @@ from torch.utils.data import ConcatDataset
 from datasets.load_datasets import load_train_val_test_datasets
 
 
+class NeverAndForgotten:
+    def __init__(
+        self,
+        never: Optional[List[Tuple[int, int]]] = None,
+        forgotten: Optional[List[Tuple[int, int]]] = None,
+    ):
+        self.never = never if never is not None else []
+        self.forgotten = forgotten if forgotten is not None else []
+
+    def assert_no_overlap(self):
+        unique_never = set(self.never)
+        unique_forgotten = set(self.forgotten)
+        assert len(unique_never.intersection(unique_forgotten)) == 0
+
+    def __repr__(self):
+        rep = f"Never {len(self.never)} {self.never[:10]}, Forgotten "
+        rep += f"{len(self.forgotten)} {self.forgotten[:10]}"
+        return rep
+
+
+class ProbasNeverAndForgotten:
+    def __init__(
+        self,
+        never: Optional[List[float]] = None,
+        forgotten: Optional[List[float]] = None,
+    ):
+        self.never = never if never is not None else []
+        self.forgotten = forgotten if forgotten is not None else []
+
+    def __repr__(self):
+        rep = f"Probas Never {np.mean(self.never):.3f}+-{np.std(self.never):.3f} "
+        rep += f"Forgotten  {np.mean(self.forgotten):.3f}+-{np.std(self.forgotten):.3f}"
+        return rep
+
+
 def predicted_membership_probability(
     z: float,
     forget_mean: float,
@@ -52,41 +87,6 @@ def compute_membership_probabilities(
             )
             ndx_to_membership[ndx].append(membership_prob)
     return ndx_to_membership
-
-
-class NeverAndForgotten:
-    def __init__(
-        self,
-        never: Optional[List[Tuple[int, int]]] = None,
-        forgotten: Optional[List[Tuple[int, int]]] = None,
-    ):
-        self.never = never if never is not None else []
-        self.forgotten = forgotten if forgotten is not None else []
-
-    def assert_no_overlap(self):
-        unique_never = set(self.never)
-        unique_forgotten = set(self.forgotten)
-        assert len(unique_never.intersection(unique_forgotten)) == 0
-
-    def __repr__(self):
-        rep = f"Never {len(self.never)} {self.never[:10]}, Forgotten "
-        rep += f"{len(self.forgotten)} {self.forgotten[:10]}"
-        return rep
-
-
-class ProbasNeverAndForgotten:
-    def __init__(
-        self,
-        never: Optional[List[float]] = None,
-        forgotten: Optional[List[float]] = None,
-    ):
-        self.never = never if never is not None else []
-        self.forgotten = forgotten if forgotten is not None else []
-
-    def __repr__(self):
-        rep = f"Probas Never {np.mean(self.never):.3f}+-{np.std(self.never):.3f} "
-        rep += f"Forgotten  {np.mean(self.forgotten):.3f}+-{np.std(self.forgotten):.3f}"
-        return rep
 
 
 def extract_correct_probabilities(
@@ -150,11 +150,9 @@ def run(config: DictConfig, root: Path) -> None:
         config.dataset.name, 1, config.dataset.val_ratio, save_dir, save_dir
     )
     dataset = ConcatDataset([train, val, test])
-    targets = np.concatenate([dataset.datasets[ndx].targets for ndx in range(2)])
+    targets = np.array([label for (image, label) in dataset])
 
-    forgets_splits_and_forget_indices = reconstruct_split_and_forget(
-        root, num_splits
-    )
+    forgets_splits_and_forget_indices = reconstruct_split_and_forget(root, num_splits)
 
     id_to_forgotten_never_seen = {}
     for split_ndx, row in enumerate(test_indices):
@@ -171,9 +169,7 @@ def run(config: DictConfig, root: Path) -> None:
                     (split_ndx, forget_ndx)
                 )
 
-    storage = get_preds(
-        root, config.model.name, unlearner, num_splits, num_forgets
-    )
+    storage = get_preds(root, config.model.name, unlearner, num_splits, num_forgets)
     id_to_correct_probas = extract_correct_probabilities(
         storage, targets, id_to_forgotten_never_seen
     )

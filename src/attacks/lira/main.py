@@ -8,7 +8,7 @@ from attacks.lira.compute_lira import run as lira_score
 from attacks.lira.config_validation import LiRAValidator
 from attacks.lira.generate_predictions import run as generate_predictions
 from attacks.lira.generate_splits import run as generate_splits
-from attacks.lira.train_lira import main as tl_main
+from attacks.lira.train_lira import run as tl_main
 from unlearning.utils import set_seed, setup_device
 
 
@@ -24,7 +24,7 @@ class LiRAApp:
         self.seed = self.config["seed"]
         set_seed(self.seed)
 
-        self.root = Path("artifacts/attacks/lira" / self.config.exp_name)
+        self.root = Path(f"artifacts/attacks/lira/{self.config['exp_name']}")
         os.makedirs(self.root, exist_ok=True)
 
     def train_base_models(self):
@@ -36,14 +36,19 @@ class LiRAApp:
         generate_predictions(self.config, self.root, "naive")
 
     def unlearn_models(self):
-        tl_main(self.config, self.config.unlearner.name, self.root, self.config.unlearner.name)
+        tl_main(
+            self.config,
+            self.config.unlearner.name,
+            self.root,
+            self.config.unlearner.name,
+        )
         generate_predictions(self.config, self.root, self.config.unlearner.name)
 
     def get_scores(self):
-        lira_score(self.config)
+        lira_score(self.config, self.root)
 
     def run(self):
-        generate_splits(self.root, self.config)
+        generate_splits(self.config, self.root)
         self.train_base_models()
         self.train_test_models()
         self.unlearn_models()
