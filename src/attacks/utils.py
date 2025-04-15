@@ -9,6 +9,7 @@ from dataclasses import fields
 from attacks.metrics import psnr, mse_image_space, lpips_batch, MSE_R
 from torchvision import transforms
 from PIL import Image
+import glob
 
 
 class SaveImage:
@@ -203,54 +204,27 @@ def calculate_metrics(img_batch, ref_batch, images = 1, verbose = True):
             print(f"LPIPS: {lpips_value:.4f}")
             print(f"MSE (Representation Space): {mse_r_value:.6f}")
 
-    return psnr_value, mse_value, lpips_value, mse_r_value
-
-def load_from_directory(image_path):
-    """
-    Loads all images from a directory and its subfolders and returns them as a batch.
-    
-    Args:
-        image_path (str): The root directory containing images and subfolders.
-    
-    Returns:
-        torch.Tensor: A tensor of shape [B, C, H, W] containing all images.
-    """
-    # List to store loaded images
+def load_from_directory(dir_path):
+    transform = transforms.ToTensor()
     images = []
-    
-    # Define transformation if needed (e.g., resizing, normalization)
-    # transform = transforms.Compose([
-    #     transforms.Resize((224, 224)),  # Resize images to a standard size (224x224)
-    #     transforms.ToTensor(),          # Convert image to tensor
-    #     transforms.Normalize(mean=[0.485, 0.456, 0.406],
-    #                          std=[0.229, 0.224, 0.225])  # Normalize using ImageNet stats
-    # ])
 
-    transform = transforms.Compose([
-    transforms.Resize((32, 32)),  # Resize images to a standard size (224x224)
-    transforms.ToTensor(),          # Convert image to tensor
-])
+    # Recursively find all image files in dir_path
+    image_paths = sorted(
+        glob.glob(os.path.join(dir_path, "**", "*.*"), recursive=True)
+    )
+    image_paths = [
+        p for p in image_paths if p.lower().endswith((".png", ".jpg", ".jpeg"))
+    ]
 
-    
-    # Walk through all subdirectories and files in the given path
-    for root, dirs, files in os.walk(image_path):
-        for file in files:
-            # Only process image files (you can add more extensions as needed)
-            if file.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
-                img_path = os.path.join(root, file)
-                
-                # Load the image using PIL
-                img = Image.open(img_path).convert('RGB')
-                
-                # Apply transformation (resize, normalize)
-                img = transform(img)
-                
-                # Append image to the list
-                images.append(img)
-    
-    # Convert the list of images to a batch (tensor) by stacking
+    for img_path in image_paths:
+        img = Image.open(img_path).convert("RGB")
+        tensor_img = transform(img)
+        images.append(tensor_img)
+
+    if not images:
+        raise RuntimeError(f"No image files found in {dir_path} or its subdirectories.")
+
     image_batch = torch.stack(images)
-    
     return image_batch
 
 
