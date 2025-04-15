@@ -90,9 +90,12 @@ class UnlearnApp(InputValidator):
             model = self.initialize_model()
             # Load state dict
             checkpoint = torch.load(model_path, map_location=self.device)
-            model.load_state_dict(checkpoint['model_state_dict'])
+            checkpoint = (checkpoint["model_state_dict"] if
+                          "model_state_dict" in checkpoint else checkpoint)
+            model.load_state_dict(checkpoint)
             model = model.to(self.device)
             print(f"Loaded model from {model_path}")
+
             return model
 
         except Exception as e:
