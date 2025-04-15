@@ -72,13 +72,15 @@ class SaveImage:
         self.num_images = len(images)
 
         images = images.clone().detach().to(self.device)
+        clipped_images = [torch.clamp(img, 0.0, 1.0) for img in images]
+
 
         if normalize:
-            images.mul_(self.image_std).add_(self.image_mean).clamp_(0, 1) 
+            clipped_images.mul_(self.image_std).add_(self.image_mean).clamp_(0, 1) 
 
 
         if self.num_images == 1:
-            plt.imshow(images[0].permute(1, 2, 0).cpu())
+            plt.imshow(clipped_images[0].permute(1, 2, 0).cpu())
             plt.axis('off')
         else:
             if n_cols is None:
@@ -86,7 +88,7 @@ class SaveImage:
                 n_cols = min(max_cols, self.num_images)
             n_rows = int(np.ceil(self.num_images / n_cols))
 
-            _, h, w = images[0].shape
+            _, h, w = clipped_images[0].shape
             scale = 2.5
             fig_width = (w * n_cols * scale) / 100
             fig_height = (h * n_rows * scale) / 100
@@ -95,9 +97,8 @@ class SaveImage:
             fig, axes = plt.subplots(n_rows, n_cols, figsize=fig_size, dpi=300)
             axes = np.array(axes).flatten()
 
-            for i, im in enumerate(images):
-                clipped_images = torch.clamp(im, 0.0, 1.0)
-                axes[i].imshow(clipped_images.permute(1, 2, 0).cpu())
+            for i, im in enumerate(clipped_images):
+                axes[i].imshow(im.permute(1, 2, 0).cpu())
                 axes[i].axis('off')
 
             # Hide any unused subplots
@@ -179,23 +180,30 @@ def set_seed(seed: int = 42):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False  # Ensure deterministic behavior
 
-def calculate_metrics(img_batch, ref_batch):
+def calculate_metrics(img_batch, ref_batch, images = 1, verbose = True):
     # Compute metrics
     ref_batch = ref_batch.to('cuda') 
     img_batch = img_batch.to('cuda')
 
     psnr_value = psnr(img_batch, ref_batch)
-    mse_value = mse_image_space(img_batch, ref_batch)
-    lpips_value = lpips_batch(img_batch, ref_batch)
-    mse_r_value = MSE_R(img_batch, ref_batch)
+    if images == 1:
+        mse_value = mse_image_space(img_batch, ref_batch)
+        lpips_value = lpips_batch(img_batch, ref_batch)
+        mse_r_value = MSE_R(img_batch, ref_batch)
+    else:
+        mse_value, lpips_value, mse_r_value = 0,0,0
     
-    print("\n*** Evaluation Metrics ***")
-    print(f"PSNR: {psnr_value:.2f} dB")
-    print(f"MSE (Image Space): {mse_value:.6f}")
-    print(f"LPIPS: {lpips_value:.4f}")
-    print(f"MSE (Representation Space): {mse_r_value:.6f}")
+    if verbose:
+        print("\n*** Evaluation Metrics ***")
 
+        for i, (mse, idx) in enumerate(psnr_value):
+            print(f"Recon image {i}: Best match is ref {idx} with MSE {mse:.6f}")
+        if images == 1:
+            print(f"MSE (Image Space): {mse_value:.6f}")
+            print(f"LPIPS: {lpips_value:.4f}")
+            print(f"MSE (Representation Space): {mse_r_value:.6f}")
 
+    return psnr_value, mse_value, lpips_value, mse_r_value
 
 def load_from_directory(image_path):
     """
@@ -211,12 +219,18 @@ def load_from_directory(image_path):
     images = []
     
     # Define transformation if needed (e.g., resizing, normalization)
+    # transform = transforms.Compose([
+    #     transforms.Resize((224, 224)),  # Resize images to a standard size (224x224)
+    #     transforms.ToTensor(),          # Convert image to tensor
+    #     transforms.Normalize(mean=[0.485, 0.456, 0.406],
+    #                          std=[0.229, 0.224, 0.225])  # Normalize using ImageNet stats
+    # ])
+
     transform = transforms.Compose([
-        transforms.Resize((224, 224)),  # Resize images to a standard size (224x224)
-        transforms.ToTensor(),          # Convert image to tensor
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225])  # Normalize using ImageNet stats
-    ])
+    transforms.Resize((32, 32)),  # Resize images to a standard size (224x224)
+    transforms.ToTensor(),          # Convert image to tensor
+])
+
     
     # Walk through all subdirectories and files in the given path
     for root, dirs, files in os.walk(image_path):

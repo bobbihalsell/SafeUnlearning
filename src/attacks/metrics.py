@@ -9,27 +9,35 @@ import torchvision.transforms as transforms
 from PIL import Image
 
 
-def psnr(img_batch, ref_batch, batched=False, factor=1.0):
-    """Standard PSNR."""
+def psnr(img_batch, ref_batch, factor=1.0):
+    """
+    For each image in img_batch, find the reference image in ref_batch with the highest PSNR.
+    Returns: list of (best_psnr, best_index) tuples, one per image in img_batch.
+    """
     def get_psnr(img_in, img_ref):
         mse = ((img_in - img_ref)**2).mean()
         if mse > 0 and torch.isfinite(mse):
             return (10 * torch.log10(factor**2 / mse))
         elif not torch.isfinite(mse):
-            return img_batch.new_tensor(float('nan'))
+            return img_in.new_tensor(float('nan'))
         else:
-            return img_batch.new_tensor(float('inf'))
+            return img_in.new_tensor(float('inf'))
 
-    if batched:
-        psnr = get_psnr(img_batch.detach(), ref_batch)
-    else:
-        [B, C, m, n] = img_batch.shape
-        psnrs = []
-        for sample in range(B):
-            psnrs.append(get_psnr(img_batch.detach()[sample, :, :, :], ref_batch[sample, :, :, :]))
-        psnr = torch.stack(psnrs, dim=0).mean()
+    img_batch = img_batch.detach()
+    ref_batch = ref_batch.detach()
+    results = []
 
-    return psnr.item()
+    for i, img in enumerate(img_batch):  # Iterate over each image in the reconstructed batch
+        best_psnr = float('-inf')
+        best_idx = -1
+        for j, ref_img in enumerate(ref_batch):  # Compare with all reference images
+            psnr_val = get_psnr(img, ref_img)
+            if psnr_val > best_psnr:
+                best_psnr = psnr_val
+                best_idx = j
+        results.append((best_psnr.item(), best_idx))
+
+    return results 
 
 
 def mse_image_space(img_batch, ref_batch):
