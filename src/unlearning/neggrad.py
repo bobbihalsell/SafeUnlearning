@@ -66,7 +66,8 @@ class NegGrad(BaseUnlearner):
         unlearned_model = copy.deepcopy(model)
 
         # Validate and extract common hyperparameters
-        loss_fn, num_epochs, lr, weight_decay, use_l2_penalty = self.valid_args(**kwargs)
+        self.valid_args(**kwargs)
+        self.extract_hyperparameters(**kwargs)
 
         if 'forget' not in data_dict.keys():
             raise ValueError("'forget' data must be in data_dict.")
@@ -75,14 +76,13 @@ class NegGrad(BaseUnlearner):
         losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
 
         optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
-                                    lr=lr,
-                                    weight_decay=weight_decay)
+                                    lr=self.lr,
+                                    weight_decay=self.weight_decay)
 
-        eval_dataloaders = (['retain', 'val'] if
-                            data_dict['val'] is not None else ['retain'])
+        eval_dataloaders = [key for key in data_dict.keys() if key != 'forget']
 
         # Main training loop
-        for e in range(num_epochs):
+        for e in range(self.epochs):
             total_forget_loss = 0
             for forget_inputs, forget_labels in data_dict['forget']:
                 unlearned_model.eval()
@@ -92,15 +92,15 @@ class NegGrad(BaseUnlearner):
                 forget_labels = forget_labels.to(self.device)
 
                 forget_output = unlearned_model(forget_inputs)
-                forget_loss = loss_fn(forget_output, forget_labels)
+                forget_loss = self.criterion(forget_output, forget_labels)
                 # Negative loss to perform gradient ascent
                 loss = -forget_loss
 
                 # Add L2 penalty if requested
-                if use_l2_penalty:
+                if self.use_l2_penalty:
                     l2_loss = l2_penalty(model=unlearned_model,
                                          model_init=model,
-                                         weight_decay=weight_decay)
+                                         weight_decay=self.weight_decay)
                     loss += l2_loss
 
                 loss.backward()
@@ -120,7 +120,7 @@ class NegGrad(BaseUnlearner):
                     loader_loss = self._evaluate(
                         unlearned_model,
                         data_dict[data_type],
-                        loss_fn).mean()
+                        self.criterion).mean()
                     losses[f"{data_type}_losses"].append(loader_loss.item())
                     if verbose:
                         print(f'{data_type.capitalize()} Loss: {loader_loss}',
@@ -226,29 +226,28 @@ class NegGradPlus(BaseUnlearner):
         unlearned_model = copy.deepcopy(model)
 
         # Validate and extract common hyperparameters
-        loss_fn, num_epochs, lr, weight_decay, use_l2_penalty = self.valid_args(**kwargs)
-        beta = kwargs.get("beta")
+        self.valid_args(**kwargs)
+        self.extract_hyperparameters(**kwargs)
         # Ensure required data is available
         if 'forget' not in data_dict.keys() or 'retain' not in data_dict.keys():
             raise ValueError("'forget' and 'retain' data must be in data_dict.")
-
-        if beta == 0:
+        if self.beta == 0:
             raise ValueError("Please use NegGrad if you wish to perform "
                              "gradient ascent on only the forget set.")
-        if beta == 1:
+        if self.beta == 1:
             raise ValueError("Please use FinetuneUnlearner if you wish to "
                              "perform gradient descent on only the retain set")
-
         # Initialize loss tracking
         losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
 
         optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
-                                    lr=lr,
-                                    weight_decay=weight_decay)
+                                    lr=self.lr,
+                                    weight_decay=self.weight_decay)
 
-        eval_dataloaders = ['val'] if data_dict['val'] is not None else []
+        eval_dataloaders = [key for key in data_dict.keys() if
+                            key not in ['retain', 'forget']]
         # Main training loop
-        for e in range(num_epochs):
+        for e in range(self.epochs):
             total_forget_loss, total_retain_loss = 0, 0
             for retain_batch, forget_batch in zip(data_dict['retain'],
                                                   cycle(data_dict['forget'])
@@ -273,18 +272,18 @@ class NegGradPlus(BaseUnlearner):
 
                 # Compute loss based on tradeoff
                 loss, retain_loss, forget_loss = self._calculate_loss(
-                    beta=beta,
-                    criterion=loss_fn,
+                    beta=self.beta,
+                    criterion=self.criterion,
                     retain_outputs=retain_output,
                     retain_targets=retain_labels,
                     forget_outputs=forget_output,
                     forget_targets=forget_labels
                 )
                 # Add L2 penalty if requested
-                if use_l2_penalty:
+                if self.use_l2_penalty:
                     l2_loss = l2_penalty(model=unlearned_model,
                                          model_init=model,
-                                         weight_decay=weight_decay)
+                                         weight_decay=self.weight_decay)
                     loss += l2_loss
                 loss.backward()
                 optimizer.step()
@@ -310,7 +309,7 @@ class NegGradPlus(BaseUnlearner):
                     loader_loss = self._evaluate(
                         unlearned_model,
                         data_dict[data_type],
-                        loss_fn).mean()
+                        self.criterion).mean()
                     losses[f"{data_type}_losses"].append(loader_loss.item())
 
                     if verbose:

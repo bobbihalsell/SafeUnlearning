@@ -231,8 +231,7 @@ class SCRUB(BaseUnlearner):
         else:
             scheduler = None
 
-        eval_dataloaders = (['val', 'forget'] if
-                            data_dict['val'] is not None else ['forget'])
+        eval_dataloaders = [key for key in data_dict.keys() if key != 'retain']
 
         # Calculate total number of epochs and initialize counters
         total_epochs = self.max_epochs + self.min_epochs

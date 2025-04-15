@@ -155,32 +155,36 @@ class UnlearnApp(InputValidator):
         """ Initialize dataloaders from the ImageNet dataset folder."""
         transform = self.get_transform()
 
-        # Load datasets for each split
-        splits = ['retain', 'forget', 'val']
-        dataloaders = {}
+        # Load datasets for each split, exclude train and test data
+        splits = [d for d in os.listdir(self.dataset_save_dir) if
+                  os.path.isdir(os.path.join(self.dataset_save_dir, d)) and
+                  d not in ['train', 'test'] and
+                  not d.startswith('.')
+                  ]
+        if 'retain' not in splits:
+            raise ValueError('Retain data required in dataset directory.')
+        if 'forget' not in splits:
+            raise ValueError('Forget data required in dataset directory.')
 
+        dataloaders = {}
         for split in splits:
+            if split not in self.batch_sizes:
+                raise ConfigError(
+                    f"Missing batch size configuration for split '{split}' "
+                    "Configure this under dataset.cfg.batch_sizes.split_name."
+                )
             batch_size = self.batch_sizes[split]
             split_dir = os.path.join(self.dataset_save_dir, split)
-            if not os.path.exists(split_dir):
-                if split == 'val':
-                    dataloaders['val'] = None
-                    continue
-                else:
-                    raise Exception(
-                        f'{split_dir} does not exist. Is the dataset '
-                        'in ImageFolder format?')
 
-            else:
-                dataset = RobustImageFolder(root=split_dir,
-                                            transform=transform)
-                dataloaders[split] = DataLoader(
-                    dataset,
-                    batch_size=batch_size,
-                    shuffle=(split == 'retain'),  # Only shuffle retain set
-                    num_workers=self.num_workers,
-                    pin_memory=True
-                )
+            dataset = RobustImageFolder(root=split_dir,
+                                        transform=transform)
+            dataloaders[split] = DataLoader(
+                dataset,
+                batch_size=batch_size,
+                shuffle=(split == 'retain'),  # Only shuffle retain set
+                num_workers=self.num_workers,
+                pin_memory=True
+            )
 
         return dataloaders
 

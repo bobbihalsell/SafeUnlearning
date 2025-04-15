@@ -78,8 +78,7 @@ class FinetuneUnlearner(BaseUnlearner):
                                     lr=lr,
                                     weight_decay=weight_decay)
 
-        eval_dataloaders = (['forget', 'val'] if
-                            data_dict['val'] is not None else ['forget'])
+        eval_dataloaders = [key for key in data_dict.keys() if key != 'retain']
 
         # Main training loop
         for e in range(num_epochs):

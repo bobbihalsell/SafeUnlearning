@@ -20,6 +20,8 @@ class BaseUnlearner:
         """
         self.device = device if device is not None else setup_device()
         self.evaluate = evaluate
+        self.criterion = nn.CrossEntropyLoss()
+
 
     @abstractmethod
     def unlearn(
