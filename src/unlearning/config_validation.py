@@ -19,16 +19,7 @@ class InputValidator:
         self.batch_sizes = self.dataset_cfg['batch_sizes']
 
         model_config = config['model']
-        self.method = model_config['method']
-
-        # model_config = config['model_loading']
-        # self.init_method = model_config['init_method']
-        # self.init_path = model_config.get('init_path', None)
-        # self.path_to_class = model_config.get('path_to_class', None)
-        # self.model_name = model_config['model_name']
-        # self.model_ckpt_path = model_config['model_ckpt_path']
-        # self.model_kwargs = model_config.get('model_kwargs', None)
-        # self.num_classes = model_config['num_classes']
+        self.model_loading = model_config['model_loading']
 
         self.verbose = config['verbose']
 
@@ -108,7 +99,7 @@ class InputValidator:
                               'load the dataset from must be provided. '
                               'dataset_save_dir cannot be empty.')
         
-    def _require(model_config, key):
+    def _require(self, model_config, key):
         if key not in model_config:
             raise ConfigError(f"Missing required config key: '{key}'")
         return model_config[key]
@@ -119,39 +110,42 @@ class InputValidator:
         This validates only some of the model parameters, as it is more
         efficient to use the EAFP approach for model name and
         initialization checking."""
-        if self.method == 'class':
+        if self.model_loading == 'class':
             self._validate_class_params(model_config)
-        elif self.method == 'torchhub':
-            self._validate_torchvision_params(model_config)
-        elif self.method == 'torchvision':
-            self._validate_timm_params(model_config)
-        elif self.method == 'timm':
+        elif self.model_loading == 'torchhub':
             self._validate_torchhub_params(model_config)
+        elif self.model_loading == 'torchvision':
+            self._validate_torchvision_params(model_config)
+        elif self.model_loading == 'timm':
+            self._validate_timm_params(model_config)
         else:
-            raise ConfigError('Invalid model loading method')
+            raise ConfigError('Invalid model loading ')
 
     def _validate_class_params(self, model_config):
         self.init_path = self._require(model_config, 'class_path')
-        self.init_name = self._require(model_config, 'class_name')
+        self.model_name = self._require(model_config, 'class_name')
         self.model_kwargs = self._require(model_config, 'model_kwargs')
-        self.output_dir = self._require(model_config, 'output_dir')
         self.model_ckpt_path = model_config.get('model_ckpt_path', None)
+        self.num_classes = None
 
     def _validate_torchhub_params(self, model_config):
         self.init_path = self._require(model_config, 'repo_path')
-        self.init_name = self._require(model_config, 'model_name')
-        self.output_dir = self._require(model_config, 'output_dir')
+        self.model_name = self._require(model_config, 'model_name')
         self.model_ckpt_path = model_config.get('model_ckpt_path', None)
+        self.model_kwargs = None
+        self.num_classes = None
 
     def _validate_torchvision_params(self, model_config):
-        self.init_name = self._require(model_config, 'model_name')
+        self.model_name = self._require(model_config, 'model_name')
         self.num_classes = self._require(model_config, 'num_classes')
-        self.output_dir = self._require(model_config, 'output_dir')
         self.model_ckpt_path = model_config.get('model_ckpt_path', None)
+        self.init_path = None
+        self.model_kwargs = None
 
     def _validate_timm_params(self, model_config):
-        self.init_name = self._require(model_config, 'model_name')
+        self.model_name = self._require(model_config, 'model_name')
         self.num_classes = self._require(model_config, 'num_classes')
-        self.output_dir = self._require(model_config, 'output_dir')
         self.model_ckpt_path = model_config.get('model_ckpt_path', None)
+        self.init_path = None
+        self.model_kwargs = None
 

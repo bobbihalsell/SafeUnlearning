@@ -1,0 +1,1 @@
+python src/unlearning/main.py dataset=cifar10 model=torchhub model.repo_path=chenyaofo/pytorch-cifar-models model.model_name=cifar10_resnet20 unlearner=neggrad dataset.save_path=./data output_dir=./artifacts/models

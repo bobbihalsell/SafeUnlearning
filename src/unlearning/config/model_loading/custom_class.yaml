@@ -1,7 +1,0 @@
-init_method: custom_class
-model_name:  ???
-model_ckpt_path: ???
-model_kwargs:
-  pretrained: true
-path_to_class: ???
-num_classes: ???

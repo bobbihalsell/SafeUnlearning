@@ -1,9 +1,5 @@
-method: class  
-
+model_loading: class  
 class_path: ./modelloadtest
 class_name:  CIFAR10Model
 model_ckpt_path: ./saved_models/cifar10_model_1744618737.pth
 model_kwargs:
-
-# Model saving and evaluation
-output_dir: ./artifacts/models

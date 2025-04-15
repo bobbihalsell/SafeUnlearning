@@ -35,14 +35,15 @@ class UnlearnApp(InputValidator):
 
     def load_model(self):
         """Initialize the model based on model name from user configuration."""
-        modelimport = ImportModel(self.init_method,
-                                  self.init_path,
-                                  self.init_name,
+        modelimport = ImportModel(self.model_loading,
+                                  self.model_name, 
+                                  self.init_path, 
                                   self.model_ckpt_path,
-                                  self.seed,
-                                  self.model_kwargs,
+                                  self.model_kwargs, 
+                                  self.num_classes,
+                                  self.device
                                   )
-
+        
         return modelimport.model
 
     def initialize_unlearner(self):
@@ -103,6 +104,8 @@ class UnlearnApp(InputValidator):
         transform = self.get_transform()
 
         # Load datasets for each split, exclude train and test data
+        if not os.path.exists(self.dataset_save_dir):
+            raise ValueError('Data directory not found.')
         splits = [d for d in os.listdir(self.dataset_save_dir) if
                   os.path.isdir(os.path.join(self.dataset_save_dir, d)) and
                   d not in ['train', 'test'] and
@@ -142,7 +145,7 @@ class UnlearnApp(InputValidator):
         # Step 2: Initialize the pretrained model
         original_model = self.load_model()
         print('Original model loaded')
-        
+
         save_model(original_model,
                    output_dir=self.output_dir,
                    unlearning_algorithm=self.unlearner_name,

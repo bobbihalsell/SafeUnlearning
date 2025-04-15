@@ -1,6 +1,6 @@
 import torch
 from unlearning.utils import ConfigError
-from train.utils import setup_device, set_seed
+from train.utils import setup_device
 import os
 import sys
 import importlib
@@ -13,23 +13,25 @@ class ImportModel:
     """ Perform pretraining, or model loading and saving, for a model."""
     def __init__(
                     self,
-                    init_method,
-                    init_path,
+                    model_loading,
                     model_name,
+                    init_path=None,
                     model_ckpt_path=None,
-                    seed=42,
                     model_kwargs=None,
+                    num_classes=10,
+                    device=None
                 ):
-        # Set up device and seed for reproducibility
-        self.device = setup_device()
-        self.seed = seed
-        set_seed(self.seed)
+        if device is None:
+            self.device = setup_device()
+        else:
+            self.device = device
 
-        self.init_method = init_method
+        self.model_loading = model_loading
         self.init_path = init_path
         self.model_name = model_name
         self.model_ckpt_path = model_ckpt_path
         self.model_kwargs = model_kwargs or {}  # Handle None
+        self.num_classes = num_classes
 
         self.load_model()
 
@@ -45,17 +47,18 @@ class ImportModel:
         """
         try:
             # Load the model based on the specified method
-            if self.init_method == 'class':
+            if self.model_loading == 'class':
                 self._init_from_class(**self.model_kwargs)
-            elif self.init_method == 'torchhub':
+            elif self.model_loading == 'torchhub':
                 self._init_from_torch_hub()
-            elif self.init_method == 'torchvision':
+            elif self.model_loading == 'torchvision':
                 self._init_from_torchvision()
-            elif self.init_method == 'timm':
+            elif self.model_loading == 'timm':
                 self._init_from_timm()
             else:
                 raise ConfigError(
-                    f"Unknown model initialisation method: {self.init_method}"
+                    "Unknown initialisation method: "
+                    f"{self.model_loading}"
                 )
             # Load weights if specified
             if hasattr(self, 'model_ckpt_path') and self.model_ckpt_path:
@@ -271,4 +274,3 @@ class ImportModel:
             print(f"Model saved to wandb artifact: {artifact.name}")
 
         return output_dir
-    

@@ -1,8 +1,4 @@
-method: torchhub  
-
-repo_path: chenyaofo/pytorch-cifar-models
-model_name: cifar10_resnet20
+model_loading: torchhub  
+repo_path: ???
+model_name: ???
 model_ckpt_path:
-
-# Model saving and evaluation
-output_dir: ./artifacts/models

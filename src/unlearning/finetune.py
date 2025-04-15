@@ -15,8 +15,9 @@ class FinetuneUnlearner(BaseUnlearner):
     using only the retain dataset, effectively causing the model to "forget"
     the forget dataset by not reinforcing those patterns during retraining.
 
-    This method is computationally efficient but may not provide strong forgetting
-    guarantees for models that have already memorized the forget data.
+    This method is computationally efficient but may not provide strong
+    forgetting guarantees for models that may have already memorized the
+    forget data.
     """
     def __init__(self,
                  device,
@@ -41,20 +42,22 @@ class FinetuneUnlearner(BaseUnlearner):
 
         Args:
             model: The original model to perform unlearning on.
-            data_dict: Dictionary of dataloaders, must include a 'retain' key with
-                      the data to retain. Other keys (e.g., 'forget', 'test') will
-                      be used for evaluation if self.evaluate is True.
+            data_dict: Dictionary of dataloaders, must include a 'retain' key
+                      with the data to retain. Other keys (e.g., 'forget',
+                      'test') will be used for evaluation if self.evaluate is
+                      True.
             **kwargs: Additional arguments including:
                 - loss_fn: Loss function to use for training.
                 - num_epochs: Number of training epochs (default: 1).
                 - lr: Learning rate (default: 1e-2).
                 - weight_decay: Weight decay parameter (default: 0).
-                - use_l2_penalty: Whether to add L2 regularization (default: False).
+                - use_l2_penalty: Whether to add L2 regularization
+                    (default: False).
 
         Returns:
             If self.evaluate is True:
-                Tuple of (unlearned_model, losses_dict) where losses_dict contains
-                tracked losses for each dataset type.
+                Tuple of (unlearned_model, losses_dict) where losses_dict 
+                contains tracked losses for each dataset type.
             Otherwise:
                 The unlearned model.
 
@@ -96,7 +99,8 @@ class FinetuneUnlearner(BaseUnlearner):
                 retain_loss = self.criterion(retain_output, retain_labels)
                 total_retain_loss += retain_loss.item()
 
-                # Add L2 penalty if requested to maintain similarity to original model
+                # Add L2 penalty if requested to maintain similarity to 
+                # original model
                 if self.use_l2_penalty:
                     l2_loss = l2_penalty(model=unlearned_model,
                                          model_init=model,
