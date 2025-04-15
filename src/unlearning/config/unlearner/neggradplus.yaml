@@ -1,11 +1,11 @@
 name: neggradplus
 evaluate: true
 cfg:
-  optimizer: adam
-  lr: 0.001
+  optimizer: sgd
+  lr: 0.0005
   lr_decay_factor: 0.1
   epochs_per_lr_decay: 2
-  weight_decay: 0
+  weight_decay: 0.0001
   use_l2_penalty: false
-  epochs: 2
-  beta: 0.99  # Weightage between retain/forget loss importance. Value between 0 to 1.
+  epochs: 4
+  beta: 0.995  # Weightage between retain/forget loss importance. Value between 0 to 1.

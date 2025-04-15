@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import copy
 from unlearning.utils import l2_penalty
 from itertools import cycle
 from unlearning.base import BaseUnlearner
@@ -61,28 +60,14 @@ class NegGrad(BaseUnlearner):
         Raises:
             ValueError: If 'forget' data is not in data_dict.
         """
-
-        model.to(self.device)
-        unlearned_model = copy.deepcopy(model)
-
-        # Validate and extract common hyperparameters
-        self.valid_args(**kwargs)
-        self.extract_hyperparameters(**kwargs)
-
         if 'forget' not in data_dict.keys():
             raise ValueError("'forget' data must be in data_dict.")
 
-        # Initialize loss tracking
-        losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
-
-        optimizer = self.initialize_optimizer(unlearned_model,
-                                              optimizer_name=self.optimizer)
-
-        if (self.epochs_per_lr_decay is not None and
-                self.lr_decay_factor is not None):
-            scheduler = self.initialize_scheduler(optimizer=optimizer)
-        else:
-            scheduler = None
+        model.to(self.device)
+        unlearned_model, losses, optimizer, scheduler = self._setup_unlearning(
+            model,
+            data_dict,
+            **kwargs)
 
         eval_dataloaders = [key for key in data_dict.keys() if key != 'forget']
 
@@ -230,11 +215,10 @@ class NegGradPlus(BaseUnlearner):
                        or if beta is 0 or 1 (which would make this equivalent to simpler methods).
         """
         model.to(self.device)
-        unlearned_model = copy.deepcopy(model)
-
-        # Validate and extract common hyperparameters
-        self.valid_args(**kwargs)
-        self.extract_hyperparameters(**kwargs)
+        unlearned_model, losses, optimizer, scheduler = self._setup_unlearning(
+            model,
+            data_dict,
+            **kwargs)
         # Ensure required data is available
         if 'forget' not in data_dict.keys() or 'retain' not in data_dict.keys():
             raise ValueError("'forget' and 'retain' data must be in data_dict.")
@@ -244,17 +228,6 @@ class NegGradPlus(BaseUnlearner):
         if self.beta == 1:
             raise ValueError("Please use FinetuneUnlearner if you wish to "
                              "perform gradient descent on only the retain set")
-        # Initialize loss tracking
-        losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
-
-        optimizer = self.initialize_optimizer(unlearned_model,
-                                              optimizer_name=self.optimizer)
-
-        if (self.epochs_per_lr_decay is not None and
-                self.lr_decay_factor is not None):
-            scheduler = self.initialize_scheduler(optimizer=optimizer)
-        else:
-            scheduler = None
 
         eval_dataloaders = [key for key in data_dict.keys() if
                             key not in ['retain', 'forget']]
@@ -312,7 +285,8 @@ class NegGradPlus(BaseUnlearner):
                     current_lr = scheduler.optimizer.param_groups[0]['lr']
                 else:
                     current_lr = optimizer.param_groups[0]['lr']
-                print(f'Epoch {e+1}: Retain Loss: {retain_loss} LR: {current_lr:.5f}')
+                print(f'Epoch {e+1}: Retain Loss: {retain_loss} '
+                      f'Forget Loss: {forget_loss} LR: {current_lr:.5f}')
 
             if self.evaluate:
                 losses['retain_losses'].append(avg_epoch_retain_loss)

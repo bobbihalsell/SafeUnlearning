@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 from unlearning.utils import setup_device
 from typing import Dict, List
+import copy
 
 
 class BaseUnlearner:
@@ -117,9 +118,7 @@ class BaseUnlearner:
                                          lr=self.lr,
                                          weight_decay=self.weight_decay)
         elif optimizer_name == 'sgd':
-            momentum = getattr(self, "momentum")
-            if momentum is None:
-                momentum = 0
+            momentum = getattr(self, "momentum", 0)
             optimizer = torch.optim.SGD(model.parameters(),
                                         lr=self.lr,
                                         momentum=momentum,
@@ -183,3 +182,25 @@ class BaseUnlearner:
             print()
 
         return losses
+
+    def _setup_unlearning(self, model, data_dict, **kwargs):
+        """ Setup unlearned model, losses dictionary, optimizer, scheduler."""
+        unlearned_model = copy.deepcopy(model)
+
+        # Validate and extract common hyperparameters
+        self.valid_args(**kwargs)
+        self.extract_hyperparameters(**kwargs)
+
+        # Initialize loss tracking
+        losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
+
+        optimizer = self.initialize_optimizer(unlearned_model,
+                                              optimizer_name=self.optimizer)
+
+        if (self.epochs_per_lr_decay is not None and
+                self.lr_decay_factor is not None):
+            scheduler = self.initialize_scheduler(optimizer=optimizer)
+        else:
+            scheduler = None
+
+        return unlearned_model, losses, optimizer, scheduler
