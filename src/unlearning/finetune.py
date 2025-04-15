@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 class FinetuneUnlearner(BaseUnlearner):
     """
     A class for machine unlearning through fine-tuning on retain data only.
-    
+
     This method creates a copy of the original model and fine-tunes it
     using only the retain dataset, effectively causing the model to "forget"
     the forget dataset by not reinforcing those patterns during retraining.
@@ -65,7 +65,8 @@ class FinetuneUnlearner(BaseUnlearner):
         unlearned_model = copy.deepcopy(model)
 
         # Validate and extract common hyperparameters
-        loss_fn, num_epochs, lr, weight_decay, use_l2_penalty = self.valid_args(**kwargs)
+        self.valid_args(**kwargs)
+        self.extract_hyperparameters(**kwargs)
 
         # Ensure required data is available
         if 'retain' not in data_dict.keys():
@@ -75,13 +76,13 @@ class FinetuneUnlearner(BaseUnlearner):
         losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
 
         optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
-                                    lr=lr,
-                                    weight_decay=weight_decay)
+                                    lr=self.lr,
+                                    weight_decay=self.weight_decay)
 
         eval_dataloaders = [key for key in data_dict.keys() if key != 'retain']
 
         # Main training loop
-        for e in range(num_epochs):
+        for e in range(self.epochs):
             total_retain_loss = 0
             for retain_inputs, retain_labels in data_dict['retain']:
 
@@ -92,19 +93,19 @@ class FinetuneUnlearner(BaseUnlearner):
                 retain_labels = retain_labels.to(self.device)
 
                 retain_output = unlearned_model(retain_inputs)
-                retain_loss = loss_fn(retain_output, retain_labels)
+                retain_loss = self.criterion(retain_output, retain_labels)
                 total_retain_loss += retain_loss.item()
 
                 # Add L2 penalty if requested to maintain similarity to original model
-                if use_l2_penalty:
+                if self.use_l2_penalty:
                     l2_loss = l2_penalty(model=unlearned_model,
                                          model_init=model,
-                                         weight_decay=weight_decay)
+                                         weight_decay=self.weight_decay)
                     retain_loss += l2_loss
 
                 retain_loss.backward()
                 optimizer.step()
-            
+
             avg_epoch_retain_loss = total_retain_loss/len(data_dict["retain"])
 
             if verbose:
@@ -118,7 +119,7 @@ class FinetuneUnlearner(BaseUnlearner):
                 for data_type in eval_dataloaders:
                     loader_loss = self._evaluate(unlearned_model,
                                                  data_dict[data_type],
-                                                 loss_fn).mean()
+                                                 self.criterion).mean()
                     losses[f"{data_type}_losses"].append(loader_loss.item())
                     if verbose:
                         print(f'{data_type.capitalize()} Loss: {loader_loss}',
