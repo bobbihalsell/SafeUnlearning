@@ -2,21 +2,23 @@ import random
 import os
 import shutil
 import argparse
+import matplotlib.pyplot as plt
+from PIL import Image
+import numpy as np
 
 FORGET_ROOT = "./data/forget"
-FORGET_POOL = "./data/forget_pool"  # where all possible forget samples are
+FORGET_POOL = "./forget_pool"  # where all possible forget samples are
 SEED = 42
 
 # Redo symlinks based on number of unlearning samples
 def reset_forget_folder():
-    random.seed(SEED)
     if os.path.exists(FORGET_ROOT):
         shutil.rmtree(FORGET_ROOT)
     os.makedirs(FORGET_ROOT)
 
 def create_symlinks(n=1, label_output_path="reconstruction_pipeline/labels.txt"):
     reset_forget_folder()
-
+    random.seed(SEED)
     all_samples = []
     for class_name in os.listdir(FORGET_POOL):
         class_path = os.path.join(FORGET_POOL, class_name)
@@ -43,14 +45,54 @@ def create_symlinks(n=1, label_output_path="reconstruction_pipeline/labels.txt")
             f.write(f"{label}\n")
 
 
+
+def save_forget_images(output_dir="forget_previews", n=1, max_cols=8, dpi=300):
+    os.makedirs(output_dir, exist_ok=True)
+    images = []
+    for folder_name in os.listdir(FORGET_ROOT):
+        folder_path = os.path.join(FORGET_ROOT, folder_name)
+        if not os.path.isdir(folder_path):
+            continue
+
+        for img_name in sorted(os.listdir(folder_path)):
+            img_path = os.path.join(folder_path, img_name)
+
+            try:
+                img = Image.open(img_path).convert("RGB")
+                images.append(img)
+            except Exception as e:
+                print(f"Failed to load {img_path}: {e}")
+
+        n_images = len(images)
+        n_cols = min(max_cols, n_images)
+        n_rows = (n_images + n_cols - 1) // n_cols
+
+        plt.close('all')
+
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 2, n_rows * 2), dpi=dpi)
+        axes = axes.flatten() if isinstance(axes, (list, np.ndarray)) else [axes]
+
+        for i, img in enumerate(images):
+            axes[i].imshow(img)
+            axes[i].axis('off')
+            axes[i].set_title(str(i), fontsize=8)
+
+        # Hide any unused axes
+        for j in range(n_images, len(axes)):
+            axes[j].axis('off')
+
+        save_path = os.path.join(output_dir, f"forget_{n}.png")
+        plt.tight_layout()
+        plt.savefig(save_path)
+        plt.close(fig)
+
+
+
 def main(n, label_output_path):
-    # Create move data to pool 
-    if not os.path.exists("./data/forget_pool"):
-        os.rename("./data/forget", "./data/forget_pool")
-
-    os.makedirs("./data/forget", exist_ok=True)
-
     create_symlinks(n, label_output_path)
+
+    if not os.path.exists(f"forget_previews/forget_{n}.png"):
+        save_forget_images(n=n)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
