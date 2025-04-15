@@ -150,7 +150,6 @@ class InverseGradReconstructor():
                 x_trial, labels = self._run_trial(x[trial].to(self.device), input_data, labels)
                 # Finalize
                 scores[trial] = self._score_trial(x_trial, input_data, labels)
-                print(f'Score: {scores[trial]:2.4f}')
                 x[trial] = x_trial.to(self.device)
 
 
@@ -241,7 +240,6 @@ class InverseGradReconstructor():
                         else:
                             pass
 
-
         except KeyboardInterrupt:
             print(f'Recovery interrupted manually in iteration {iteration}!')
             pass
@@ -284,7 +282,7 @@ class InverseGradReconstructor():
                                         weights=self.config.weights)
         elif self.config.scoring_choice == 'tv':
             return total_variation(x_trial)
-        elif self.config.scoring_choice in ['pixelmean', 'pixelmedians']:
+        elif self.config.scoring_choice in ['pixelmean', 'pixelmedian']:
             return 0.0
         else:
             raise ValueError()
@@ -292,13 +290,18 @@ class InverseGradReconstructor():
     def _average_trials(self, x, labels, input_data, stats):
         if self.config.scoring_choice == 'pixelmedian':
             x_optimal, _ = x.median(dim=0, keepdims=False)
+            x = x.squeeze(1)
+            x_with_opt = torch.vstack([x, x_optimal])
+
         elif self.config.scoring_choice == 'pixelmean':
             x_optimal = x.mean(dim=0, keepdims=False)
+            x = x.squeeze(1)
+            x_with_opt = torch.vstack([x, x_optimal])
 
         self.original_model.zero_grad()
         if self.reconstruct_label:
-            labels = self.original_model(x_optimal).softmax(dim=1) #TODO: change loss here,
-        loss = self.loss_fn_ce(self.original_model(x_optimal), labels) #TODO: use kl?
+            labels = self.original_model(x_optimal).softmax(dim=1) 
+        loss = self.loss_fn_ce(self.original_model(x_optimal), labels) 
 
         gradient = torch.autograd.grad(loss, self.original_model.parameters(), create_graph=False)
         stats['opt'] = reconstruction_costs([gradient], input_data,
@@ -307,7 +310,7 @@ class InverseGradReconstructor():
                                             weights=self.config.weights)
         if self.verbose:
             print(f'Optimal result score: {stats["opt"]:2.4f}')
-        return x_optimal, stats
+        return x_with_opt, stats
 
 
 class DistillKL(nn.Module):
