@@ -143,7 +143,7 @@ class UnlearnApp(InputValidator):
         # Step 1: Load retain/val/forget datalaoders
         dataloaders = self.initialize_dataloaders()
         print('Loaders loaded')
-        # Step 3: Initialize the pretrained model
+        # Step 2: Initialize the pretrained model
         original_model = self.load_model()
         print('Original model loaded')
         
