@@ -3,6 +3,7 @@ from abc import abstractmethod
 import torch
 import torch.nn as nn
 from unlearning.utils import setup_device
+from typing import Dict, List
 
 
 class BaseUnlearner:
@@ -116,9 +117,12 @@ class BaseUnlearner:
                                          lr=self.lr,
                                          weight_decay=self.weight_decay)
         elif optimizer_name == 'sgd':
+            momentum = getattr(self, "momentum")
+            if momentum is None:
+                momentum = 0
             optimizer = torch.optim.SGD(model.parameters(),
                                         lr=self.lr,
-                                        momentum=self.momentum,
+                                        momentum=momentum,
                                         weight_decay=self.weight_decay)
         else:
             raise ValueError(
@@ -144,3 +148,38 @@ class BaseUnlearner:
             raise Exception(
                 'Attempted to initialize scheduler, but '
                 'schedule information not available.')
+
+    def _evaluate_additional_splits(self,
+                                    model: nn.Module,
+                                    data_dict: Dict[str, DataLoader],
+                                    eval_dataloaders: List[str],
+                                    losses: Dict[str, list],
+                                    verbose: bool = True):
+        """ Evaluate the model on eval data splits.
+
+        Args:
+            model: nn.Module
+            data_dict: The dictionary of dataloaders
+            eval_dataloaders: A list of splits which are eval sets
+            losses (dict): The losses computed during the epoch
+            verbose (bool): Whether to print the results
+
+        Returns:
+            losses (dict): A dictionary of losses over the eval datasets and
+            relevant losses computed during the unlearning epoch
+            (e.g. retain/forget).
+        """
+        model.eval()
+        for data_type, loader in data_dict.items():
+            if data_type in eval_dataloaders:
+                loader_loss = self._evaluate(model,
+                                             loader,
+                                             self.criterion).mean()
+                losses[f"{data_type}_losses"].append(loader_loss.item())
+                if verbose:
+                    print(f'{data_type.capitalize()} Loss: {loader_loss:.4f}',
+                          end='  ')
+        if verbose:
+            print()
+
+        return losses

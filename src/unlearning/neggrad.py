@@ -75,9 +75,14 @@ class NegGrad(BaseUnlearner):
         # Initialize loss tracking
         losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
 
-        optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
-                                    lr=self.lr,
-                                    weight_decay=self.weight_decay)
+        optimizer = self.initialize_optimizer(unlearned_model,
+                                              optimizer_name=self.optimizer)
+
+        if (self.epochs_per_lr_decay is not None and
+                self.lr_decay_factor is not None):
+            scheduler = self.initialize_scheduler(optimizer=optimizer)
+        else:
+            scheduler = None
 
         eval_dataloaders = [key for key in data_dict.keys() if key != 'forget']
 
@@ -109,24 +114,23 @@ class NegGrad(BaseUnlearner):
 
             avg_epoch_forget_loss = total_forget_loss/len(data_dict["forget"])
             if verbose:
-                print(f'Epoch {e}: Forget Loss: {avg_epoch_forget_loss}')
+                if scheduler is not None:
+                    current_lr = scheduler.optimizer.param_groups[0]['lr']
+                else:
+                    current_lr = optimizer.param_groups[0]['lr']
+                print(f'Epoch {e+1}: Forget Loss: {avg_epoch_forget_loss} '
+                      f'LR: {current_lr:.5f}')
 
             if self.evaluate:
                 # Calculate average retain loss for this epoch
                 losses['forget_losses'].append(avg_epoch_forget_loss)
-                unlearned_model.eval()
-                # Evaluate model on other datasets
-                for data_type in eval_dataloaders:
-                    loader_loss = self._evaluate(
-                        unlearned_model,
-                        data_dict[data_type],
-                        self.criterion).mean()
-                    losses[f"{data_type}_losses"].append(loader_loss.item())
-                    if verbose:
-                        print(f'{data_type.capitalize()} Loss: {loader_loss}',
-                              end='  ')
-                if verbose:
-                    print()
+                self._evaluate_additional_splits(
+                    model=unlearned_model,
+                    data_dict=data_dict,
+                    eval_dataloaders=eval_dataloaders,
+                    losses=losses,
+                    verbose=verbose
+                )
 
         return unlearned_model, losses
 
@@ -300,22 +304,14 @@ class NegGradPlus(BaseUnlearner):
                       f'Forget Loss: {avg_epoch_forget_loss}')
 
             if self.evaluate:
-                # Calculate average retain loss for this epoch
                 losses['retain_losses'].append(avg_epoch_retain_loss)
                 losses['forget_losses'].append(avg_epoch_forget_loss)
-                unlearned_model.eval()
-                # Evaluate model on other datasets
-                for data_type in eval_dataloaders:
-                    loader_loss = self._evaluate(
-                        unlearned_model,
-                        data_dict[data_type],
-                        self.criterion).mean()
-                    losses[f"{data_type}_losses"].append(loader_loss.item())
-
-                    if verbose:
-                        print(f'{data_type.capitalize()} Loss: {loader_loss}',
-                              end='  ')
-                if verbose:
-                    print()
+                self._evaluate_additional_splits(
+                    model=unlearned_model,
+                    data_dict=data_dict,
+                    eval_dataloaders=eval_dataloaders,
+                    losses=losses,
+                    verbose=verbose
+                )
 
         return unlearned_model, losses
