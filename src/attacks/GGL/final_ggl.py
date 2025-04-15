@@ -13,24 +13,8 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torchvision import transforms
-
+import os
 from unlearning.scrub import SCRUB
-
-#import save_results
-#import SCRUB
-#import get_transform
-#import set_seed
-
-
-def get_transform(dataset_name):
-    if dataset_name.lower() == "imagenet":
-        return transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406],
-                                [0.229, 0.224, 0.225])
-        ])
-    
 
 
 
@@ -254,8 +238,21 @@ class GGLReconstructor():
         If `initial_z` is provided, it starts from there instead of a random initialization.
         """
         label = self.label[0] #TODO: change for multiple instances
-        x_path = f"/vol/bitbucket/oap24/pipeline_code/safe-unlearning/src/artifacts/reconstructed/GGL/results_report2/{self.exp_name}_labels{label}_{self.unlearning_method}_lr{self.lr}_updates{self.num_updates}_budget{self.budget}_loss{self.type}_BO_seed42_gp{self.gp_optim}_{self.initial_lr}_scheduler{self.use_scheduler}.png"
-        z_path = f"/vol/bitbucket/oap24/pipeline_code/safe-unlearning/src/artifacts/reconstructed/GGL/results_report2/{self.exp_name}_labels{label}_{self.unlearning_method}_lr{self.lr}_updates{self.num_updates}_budget{self.budget}_loss{self.type}_BO_seed42_gp{self.gp_optim}_{self.initial_lr}_scheduler{self.use_scheduler}"
+
+        # Set the directory for saving results
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.abspath(os.path.join(script_dir, "..", ".."))
+        # Build the path to the artifacts folder
+        results_dir = os.path.join(project_root, "artifacts", "reconstructed", "GGL", "results_report")
+        # Ensure the directory exists
+        os.makedirs(results_dir, exist_ok=True)
+
+        # Build the name of the files
+        file_name = f"{self.exp_name}_labels{label}_{self.unlearning_method}_lr{self.lr}_updates{self.num_updates}_budget{self.budget}_loss{self.type}_BO_seed42_gp{self.gp_optim}_{self.initial_lr}_scheduler{self.use_scheduler}"
+        x_path = os.path.join(results_dir, file_name + ".png")
+        z_path = os.path.join(results_dir, file_name)
+
+
         labels = torch.tensor([label])  # Assign a label
         f = lambda z: self.evaluate_loss(z, labels, loss_type=self.type)  # Define the objective function
         labels = labels.to(self.device)

@@ -10,7 +10,7 @@ from omegaconf import OmegaConf, DictConfig
 from omegaconf.errors import MissingMandatoryValue
 import wandb
 
-from attacks.utils import set_seed, setup_device, safe_dataclass_load, SaveImage
+from attacks.utils import set_seed, setup_device, safe_dataclass_load, SaveImage, calculate_metrics, load_from_directory
 from datasets.cifar10 import CIFAR10_MEAN, CIFAR10_STD
 from datasets.cifar100 import CIFAR100_MEAN, CIFAR_100_STD
 from datasets.imagenet import IMAGENET_MEAN, IMAGENET_STD
@@ -156,8 +156,7 @@ class ReconstructorApp(InputValidator):
                           self.output_dir)
         return saver
 
-    def calculate_metrics(self):
-        pass
+
 
     def run(self):
         print('running...')
@@ -190,7 +189,7 @@ class ReconstructorApp(InputValidator):
         start_time = time.time()
         print(self.reconstructor_name)
         if self.reconstructor_name == 'ggl':
-            reconstruction, z_res, losses = reconstructor.reconstruct()
+            z_res, reconstruction, losses = reconstructor.reconstruct()
         elif self.reconstructor_name == 'inversegrad':
             reconstruction, losses = reconstructor.reconstruct(labels = self.labels,
                                                                num_images = self.reconstructor_params['num_images'],
@@ -216,7 +215,9 @@ class ReconstructorApp(InputValidator):
         image_saver.save_png(reconstruction,
                              normalize=False)
         
-        self.calculate_metrics()
+        # # Step 6: Calculate metrics
+        ref_batch = load_from_directory(self.data_root)
+        calculate_metrics(reconstruction, ref_batch)
 
         wandb.finish()
         

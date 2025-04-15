@@ -6,6 +6,9 @@ import torch
 from typing import Optional
 import os
 from dataclasses import fields
+from attacks.metrics import psnr, mse_image_space, lpips_batch, MSE_R
+from torchvision import transforms
+from PIL import Image
 
 
 class SaveImage:
@@ -45,9 +48,6 @@ class SaveImage:
 
         self.directory = f'{output_dir}/reconstruction/{attack_name}'
         os.makedirs(self.directory, exist_ok=True)  # Ensure the directory exists
-
-
-
 
 
     def save_png(self, 
@@ -178,6 +178,66 @@ def set_seed(seed: int = 42):
     torch.cuda.manual_seed_all(seed)  # For multi-GPU setups
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False  # Ensure deterministic behavior
+
+def calculate_metrics(img_batch, ref_batch):
+    # Compute metrics
+    ref_batch = ref_batch.to('cuda') 
+    img_batch = img_batch.to('cuda')
+
+    psnr_value = psnr(img_batch, ref_batch)
+    mse_value = mse_image_space(img_batch, ref_batch)
+    lpips_value = lpips_batch(img_batch, ref_batch)
+    mse_r_value = MSE_R(img_batch, ref_batch)
+    
+    print("\n*** Evaluation Metrics ***")
+    print(f"PSNR: {psnr_value:.2f} dB")
+    print(f"MSE (Image Space): {mse_value:.6f}")
+    print(f"LPIPS: {lpips_value:.4f}")
+    print(f"MSE (Representation Space): {mse_r_value:.6f}")
+
+
+
+def load_from_directory(image_path):
+    """
+    Loads all images from a directory and its subfolders and returns them as a batch.
+    
+    Args:
+        image_path (str): The root directory containing images and subfolders.
+    
+    Returns:
+        torch.Tensor: A tensor of shape [B, C, H, W] containing all images.
+    """
+    # List to store loaded images
+    images = []
+    
+    # Define transformation if needed (e.g., resizing, normalization)
+    transform = transforms.Compose([
+        transforms.Resize((224, 224)),  # Resize images to a standard size (224x224)
+        transforms.ToTensor(),          # Convert image to tensor
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225])  # Normalize using ImageNet stats
+    ])
+    
+    # Walk through all subdirectories and files in the given path
+    for root, dirs, files in os.walk(image_path):
+        for file in files:
+            # Only process image files (you can add more extensions as needed)
+            if file.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
+                img_path = os.path.join(root, file)
+                
+                # Load the image using PIL
+                img = Image.open(img_path).convert('RGB')
+                
+                # Apply transformation (resize, normalize)
+                img = transform(img)
+                
+                # Append image to the list
+                images.append(img)
+    
+    # Convert the list of images to a batch (tensor) by stacking
+    image_batch = torch.stack(images)
+    
+    return image_batch
 
 
 
