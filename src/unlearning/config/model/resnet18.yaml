@@ -1,0 +1,4 @@
+name: resnet18
+num_classes: ???  # Must specify the number of classes in the dataset
+model_ckpt_path: ???  # You must specify a path to the original model.
+output_dir: ???  # Path to save the model to
