@@ -203,6 +203,8 @@ def calculate_metrics(img_batch, ref_batch, images = 1, verbose = True):
             print(f"MSE (Image Space): {mse_value:.6f}")
             print(f"LPIPS: {lpips_value:.4f}")
             print(f"MSE (Representation Space): {mse_r_value:.6f}")
+            
+    return psnr_value, mse_value, lpips_value, mse_r_value
 
 def load_from_directory(dir_path):
     transform = transforms.ToTensor()
