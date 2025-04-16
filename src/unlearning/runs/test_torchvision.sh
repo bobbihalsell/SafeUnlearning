@@ -1,1 +1,1 @@
-python src/unlearning/main.py model=torchvision model.model_name=resnet18 model.num_classes=10 model.model_ckpt_path=./artifacts/models/cifar_test/mobilenet_v2_42_original.pt unlearner=neggrad dataset=cifar10 dataset.save_path=./data output_dir=artifacts-hydra
+python src/unlearning/main.py model=torchvision model.model_name=resnet18 unlearner=neggrad dataset=cifar10 dataset.save_path=./data output_dir=artifacts-hydra

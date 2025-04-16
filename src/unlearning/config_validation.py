@@ -14,6 +14,7 @@ class InputValidator:
 
         self.dataset_name = config['dataset']['name']
         self.dataset_save_dir = config['dataset']['save_path']
+        self.num_classes = config['dataset']['num_classes']
         self.dataset_cfg = config['dataset']['cfg']
         self.num_workers = self.dataset_cfg['num_workers']
         self.batch_sizes = self.dataset_cfg['batch_sizes']
@@ -126,25 +127,21 @@ class InputValidator:
         self.model_name = self._require(model_config, 'class_name')
         self.model_kwargs = self._require(model_config, 'model_kwargs')
         self.model_ckpt_path = model_config.get('model_ckpt_path', None)
-        self.num_classes = None
 
     def _validate_torchhub_params(self, model_config):
         self.init_path = self._require(model_config, 'repo_path')
         self.model_name = self._require(model_config, 'model_name')
         self.model_ckpt_path = model_config.get('model_ckpt_path', None)
         self.model_kwargs = None
-        self.num_classes = None
 
     def _validate_torchvision_params(self, model_config):
         self.model_name = self._require(model_config, 'model_name')
-        self.num_classes = self._require(model_config, 'num_classes')
         self.model_ckpt_path = model_config.get('model_ckpt_path', None)
         self.init_path = None
         self.model_kwargs = None
 
     def _validate_timm_params(self, model_config):
         self.model_name = self._require(model_config, 'model_name')
-        self.num_classes = self._require(model_config, 'num_classes')
         self.model_ckpt_path = model_config.get('model_ckpt_path', None)
         self.init_path = None
         self.model_kwargs = None
