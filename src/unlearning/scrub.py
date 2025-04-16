@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import copy
 import torch.nn.functional as F
 from unlearning.base import BaseUnlearner
 from typing import Dict
@@ -205,37 +204,21 @@ class SCRUB(BaseUnlearner):
             Tuple of (unlearned_model, losses) where losses contains
             tracked losses for each dataset type
         """
-        model.to(self.device)
-        unlearned_model = copy.deepcopy(model)
-
-        # Validate and extract hyperparameters
-        self.valid_args(**kwargs)
-        self.extract_hyperparameters(**kwargs)
-
         if ('retain' not in data_dict.keys() or
                 'forget' not in data_dict.keys()):
             raise KeyError("forget and retain data must be in data_dict.")
+        model.to(self.device)
+        unlearned_model, losses, optimizer, scheduler = self._setup_unlearning(
+            model,
+            data_dict,
+            **kwargs)
 
-        # Extract additional hyperparameters
         if self.alpha < 0 or self.gamma < 0:
             raise ValueError("Alpha and gamma must be non-negative.")
 
-        # Initialize loss tracking
-        losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
-
-        optimizer = self.initialize_optimizer(unlearned_model,
-                                              optimizer_name=self.optimizer)
-        if (self.epochs_per_lr_decay is not None and
-                self.lr_decay_factor is not None):
-            scheduler = self.initialize_scheduler(optimizer=optimizer)
-        else:
-            scheduler = None
-
         eval_dataloaders = [key for key in data_dict.keys() if key != 'retain']
-
         # Calculate total number of epochs and initialize counters
         total_epochs = self.max_epochs + self.min_epochs
-
         for e in range(total_epochs):
             model.eval()
             unlearned_model.eval()
@@ -261,23 +244,17 @@ class SCRUB(BaseUnlearner):
                     current_lr = scheduler.optimizer.param_groups[0]['lr']
                 else:
                     current_lr = optimizer.param_groups[0]['lr']
-                print(f'Epoch {e+1}: Retain Loss: {retain_loss} LR: {current_lr:.5f}')
+                print(f'Epoch {e+1}: Retain Loss: {retain_loss} '
+                      f'LR: {current_lr:.5f}')
 
             if self.evaluate:
-                losses['retain_losses'].append(retain_loss)
-
-                unlearned_model.eval()
-                # Evaluate model on other datasets
-                for data_type in eval_dataloaders:
-                    loader_loss = self._evaluate(unlearned_model,
-                                                 data_dict[data_type],
-                                                 self.criterion).mean()
-                    losses[f"{data_type}_losses"].append(loader_loss.item())
-                    if verbose:
-                        print(f'{data_type.capitalize()} Loss: {loader_loss}',
-                              end='  ')
-                if verbose:
-                    print()
+                self._evaluate_additional_splits(
+                    model=unlearned_model,
+                    data_dict=data_dict,
+                    eval_dataloaders=eval_dataloaders,
+                    losses=losses,
+                    verbose=verbose
+                )
 
             if scheduler is not None:
                 scheduler.step()

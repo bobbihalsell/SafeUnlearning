@@ -71,12 +71,14 @@ class BaseUnlearner:
         # Initialize tensor to store batch losses
         batch_losses = torch.zeros(len(dataloader), device=self.device)
         # Evaluate model on all batches
-        for batch_ndx, (inputs, targets) in enumerate(dataloader):
-            inputs, targets = inputs.to(self.device), targets.to(self.device)
-            outputs = model(inputs)
-            loss = loss_fn(outputs, targets)
-            # Store loss value
-            batch_losses[batch_ndx] = loss.detach().item()
+        with torch.no_grad():
+            for batch_ndx, (inputs, targets) in enumerate(dataloader):
+                inputs = inputs.to(self.device)
+                targets = targets.to(self.device)
+                outputs = model(inputs)
+                loss = loss_fn(outputs, targets)
+                # Store loss value
+                batch_losses[batch_ndx] = loss.detach().item()
         return batch_losses
 
     def valid_args(self, **kwargs):
