@@ -1,5 +1,5 @@
 load_method: class  
-class_path: ./modelloadtest
-class_name:  CIFAR10Model
-model_ckpt_path: ./saved_models/cifar10_model_1744618737.pth
+class_path: ???
+class_name: ???
+model_ckpt_path: ???
 model_kwargs:
