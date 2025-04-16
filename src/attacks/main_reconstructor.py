@@ -212,7 +212,8 @@ class ReconstructorApp(InputValidator):
         # # Step 6: Calculate metrics
         ref_batch = load_from_directory(self.data_root)
         num_images = reconstruction.shape[0]
-        psnr_value, mse_value, lpips_value, mse_r_value = calculate_metrics(reconstruction, ref_batch, num_images, self.verbose)
+        psnr_value, mse_value = calculate_metrics(reconstruction, ref_batch, self.image_size, num_images, self.verbose)
+
 
         # # Step 7: Save metrics
         table = wandb.Table(columns=["img_id", "psnr", "best_ref_index"])
@@ -227,9 +228,7 @@ class ReconstructorApp(InputValidator):
             'reconstruction': wandb.Image(reconstruction),
             'psnr_table': table,
             'max_psnr': psnr_max,
-            'mse_image_space': mse_value,
-            'lpips': lpips_value,
-            'mse_representation_space': mse_r_value,
+            'mse_image_space': mse_value
         })
         wandb.finish()
         
