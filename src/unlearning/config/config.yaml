@@ -5,3 +5,5 @@ defaults:
   - unlearner: ???
 seed: 42
 verbose: true
+# output_dir: ???
+output_dir: ./artifacts/models

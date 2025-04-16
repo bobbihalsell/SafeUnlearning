@@ -1,7 +1,4 @@
-import timm
-import torch
 import torch.nn as nn
-import torchvision
 from torch.utils.data import DataLoader
 from train.image_loading import RobustImageFolder
 import os
@@ -17,6 +14,7 @@ from unlearning.scrub import SCRUB
 from unlearning.kunlearn import KUnlearn
 from unlearning.neggrad import NegGrad, NegGradPlus
 from unlearning.utils import save_model, set_seed, setup_device, ConfigError
+from unlearning.importmodel import ImportModel
 import time
 
 
@@ -33,74 +31,22 @@ class UnlearnApp(InputValidator):
 
         self.unlearn_params['loss_fn'] = nn.CrossEntropyLoss()
         # Output directory
-        self.output_dir = config['model'].get('output_dir', 'artifacts/')
+        self.output_dir = config['output_dir']
         os.makedirs(self.output_dir, exist_ok=True)
 
-    def initialize_model(self):
+    def load_model(self):
         """Initialize the model based on model name from user configuration."""
-        if hasattr(torchvision.models, self.model_name):
-            model = torchvision.models.get_model(
-                self.model_name,
-                weights=None,
+        importer = ImportModel(
+            load_method=self.load_method,
+            model_name=self.model_name,
+            num_classes=self.num_classes,
+            init_path=self.init_path,
+            model_ckpt_path=self.model_ckpt_path,
+            model_kwargs=self.model_kwargs,
             )
-
-            # Adjust the last layer based on model type
-            if hasattr(model, "fc"):  # ResNet-style
-                model.fc = torch.nn.Linear(
-                    model.fc.in_features, self.num_classes
-                )
-            elif hasattr(model, "classifier"):  # MobileNet, EfficientNet, VGG, DenseNet
-                if isinstance(model.classifier, torch.nn.Sequential):
-                    # Handle cases like MobileNet where classifier is Sequential
-                    last_layer_idx = len(model.classifier) - 1
-                    model.classifier[last_layer_idx] = torch.nn.Linear(
-                        model.classifier[last_layer_idx].in_features,
-                        self.num_classes
-                    )
-                else:
-                    model.classifier = torch.nn.Linear(
-                        model.classifier.in_features, self.num_classes
-                    )
-            else:
-                raise AttributeError(
-                    f"Unknown classification layer for {self.model_name}"
-                )
-
-        else:
-            print(f"Couldn't find {self.model_name} in torchvision. "
-                  "Looking in timm.")
-            try:
-                model = timm.create_model(
-                    self.model_name,
-                    num_classes=self.num_classes,
-                )
-            except Exception:
-                raise AttributeError(
-                    f"{self.model_name} not found in torchvision or timm."
-                )
+        model = importer.load_model()
 
         return model
-
-    def load_model_from_disk(self, model_path):
-        """Load model from disk."""
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(f"Model file {model_path} not found.")
-
-        try:
-            # Initialize appropriate model architecture
-            model = self.initialize_model()
-            # Load state dict
-            checkpoint = torch.load(model_path, map_location=self.device)
-            checkpoint = (checkpoint["model_state_dict"] if
-                          "model_state_dict" in checkpoint else checkpoint)
-            model.load_state_dict(checkpoint)
-            model = model.to(self.device)
-            print(f"Loaded model from {model_path}")
-
-            return model
-
-        except Exception as e:
-            raise Exception(f'Error loading model: {e}')
 
     def initialize_unlearner(self):
         """ Initialize the correct unlearner from user specification."""
@@ -160,6 +106,8 @@ class UnlearnApp(InputValidator):
         transform = self.get_transform()
 
         # Load datasets for each split, exclude train and test data
+        if not os.path.exists(self.dataset_save_dir):
+            raise ValueError('Data directory not found.')
         splits = [d for d in os.listdir(self.dataset_save_dir) if
                   os.path.isdir(os.path.join(self.dataset_save_dir, d)) and
                   d not in ['train', 'test'] and
@@ -195,9 +143,10 @@ class UnlearnApp(InputValidator):
     def run(self):
         # Step 1: Load retain/val/forget datalaoders
         dataloaders = self.initialize_dataloaders()
-
+        print('Loaders loaded')
         # Step 2: Initialize the pretrained model
-        original_model = self.load_model_from_disk(self.model_ckpt_path)
+        original_model = self.load_model()
+        print('Original model loaded')
 
         save_model(original_model,
                    output_dir=self.output_dir,

@@ -1,0 +1,3 @@
+load_method: timm  
+model_name: ???
+model_ckpt_path:
