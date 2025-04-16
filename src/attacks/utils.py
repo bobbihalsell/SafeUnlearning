@@ -181,7 +181,7 @@ def set_seed(seed: int = 42):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False  # Ensure deterministic behavior
 
-def calculate_metrics(img_batch, ref_batch, images = 1, verbose = True, dataset_name='cifar10'):
+def calculate_metrics(img_batch, ref_batch, dataset_size, images = 1, verbose = True):
     # Compute metrics
     ref_batch = ref_batch.to('cuda') 
     img_batch = img_batch.to('cuda')
@@ -190,13 +190,11 @@ def calculate_metrics(img_batch, ref_batch, images = 1, verbose = True, dataset_
     img_batch = torch.clamp(img_batch, 0.0, 1.0)
     ref_batch = torch.clamp(ref_batch, 0.0, 1.0)
 
-    psnr_value = psnr(img_batch, ref_batch, factor=1, dataset_name=dataset_name)
+    psnr_value = psnr(img_batch, ref_batch, dataset_size, factor=1)
     if images == 1:
-        mse_value = mse_image_space(img_batch, ref_batch, dataset_name)
-        lpips_value = lpips_batch(img_batch, ref_batch, dataset_name)
-        mse_r_value = MSE_R(img_batch, ref_batch, dataset_name)
+        mse_value = mse_image_space(img_batch, ref_batch, dataset_size)
     else:
-        mse_value, lpips_value, mse_r_value = 0,0,0
+        mse_value = 0
     
     if verbose:
         print("\n*** Evaluation Metrics ***")
@@ -205,11 +203,8 @@ def calculate_metrics(img_batch, ref_batch, images = 1, verbose = True, dataset_
             print(f"Recon image {i}: Best match is ref {idx} with MSE {mse:.6f}")
         if images == 1:
             print(f"MSE (Image Space): {mse_value:.6f}")
-            print(f"LPIPS: {lpips_value:.4f}")
-            print(f"MSE (Representation Space): {mse_r_value:.6f}")
             
-    return psnr_value, mse_value, lpips_value, mse_r_value
-    #return psnr_value, mse_value, lpips_value
+    return psnr_value, mse_value
 
 def load_from_directory(dir_path):
     transform = transforms.ToTensor()

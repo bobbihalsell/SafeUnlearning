@@ -13,17 +13,12 @@ from torchvision.transforms.functional import resize
 
 
 
-def apply_resizing(img_batch, ref_batch, dataset_name='cifar10'):
+def apply_resizing(img_batch, ref_batch, dataset_size):
     """
     Resize both img_batch and ref_batch to a common size based on the dataset.
     """
     # Define default size based on dataset
-    if dataset_name == 'cifar10':
-        target_size = (32, 32)
-    elif dataset_name == 'imagenet':
-        target_size = (224, 224)
-    else:
-        target_size = (224, 224)  # Default to 224x224 if dataset is unknown
+    target_size = (dataset_size[1], dataset_size[2])
 
     # Resize both image batches
     resized_img_batch = [resize(img, target_size) for img in img_batch]
@@ -36,21 +31,12 @@ def apply_resizing(img_batch, ref_batch, dataset_name='cifar10'):
 import torch
 from torchvision import transforms
 
-def apply_normalization(img_batch, ref_batch, dataset_name='cifar10'):
+def apply_normalization(img_batch, ref_batch, dataset_mean, dataset_std):
     """
     Normalize img_batch and ref_batch according to dataset_name.
     """
-    # Define normalization parameters for different datasets
-    if dataset_name == 'cifar10':
-        mean = [0.4914, 0.4822, 0.4465]
-        std = [0.2023, 0.1994, 0.2010]
-    elif dataset_name == 'imagenet':
-        mean = [0.485, 0.456, 0.406]
-        std = [0.229, 0.224, 0.225]
-    else:
-        # Default to ImageNet normalization if dataset is unknown
-        mean = [0.485, 0.456, 0.406]
-        std = [0.229, 0.224, 0.225]
+    mean = dataset_mean
+    std = dataset_std
 
     # Define normalization transform
     normalize = transforms.Normalize(mean=mean, std=std)
@@ -63,12 +49,12 @@ def apply_normalization(img_batch, ref_batch, dataset_name='cifar10'):
     return torch.stack(normalized_img_batch), torch.stack(normalized_ref_batch)
 
 
-def psnr(img_batch, ref_batch, factor=1.0, dataset_name='cifar10'):
+def psnr(img_batch, ref_batch, dataset_size, factor=1.0):
     """
     For each image in img_batch, find the reference image in ref_batch with the highest PSNR.
     Returns: list of (best_psnr, best_index) tuples, one per image in img_batch.
     """
-    img_batch, ref_batch = apply_resizing(img_batch, ref_batch, dataset_name)
+    img_batch, ref_batch = apply_resizing(img_batch, ref_batch, dataset_size)
     def get_psnr(img_in, img_ref, factor):
         mse = ((img_in - img_ref)**2).mean()
         if mse > 0 and torch.isfinite(mse):
@@ -78,7 +64,7 @@ def psnr(img_batch, ref_batch, factor=1.0, dataset_name='cifar10'):
         else:
             return img_in.new_tensor(float('inf'))
         
-    img_batch, ref_batch = apply_resizing(img_batch, ref_batch, dataset_name)
+    
 
     img_batch = img_batch.detach()
     ref_batch = ref_batch.detach()
@@ -97,7 +83,7 @@ def psnr(img_batch, ref_batch, factor=1.0, dataset_name='cifar10'):
     return results 
 
 
-def mse_image_space(img_batch, ref_batch, dataset_name='cifar10'):
+def mse_image_space(img_batch, ref_batch, dataset_size):
     """
     Compute Mean Squared Error in image space for batched input.
     
@@ -108,7 +94,7 @@ def mse_image_space(img_batch, ref_batch, dataset_name='cifar10'):
     Returns:
         mse: Scalar float (mean MSE across batch)
     """
-    img_batch, ref_batch = apply_resizing(img_batch, ref_batch, dataset_name)
+    img_batch, ref_batch = apply_resizing(img_batch, ref_batch, dataset_size)
 
     # Compute mean squared error per image, then average over batch
     mse = F.mse_loss(img_batch, ref_batch, reduction='mean')
