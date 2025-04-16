@@ -5,6 +5,7 @@ import torch.nn as nn
 from unlearning.utils import setup_device
 from typing import Dict, List
 import copy
+import time
 
 
 class BaseUnlearner:
@@ -66,14 +67,13 @@ class BaseUnlearner:
             Tuple (val_loss, val_acc)
         """
         model.eval()
-        device = setup_device()
         val_loss = 0.0
         correct, total = 0, 0
 
         with torch.no_grad():
             for batch in dataloader:
                 inputs, labels = batch
-                inputs, labels = inputs.to(device), labels.to(device)
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
 
                 outputs = model(inputs)
                 loss = self.criterion(outputs, labels)
@@ -127,7 +127,9 @@ class BaseUnlearner:
                                          lr=self.lr,
                                          weight_decay=self.weight_decay)
         elif optimizer_name == 'sgd':
-            momentum = getattr(self, "momentum", 0)
+            momentum = getattr(self, "momentum", None)
+            if momentum is None:
+                momentum = 0
             optimizer = torch.optim.SGD(model.parameters(),
                                         lr=self.lr,
                                         momentum=momentum,
@@ -175,13 +177,16 @@ class BaseUnlearner:
         model.eval()
 
         for data_type, loader in data_dict.items():
+            start_eval_time = time.time()
             loader_loss, loader_acc = self._evaluate(model,
                                                      loader)
             self.losses[f"{data_type}"].append(loader_loss)
             self.losses[f"{data_type}_acc"].append(loader_acc)
+            elapsed = time.time() - start_eval_time
             if verbose:
-                print(f'{data_type.capitalize()} Loss: {loader_loss:.4f}',
-                        f'Acc: {loader_acc:.2f}%.', end=' || ')
+                print(f'{data_type.capitalize()} Loss: {loader_loss:.4f} '
+                      f'Acc: {loader_acc:.2f}%. '
+                      f'Time: {elapsed:.1f} s', end=' || ')
         if verbose:
             print('')
 
@@ -203,16 +208,16 @@ class BaseUnlearner:
         self._eval_initial_model(model,
                                  data_dict)
 
-        optimizer = self.initialize_optimizer(unlearned_model,
+        self.optimizer = self.initialize_optimizer(unlearned_model,
                                               optimizer_name=self.optimizer)
 
         if (self.epochs_per_lr_decay is not None and
                 self.lr_decay_factor is not None):
-            scheduler = self.initialize_scheduler(optimizer=optimizer)
+            scheduler = self.initialize_scheduler(optimizer=self.optimizer)
         else:
             scheduler = None
 
-        return unlearned_model, optimizer, scheduler
+        return unlearned_model, scheduler
 
     def _eval_initial_model(self, model, data_dict, verbose=True):
         """ Evaluate the initial model's performance on all dataset splits."""
@@ -231,3 +236,10 @@ class BaseUnlearner:
                       f'Acc: {split_acc:.2f}%.', end=' || ')
         if verbose:
             print('')
+
+    def _print_forward_pass_metrics(self, epoch_num, time_taken):
+        """ Print metrics for the user when forward pass is complete."""
+        current_lr = self.optimizer.param_groups[0]['lr']
+        print(f'Epoch {epoch_num+1} Forward Pass Complete. '
+              f'LR: {current_lr:.5f}. '
+              f'Time taken: {time_taken:.1f} s')

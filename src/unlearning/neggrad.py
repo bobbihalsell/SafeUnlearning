@@ -5,6 +5,7 @@ from itertools import cycle
 from unlearning.base import BaseUnlearner
 from typing import Optional, Tuple, Dict
 from torch.utils.data import DataLoader
+import time
 
 
 class NegGrad(BaseUnlearner):
@@ -63,16 +64,17 @@ class NegGrad(BaseUnlearner):
             raise ValueError("'forget' data must be in data_dict.")
 
         model.to(self.device)
-        unlearned_model, optimizer, scheduler = self._setup_unlearning(
+        unlearned_model, scheduler = self._setup_unlearning(
             model,
             data_dict,
             **kwargs)
 
         # Main training loop
         for e in range(self.epochs):
+            epoch_start_time = time.time()
             for forget_inputs, forget_labels in data_dict['forget']:
                 unlearned_model.eval()
-                optimizer.zero_grad()
+                self.optimizer.zero_grad()
 
                 forget_inputs = forget_inputs.to(self.device)
                 forget_labels = forget_labels.to(self.device)
@@ -90,14 +92,11 @@ class NegGrad(BaseUnlearner):
                     loss += l2_loss
 
                 loss.backward()
-                optimizer.step()
+                self.optimizer.step()
+            forward_pass_elapsed = time.time() - epoch_start_time
 
             if verbose:
-                if scheduler is not None:
-                    current_lr = scheduler.optimizer.param_groups[0]['lr']
-                else:
-                    current_lr = optimizer.param_groups[0]['lr']
-                print(f'Epoch {e+1} LR: {current_lr:.5f}')
+                self._print_forward_pass_metrics(e, forward_pass_elapsed)
 
             if self.evaluate:
                 # Calculate average retain loss for this epoch
@@ -205,7 +204,7 @@ class NegGradPlus(BaseUnlearner):
                        or if beta is 0 or 1 (which would make this equivalent to simpler methods).
         """
         model.to(self.device)
-        unlearned_model, optimizer, scheduler = self._setup_unlearning(
+        unlearned_model, scheduler = self._setup_unlearning(
             model,
             data_dict,
             **kwargs)
@@ -220,12 +219,13 @@ class NegGradPlus(BaseUnlearner):
                              "perform gradient descent on only the retain set")
         # Main training loop
         for e in range(self.epochs):
+            epoch_start_time = time.time()
             for retain_batch, forget_batch in zip(data_dict['retain'],
                                                   cycle(data_dict['forget'])
                                                   ):
                 #  Avoid BN layer computation, so code works with batch size 1
                 unlearned_model.eval()
-                optimizer.zero_grad()
+                self.optimizer.zero_grad()
                 # Process forget batch
                 forget_batch = [
                     tensor.to(self.device) for tensor in forget_batch
@@ -257,14 +257,12 @@ class NegGradPlus(BaseUnlearner):
                                          weight_decay=self.weight_decay)
                     loss += l2_loss
                 loss.backward()
-                optimizer.step()
+                self.optimizer.step()
+
+            forward_pass_elapsed = time.time() - epoch_start_time
 
             if verbose:
-                if scheduler is not None:
-                    current_lr = scheduler.optimizer.param_groups[0]['lr']
-                else:
-                    current_lr = optimizer.param_groups[0]['lr']
-                print(f'Epoch {e+1} LR: {current_lr:.5f}')
+                self._print_forward_pass_metrics(e, forward_pass_elapsed)
 
             if self.evaluate:
                 self._evaluate_all_splits(

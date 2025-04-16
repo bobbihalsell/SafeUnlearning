@@ -7,4 +7,4 @@ cfg:
   epochs_per_lr_decay: 2
   weight_decay: 0
   use_l2_penalty: false
-  epochs: 2
+  epochs: 4

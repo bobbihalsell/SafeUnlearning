@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from unlearning.base import BaseUnlearner
 from typing import Dict
 from torch.utils.data import DataLoader
+import time
 
 
 class SCRUB(BaseUnlearner):
@@ -219,6 +220,7 @@ class SCRUB(BaseUnlearner):
         # Calculate total number of epochs and initialize counters
         total_epochs = self.max_epochs + self.min_epochs
         for e in range(total_epochs):
+            epoch_start_time = time.time()
             model.eval()
             unlearned_model.eval()
 
@@ -237,13 +239,10 @@ class SCRUB(BaseUnlearner):
                     data_dict['retain'],
                     optimizer
                 )
+            forward_pass_elapsed = time.time() - epoch_start_time
 
             if verbose:
-                if scheduler is not None:
-                    current_lr = scheduler.optimizer.param_groups[0]['lr']
-                else:
-                    current_lr = optimizer.param_groups[0]['lr']
-                print(f'Epoch {e+1} LR: {current_lr:.5f}')
+                self._print_forward_pass_metrics(e, forward_pass_elapsed)
 
             if self.evaluate:
                 self._evaluate_all_splits(

@@ -3,6 +3,7 @@ from unlearning.utils import l2_penalty
 from unlearning.base import BaseUnlearner
 from typing import Dict
 from torch.utils.data import DataLoader
+import time
 
 
 class FinetuneUnlearner(BaseUnlearner):
@@ -63,17 +64,18 @@ class FinetuneUnlearner(BaseUnlearner):
             raise ValueError("'retain' data must be in data_dict.")
 
         model.to(self.device)
-        unlearned_model, optimizer, scheduler = self._setup_unlearning(
+        unlearned_model, scheduler = self._setup_unlearning(
             model,
             data_dict,
             **kwargs)
 
         # Main training loop
         for e in range(self.epochs):
+            epoch_start_time = time.time()
             for retain_inputs, retain_labels in data_dict['retain']:
 
                 unlearned_model.eval()
-                optimizer.zero_grad()
+                self.optimizer.zero_grad()
 
                 retain_inputs = retain_inputs.to(self.device)
                 retain_labels = retain_labels.to(self.device)
@@ -89,14 +91,11 @@ class FinetuneUnlearner(BaseUnlearner):
                     retain_loss += l2_loss
 
                 retain_loss.backward()
-                optimizer.step()
+                self.optimizer.step()
+            forward_pass_elapsed = time.time() - epoch_start_time
 
             if verbose:
-                if scheduler is not None:
-                    current_lr = scheduler.optimizer.param_groups[0]['lr']
-                else:
-                    current_lr = optimizer.param_groups[0]['lr']
-                print(f'Epoch {e+1}: LR: {current_lr:.5f}')
+                self._print_forward_pass_metrics(e, forward_pass_elapsed)
 
             if self.evaluate:
                 # Calculate average retain loss for this epoch
