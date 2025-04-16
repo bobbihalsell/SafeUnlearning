@@ -4,7 +4,6 @@ from train.utils import setup_device
 import os
 import sys
 import importlib
-import wandb
 import torchvision
 import timm
 
@@ -19,21 +18,14 @@ class ImportModel:
                     model_ckpt_path=None,
                     model_kwargs=None,
                     num_classes=10,
-                    device=None
                 ):
-        if device is None:
-            self.device = setup_device()
-        else:
-            self.device = device
-
+        self.device = setup_device()
         self.load_method = load_method
         self.init_path = init_path
         self.model_name = model_name
         self.model_ckpt_path = model_ckpt_path
         self.model_kwargs = model_kwargs or {}  # Handle None
         self.num_classes = num_classes
-
-        self.load_model()
 
     def load_model(self):
         """

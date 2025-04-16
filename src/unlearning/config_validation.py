@@ -19,7 +19,7 @@ class InputValidator:
         self.batch_sizes = self.dataset_cfg['batch_sizes']
 
         model_config = config['model']
-        self.model_loading = model_config['model_loading']
+        self.load_method = model_config['load_method']
 
         self.verbose = config['verbose']
 
