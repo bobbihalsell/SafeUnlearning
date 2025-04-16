@@ -304,7 +304,8 @@ class Turbo1:
                     n_evals, fbest = self.n_evals, fX_next.min()
                     print(f"{n_evals}) New best: {fbest:.4}")
                     sys.stdout.flush()
-                    # Save latent vector
+
+                    # Save latent vector for checkpointing
                     best_x = X_next[np.argmin(fX_next)] 
 
                     # Convert best z to tensor

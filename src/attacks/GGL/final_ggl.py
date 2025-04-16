@@ -6,12 +6,6 @@ import numpy as np
 from pytorch_pretrained_biggan import BigGAN
 from torchvision import transforms
 from attacks.GGL.turbo import Turbo1
-import random
-import numpy as np
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
 from torchvision import transforms
 import os
 import shutil
@@ -21,7 +15,6 @@ from unlearning.scrub import SCRUB
 
 
 class GGLReconstructor():
-    #def __init__(self, original_model, target_model, generator, loss_fn, unlearning_method, loss_models='l1', num_classes=1000, num_updates=None, lr=0.01, search_dim=128, use_tanh=False, budget=500, alpha=None, gamma=None, min_epochs=None, max_epochs=None, label=None, save_img=None, save_z=None, batch_size=1):
     def __init__(self, original_model, target_model, loss_fn, search_dim=128, use_tanh=False, budget=500, loss_models='l1', unlearning_method='neggrad', num_classes=1000, num_updates=None, lr=0.01,  alpha=None, gamma=None, min_epochs=None, max_epochs=None, labels=None, exp_name='ggl', initial_z=None, batch_size=1, gp_optim="AdamW", use_scheduler=False, initial_lr=1, weight_decay=0, use_l2_penalty=False, scrub_optim='sgd', momentum=0, lr_decay_factor=None, epochs_per_lr_decay=None):
         """
         original_model: The original model (pre-update).
@@ -70,28 +63,29 @@ class GGLReconstructor():
 
     def evaluate_loss(self, z, labels, loss_type=None, steps=None):
         """
-        Evaluates the interpolation-based loss for the given latent vector z.
+        Evaluates thee loss for the given latent vector z.
         """
         generated_image = self.generate_image(z, labels)
         
-
         # Create a copy
         recon = copy.deepcopy(self.original_model)
         recon.eval()
 
         if self.unlearning_method == 'neggrad':
-            # Perform scrub update on recon
-            recon = self.perform_sgd_updates(generated_image, labels, recon, steps=1)
+            # Perform neggrad update on recon
+            recon = self.perform_sgd_updates(generated_image, labels, recon, steps=steps)
 
         if self.unlearning_method == 'scrub':
-            recon = self.perform_scrub_updates(generated_image, labels, recon, alpha=self.alpha, gamma=self.gamma, min_epochs=self.min_epochs, max_epochs=self.max_epochs, lr=self.lr, loss_fn=self.loss_fn, weight_decay=self.weight_decay, steps=1, use_l2_penalty=self.use_l2_penalty, scrub_optim=self.scrub_optim, momentum=self.momentum, lr_decay_factor=self.lr_decay_factor, epochs_per_lr_decay=self.epochs_per_lr_decay)
+            recon = self.perform_scrub_updates(generated_image, labels, recon, steps=steps)
 
         if loss_type == 'interpolated':
+            # Calculate interpolated loss
             recon_1 = copy.deepcopy(self.original_model)
+            recon_1.eval()
             if self.unlearning_method == 'neggrad':
-                recon_1 = self.perform_sgd_updates(generated_image, labels, recon_1,  steps=steps)
+                recon_1 = self.perform_sgd_updates(generated_image, labels, recon_1, steps=1)
             if self.unlearning_method == 'scrub':
-                recon_1 = self.perform_scrub_updates(generated_image, labels, alpha=self.alpha, gamma=self.gamma, min_epochs=self.min_epochs, max_epochs=self.max_epochs, lr=self.lr, loss_fn=self.loss_fn, steps=steps, weight_decay=self.weight_decay, use_l2_penalty=self.use_l2_penalty, scrub_optim=self.scrub_optim, momentum=self.momentum, lr_decay_factor=self.lr_decay_factor, epochs_per_lr_decay=self.epochs_per_lr_decay)
+                recon_1 = self.perform_scrub_updates(generated_image, labels, recon_1,  steps=1)
 
             # Interpolate between original and unlearned model
             interp_model = self.interpolate_models(self.original_model, self.target_model, alpha=0.5)
@@ -102,7 +96,7 @@ class GGLReconstructor():
 
             return loss_1+loss_2
 
-
+        # Compute difference between model from reconstruction and unlearned
         elif loss_type == 'weighted':
             loss = self.compute_model_difference_weighted(recon, self.target_model)
         elif loss_type == 'l2':
@@ -153,7 +147,10 @@ class GGLReconstructor():
             diff += torch.sum(abs(p1 - p2))  # L1 norm of the difference
         return diff.item()
     
-    def perform_scrub_updates(self, generated_image, labels, original_model, alpha, gamma, min_epochs, max_epochs, lr, loss_fn, weight_decay, use_l2_penalty=False, verbose=True, steps=None, scrub_optim='sgd', momentum=0, lr_decay_factor=None, epochs_per_lr_decay=None):
+    def perform_scrub_updates(self, generated_image, labels, original_model, verbose=True, steps=None):
+        """
+        Perform scrub updates to mimic the unlearning process.
+        """
         scrub = SCRUB(device=self.device)
 
         # Convert label to tensor if necessary
@@ -162,25 +159,27 @@ class GGLReconstructor():
         else:
             labels = labels.to(self.device)
 
-        # Package the generated image and label as a dictionary
+        # Create forget loader
         forget_dataset = torch.utils.data.TensorDataset(generated_image, labels)
         forget_loader = torch.utils.data.DataLoader(forget_dataset, batch_size=len(forget_dataset), shuffle=False)
 
+        # Create forget dictionary
         forget_dict = {'forget': forget_loader}
-        # Hardcode any additional arguments needed for unlearn method
+
+        # Save values needed for scrub
         kwargs = {
-            'alpha': alpha,
-            'gamma': gamma,
-            'loss_fn': loss_fn,
-            'lr': lr,
-            'min_epochs': min_epochs,
-            'max_epochs' : max_epochs,
-            'weight_decay': weight_decay,
-            'use_l2_penalty': use_l2_penalty,
-            'optimizer': scrub_optim,
-            'momentum': momentum,
-            'lr_decay_factor': lr_decay_factor, 
-            'epochs_per_lr_decay': epochs_per_lr_decay
+            'alpha': self.alpha,
+            'gamma': self.gamma,
+            'loss_fn': self.loss_fn,
+            'lr': self.lr,
+            'min_epochs': self.min_epochs,
+            'max_epochs' : self.max_epochs,
+            'weight_decay': self.weight_decay,
+            'use_l2_penalty': self.use_l2_penalty,
+            'optimizer': self.scrub_optim,
+            'momentum': self.momentum,
+            'lr_decay_factor': self.lr_decay_factor, 
+            'epochs_per_lr_decay': self.epochs_per_lr_decay
 
         }
 
@@ -195,6 +194,9 @@ class GGLReconstructor():
         return unlearned_model
 
     def perform_sgd_updates(self, generated_image, labels, updated_model_attacker, steps=None):
+        """
+        Perform updates in neggrad to mimic the unlearning process.
+        """
         if steps is None:
             steps = self.num_updates
         optimizer = optim.SGD(updated_model_attacker.parameters(), lr=0.001)
@@ -223,8 +225,7 @@ class GGLReconstructor():
         z = z.to(self.device)
 
         noise_vector = z  
-        self.generator = self.generator.to(self.device)  # Ensure generator is on correct device
-        #noise_vector = z.to(self.device)
+        self.generator = self.generator.to(self.device)  
         
         # Ensure labels is a tensor
         if isinstance(labels, int):
@@ -244,7 +245,6 @@ class GGLReconstructor():
         # Rescale image to 224x224 
         generated_image = nn.functional.interpolate(generated_image, size=(224, 224), mode='area')
 
-        
         return generated_image
 
 
@@ -253,7 +253,8 @@ class GGLReconstructor():
         Optimize the latent vector z using Turbo Bayesian Optimization.
         If `initial_z` is provided, it starts from there instead of a random initialization.
         """
-        label = self.label[0] #TODO: change for multiple instances
+        # It is always assumed that reconstruction is for a single image
+        label = self.label[0] 
 
         # Set the directory for saving results
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -268,10 +269,12 @@ class GGLReconstructor():
         x_path = os.path.join(results_dir, file_name + ".png")
         z_path = os.path.join(results_dir, file_name)
 
-
-        labels = torch.tensor([label])  # Assign a label
-        f = lambda z: self.evaluate_loss(z, labels, loss_type=self.type)  # Define the objective function
+        # Assign a label
+        labels = torch.tensor([label])  
         labels = labels.to(self.device)
+
+        # Define the objective function
+        f = lambda z: self.evaluate_loss(z, labels, loss_type=self.type)  
 
         # Define search space
         z_lb = -2 * np.ones(self.search_dim)
@@ -357,9 +360,11 @@ class GGLReconstructor():
         else:
             z_np = np.array(z)
         
+        # Save latent vector for checkpoints
         np.save(z_path, z_np)
         print(f"Latent vector z saved to {z_path}.npy")
 
+        # Convert all latent vectors from the run to images and save
         script_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.abspath(os.path.join(script_dir, "..", ".."))
         # Build the path to the artifacts folder
@@ -370,20 +375,18 @@ class GGLReconstructor():
         z_dir = os.path.join(project_root, "artifacts", "run")
         os.makedirs(z_dir, exist_ok=True)
 
-
         npy_data = {}
 
+        # Assign a label
         label = self.label[0] 
-
-        labels = torch.tensor([label])  # Assign a label
+        labels = torch.tensor([label])  
 
         for filename in os.listdir(z_dir):
             if filename.endswith(".npy"):
                 full_path = os.path.join(z_dir, filename)
                 npy_data[filename] = np.load(full_path)
 
-                latent_tensor = torch.from_numpy(npy_data[filename]).to(self.device)  # Ensure it's on the right device
-
+                latent_tensor = torch.from_numpy(npy_data[filename]).to(self.device) 
 
                 image = self.generate_image(latent_tensor, labels)
                 image = image.detach().cpu()
