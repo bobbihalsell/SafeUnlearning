@@ -214,24 +214,3 @@ class ImportModel:
 
         except Exception as e:
             raise ConfigError(f"Failed to load weights: {str(e)}")
-
-    def save_model(self, save_name=None, output_dir=None):
-        """
-        Save the model to the specified path and optionally to wandb artifacts.
-        """
-        if self.model is None:
-            raise ConfigError("Model must be loaded before saving.")
-
-        if output_dir is None:
-            if save_name is None:
-                if self.model_name:
-                    save_name = self.model_name.split('.')[-1]
-                else:
-                    save_name = "model"
-            output_dir = os.path.join(output_dir, f"{save_name}.pt") 
-
-        os.makedirs(os.path.dirname(output_dir), exist_ok=True)
-        torch.save(self.model.state_dict(), output_dir)
-        print(f"Model saved to {output_dir}")
-
-        return output_dir
