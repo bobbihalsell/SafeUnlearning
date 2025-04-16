@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
-import copy
 from unlearning.utils import l2_penalty
 from itertools import cycle
 from unlearning.base import BaseUnlearner
 from typing import Optional, Tuple, Dict
 from torch.utils.data import DataLoader
+import time
 
 
 class NegGrad(BaseUnlearner):
@@ -48,7 +48,6 @@ class NegGrad(BaseUnlearner):
             data_dict: Dictionary containing dataloaders for different datasets.
                        Must include a 'forget' key with corresponding DataLoader.
             **kwargs: Additional arguments including:
-                - loss_fn: Loss function for training (will be negated) and evaluation.
                 - num_epochs: Number of training epochs (default: 1).
                 - lr: Learning rate (default: 1e-2).
                 - weight_decay: Weight decay parameter (default: 0).
@@ -61,32 +60,21 @@ class NegGrad(BaseUnlearner):
         Raises:
             ValueError: If 'forget' data is not in data_dict.
         """
-
-        model.to(self.device)
-        unlearned_model = copy.deepcopy(model)
-
-        # Validate and extract common hyperparameters
-        self.valid_args(**kwargs)
-        self.extract_hyperparameters(**kwargs)
-
         if 'forget' not in data_dict.keys():
             raise ValueError("'forget' data must be in data_dict.")
 
-        # Initialize loss tracking
-        losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
-
-        optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
-                                    lr=self.lr,
-                                    weight_decay=self.weight_decay)
-
-        eval_dataloaders = [key for key in data_dict.keys() if key != 'forget']
+        model.to(self.device)
+        unlearned_model, scheduler = self._setup_unlearning(
+            model,
+            data_dict,
+            **kwargs)
 
         # Main training loop
         for e in range(self.epochs):
-            total_forget_loss = 0
+            epoch_start_time = time.time()
             for forget_inputs, forget_labels in data_dict['forget']:
                 unlearned_model.eval()
-                optimizer.zero_grad()
+                self.optimizer.zero_grad()
 
                 forget_inputs = forget_inputs.to(self.device)
                 forget_labels = forget_labels.to(self.device)
@@ -104,31 +92,24 @@ class NegGrad(BaseUnlearner):
                     loss += l2_loss
 
                 loss.backward()
-                optimizer.step()
-                total_forget_loss += forget_loss.item()
+                self.optimizer.step()
+            forward_pass_elapsed = time.time() - epoch_start_time
 
-            avg_epoch_forget_loss = total_forget_loss/len(data_dict["forget"])
             if verbose:
-                print(f'Epoch {e}: Forget Loss: {avg_epoch_forget_loss}')
+                self._print_forward_pass_metrics(e, forward_pass_elapsed)
 
             if self.evaluate:
                 # Calculate average retain loss for this epoch
-                losses['forget_losses'].append(avg_epoch_forget_loss)
-                unlearned_model.eval()
-                # Evaluate model on other datasets
-                for data_type in eval_dataloaders:
-                    loader_loss = self._evaluate(
-                        unlearned_model,
-                        data_dict[data_type],
-                        self.criterion).mean()
-                    losses[f"{data_type}_losses"].append(loader_loss.item())
-                    if verbose:
-                        print(f'{data_type.capitalize()} Loss: {loader_loss}',
-                              end='  ')
-                if verbose:
-                    print()
+                self._evaluate_all_splits(
+                    model=unlearned_model,
+                    data_dict=data_dict,
+                    verbose=verbose
+                )
 
-        return unlearned_model, losses
+            if scheduler is not None:
+                scheduler.step()
+
+        return unlearned_model, self.losses
 
 
 class NegGradPlus(BaseUnlearner):
@@ -223,11 +204,10 @@ class NegGradPlus(BaseUnlearner):
                        or if beta is 0 or 1 (which would make this equivalent to simpler methods).
         """
         model.to(self.device)
-        unlearned_model = copy.deepcopy(model)
-
-        # Validate and extract common hyperparameters
-        self.valid_args(**kwargs)
-        self.extract_hyperparameters(**kwargs)
+        unlearned_model, scheduler = self._setup_unlearning(
+            model,
+            data_dict,
+            **kwargs)
         # Ensure required data is available
         if 'forget' not in data_dict.keys() or 'retain' not in data_dict.keys():
             raise ValueError("'forget' and 'retain' data must be in data_dict.")
@@ -237,24 +217,15 @@ class NegGradPlus(BaseUnlearner):
         if self.beta == 1:
             raise ValueError("Please use FinetuneUnlearner if you wish to "
                              "perform gradient descent on only the retain set")
-        # Initialize loss tracking
-        losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
-
-        optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
-                                    lr=self.lr,
-                                    weight_decay=self.weight_decay)
-
-        eval_dataloaders = [key for key in data_dict.keys() if
-                            key not in ['retain', 'forget']]
         # Main training loop
         for e in range(self.epochs):
-            total_forget_loss, total_retain_loss = 0, 0
+            epoch_start_time = time.time()
             for retain_batch, forget_batch in zip(data_dict['retain'],
                                                   cycle(data_dict['forget'])
                                                   ):
                 #  Avoid BN layer computation, so code works with batch size 1
                 unlearned_model.eval()
-                optimizer.zero_grad()
+                self.optimizer.zero_grad()
                 # Process forget batch
                 forget_batch = [
                     tensor.to(self.device) for tensor in forget_batch
@@ -286,36 +257,21 @@ class NegGradPlus(BaseUnlearner):
                                          weight_decay=self.weight_decay)
                     loss += l2_loss
                 loss.backward()
-                optimizer.step()
-                # Track losses
-                total_forget_loss += forget_loss.item()
-                total_retain_loss += retain_loss.item()
+                self.optimizer.step()
 
-            # Use retain batch length due to cycle algorithm for forget set
-            avg_epoch_forget_loss = total_forget_loss/len(data_dict["retain"])
-            avg_epoch_retain_loss = total_retain_loss/len(data_dict["retain"])
+            forward_pass_elapsed = time.time() - epoch_start_time
 
             if verbose:
-                print(f'Epoch {e}: Retain Loss: {avg_epoch_retain_loss}, '
-                      f'Forget Loss: {avg_epoch_forget_loss}')
+                self._print_forward_pass_metrics(e, forward_pass_elapsed)
 
             if self.evaluate:
-                # Calculate average retain loss for this epoch
-                losses['retain_losses'].append(avg_epoch_retain_loss)
-                losses['forget_losses'].append(avg_epoch_forget_loss)
-                unlearned_model.eval()
-                # Evaluate model on other datasets
-                for data_type in eval_dataloaders:
-                    loader_loss = self._evaluate(
-                        unlearned_model,
-                        data_dict[data_type],
-                        self.criterion).mean()
-                    losses[f"{data_type}_losses"].append(loader_loss.item())
+                self._evaluate_all_splits(
+                    model=unlearned_model,
+                    data_dict=data_dict,
+                    verbose=verbose
+                )
 
-                    if verbose:
-                        print(f'{data_type.capitalize()} Loss: {loader_loss}',
-                              end='  ')
-                if verbose:
-                    print()
+            if scheduler is not None:
+                scheduler.step()
 
-        return unlearned_model, losses
+        return unlearned_model, self.losses

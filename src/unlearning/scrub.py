@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
-import copy
 import torch.nn.functional as F
 from unlearning.base import BaseUnlearner
 from typing import Dict
 from torch.utils.data import DataLoader
+import time
 
 
 class SCRUB(BaseUnlearner):
@@ -111,7 +111,7 @@ class SCRUB(BaseUnlearner):
         return (self.alpha * retain_kl)/Nr + self.gamma * retain_ce, retain_kl, retain_ce
 
     def max_epoch(self, model, unlearned_model,
-                  forget_loader, optimizer, step=True):
+                  forget_loader, step=True):
         """
         Perform one epoch of maximizing divergence on forget data.
         This is the "forgetting" step where we make the model outputs diverge
@@ -134,17 +134,17 @@ class SCRUB(BaseUnlearner):
             unl_out = unlearned_model(forget_x)
             loss, _ = self.forget_loss(original_out, unl_out)
             if step:
-                optimizer.zero_grad()
+                self.optimizer.zero_grad()
                 # We negate the loss because we want to maximize divergence
                 (-loss).backward()
-                optimizer.step()
+                self.optimizer.step()
             avg_loss += loss
         # Normalize by number of batches
         avg_loss = avg_loss/len(forget_loader)
 
         return avg_loss
 
-    def min_epoch(self, model, unlearned_model, retain_loader, optimizer):
+    def min_epoch(self, model, unlearned_model, retain_loader):
         """
         Perform one epoch of minimizing divergence on retain data.
 
@@ -153,10 +153,9 @@ class SCRUB(BaseUnlearner):
 
         Args:
             retain_loader: The retain DataLoader
-            optimizer: Optimizer for updating model parameters
 
         Returns:
-            Cross-entropy component of loss, for performance reporting
+            Average cross-entropy loss, for performance reporting
         """
         # Average CE loss is only for reporting
         avg_ce_loss = 0.0
@@ -171,10 +170,10 @@ class SCRUB(BaseUnlearner):
             loss, kl_loss, ce_loss = self.retain_loss(
                 original_out, unl_out, retain_y
                 )
-            optimizer.zero_grad()
+            self.optimizer.zero_grad()
             # Perform optimization using combined loss
             loss.backward()
-            optimizer.step()
+            self.optimizer.step()
 
             avg_ce_loss += ce_loss
         avg_ce_loss = (avg_ce_loss/len(retain_loader) if
@@ -205,38 +204,22 @@ class SCRUB(BaseUnlearner):
             Tuple of (unlearned_model, losses) where losses contains
             tracked losses for each dataset type
         """
-        model.to(self.device)
-        unlearned_model = copy.deepcopy(model)
-
-        # Validate and extract hyperparameters
-        self.valid_args(**kwargs)
-        self.extract_hyperparameters(**kwargs)
-
         if ('retain' not in data_dict.keys() or
                 'forget' not in data_dict.keys()):
             raise KeyError("forget and retain data must be in data_dict.")
+        model.to(self.device)
+        unlearned_model, scheduler = self._setup_unlearning(
+            model,
+            data_dict,
+            **kwargs)
 
-        # Extract additional hyperparameters
         if self.alpha < 0 or self.gamma < 0:
             raise ValueError("Alpha and gamma must be non-negative.")
 
-        # Initialize loss tracking
-        losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
-
-        optimizer = self.initialize_optimizer(unlearned_model,
-                                              optimizer_name=self.optimizer)
-        if (self.epochs_per_lr_decay is not None and
-                self.lr_decay_factor is not None):
-            scheduler = self.initialize_scheduler(optimizer=optimizer)
-        else:
-            scheduler = None
-
-        eval_dataloaders = [key for key in data_dict.keys() if key != 'retain']
-
         # Calculate total number of epochs and initialize counters
         total_epochs = self.max_epochs + self.min_epochs
-
         for e in range(total_epochs):
+            epoch_start_time = time.time()
             model.eval()
             unlearned_model.eval()
 
@@ -245,41 +228,27 @@ class SCRUB(BaseUnlearner):
                 self.max_epoch(
                     model,
                     unlearned_model,
-                    data_dict['forget'],
-                    optimizer)
-
+                    data_dict['forget']
+                )
             # Minimize divergence on retain data
-            retain_loss = self.min_epoch(
-                                model,
-                                unlearned_model,
-                                data_dict['retain'],
-                                optimizer
-                            )
+            self.min_epoch(
+                    model,
+                    unlearned_model,
+                    data_dict['retain'],
+                )
+            forward_pass_elapsed = time.time() - epoch_start_time
 
             if verbose:
-                if scheduler is not None:
-                    current_lr = scheduler.optimizer.param_groups[0]['lr']
-                else:
-                    current_lr = optimizer.param_groups[0]['lr']
-                print(f'Epoch {e+1}: Retain Loss: {retain_loss} LR: {current_lr:.5f}')
+                self._print_forward_pass_metrics(e, forward_pass_elapsed)
 
             if self.evaluate:
-                losses['retain_losses'].append(retain_loss)
-
-                unlearned_model.eval()
-                # Evaluate model on other datasets
-                for data_type in eval_dataloaders:
-                    loader_loss = self._evaluate(unlearned_model,
-                                                 data_dict[data_type],
-                                                 self.criterion).mean()
-                    losses[f"{data_type}_losses"].append(loader_loss.item())
-                    if verbose:
-                        print(f'{data_type.capitalize()} Loss: {loader_loss}',
-                              end='  ')
-                if verbose:
-                    print()
+                self._evaluate_all_splits(
+                    model=unlearned_model,
+                    data_dict=data_dict,
+                    verbose=verbose
+                )
 
             if scheduler is not None:
                 scheduler.step()
 
-        return unlearned_model, losses
+        return unlearned_model, self.losses
