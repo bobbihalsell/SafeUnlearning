@@ -1,0 +1,1 @@
+python src/unlearning/main.py model=torchvision model.model_name=resnet18 unlearner=neggrad dataset=imagenet dataset.save_path=./imagenet output_dir=artifacts/models

@@ -1,5 +1,4 @@
 from unlearning.utils import ConfigError
-import os
 
 
 class InputValidator:
@@ -7,27 +6,27 @@ class InputValidator:
     def __init__(self, config):
         assert isinstance(config, dict)
 
+        self.output_dir = config['output_dir']
+
         self.unlearner_name = config['unlearner']['name']
         self.unlearn_params = config['unlearner']['cfg']
         self.evaluate = config['unlearner']['evaluate']
 
         self.dataset_name = config['dataset']['name']
         self.dataset_save_dir = config['dataset']['save_path']
+        self.num_classes = config['dataset']['num_classes']
         self.dataset_cfg = config['dataset']['cfg']
         self.num_workers = self.dataset_cfg['num_workers']
         self.batch_sizes = self.dataset_cfg['batch_sizes']
 
         model_config = config['model']
-        self.model_name = model_config['name']
-        self.model_ckpt_path = model_config['model_ckpt_path']
-        self.num_classes = model_config['num_classes']
-        self.output_dir = model_config['output_dir']
+        self.load_method = model_config['load_method']
 
         self.verbose = config['verbose']
 
         self._validate_unlearner_params()
         self._validate_dataset_params()
-        self._validate_model_params()
+        self._validate_model_params(model_config)
 
     def _validate_unlearner_params(self):
         """
@@ -69,8 +68,10 @@ class InputValidator:
                 if param not in self.unlearn_params:
                     missing_scrub_params.append(param)
             if missing_scrub_params:
-                raise ConfigError('Missing required params for SCRUB unlearner:'
-                                  f' {', '.join(missing_scrub_params)}')
+                raise ConfigError(
+                    'Missing required params for SCRUB unlearner:'
+                    f' {', '.join(missing_scrub_params)}'
+                                  )
 
         elif self.unlearner_name in {'euk', 'cfk'}:
             # Check for k parameter
@@ -99,12 +100,48 @@ class InputValidator:
                               'load the dataset from must be provided. '
                               'dataset_save_dir cannot be empty.')
 
-    def _validate_model_params(self):
+    def _require(self, model_config, key):
+        if key not in model_config:
+            raise ConfigError(f"Missing required config key: '{key}'")
+        return model_config[key]
+
+    def _validate_model_params(self, model_config):
         """ Check some of the model-related config params from the YAML file.
 
         This validates only some of the model parameters, as it is more
         efficient to use the EAFP approach for model name and
         initialization checking."""
-        if not os.path.exists(self.model_ckpt_path):
-            raise ConfigError("Model weights file not found: "
-                              f"{self.model_ckpt_path}")
+        if self.load_method == 'class':
+            self._validate_class_params(model_config)
+        elif self.load_method == 'torchhub':
+            self._validate_torchhub_params(model_config)
+        elif self.load_method == 'torchvision':
+            self._validate_torchvision_params(model_config)
+        elif self.load_method == 'timm':
+            self._validate_timm_params(model_config)
+        else:
+            raise ConfigError('Invalid model loading ')
+
+    def _validate_class_params(self, model_config):
+        self.init_path = self._require(model_config, 'class_path')
+        self.model_name = self._require(model_config, 'class_name')
+        self.model_kwargs = self._require(model_config, 'model_kwargs')
+        self.model_ckpt_path = model_config.get('model_ckpt_path', None)
+
+    def _validate_torchhub_params(self, model_config):
+        self.init_path = self._require(model_config, 'repo_path')
+        self.model_name = self._require(model_config, 'model_name')
+        self.model_ckpt_path = model_config.get('model_ckpt_path', None)
+        self.model_kwargs = None
+
+    def _validate_torchvision_params(self, model_config):
+        self.model_name = self._require(model_config, 'model_name')
+        self.model_ckpt_path = model_config.get('model_ckpt_path', None)
+        self.init_path = None
+        self.model_kwargs = None
+
+    def _validate_timm_params(self, model_config):
+        self.model_name = self._require(model_config, 'model_name')
+        self.model_ckpt_path = model_config.get('model_ckpt_path', None)
+        self.init_path = None
+        self.model_kwargs = None
