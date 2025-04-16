@@ -13,8 +13,8 @@ class ImportModel:
     """ Perform pretraining, or model loading and saving, for a model."""
     def __init__(
                     self,
-                    model_loading,
-                    model_name,
+                    load_method: str,
+                    model_name: str,
                     init_path=None,
                     model_ckpt_path=None,
                     model_kwargs=None,
@@ -26,7 +26,7 @@ class ImportModel:
         else:
             self.device = device
 
-        self.model_loading = model_loading
+        self.load_method = load_method
         self.init_path = init_path
         self.model_name = model_name
         self.model_ckpt_path = model_ckpt_path
@@ -47,21 +47,21 @@ class ImportModel:
         """
         try:
             # Load the model based on the specified method
-            if self.model_loading == 'class':
+            if self.load_method == 'class':
                 self._init_from_class(**self.model_kwargs)
-            elif self.model_loading == 'torchhub':
+            elif self.load_method == 'torchhub':
                 self._init_from_torch_hub()
-            elif self.model_loading == 'torchvision':
+            elif self.load_method == 'torchvision':
                 self._init_from_torchvision()
-            elif self.model_loading == 'timm':
+            elif self.load_method == 'timm':
                 self._init_from_timm()
             else:
                 raise ConfigError(
                     "Unknown initialisation method: "
-                    f"{self.model_loading}"
+                    f"{self.load_method}"
                 )
             # Load weights if specified
-            if hasattr(self, 'model_ckpt_path') and self.model_ckpt_path:
+            if self.model_ckpt_path is not None:
                 self._load_weights()
 
             # Finalize model setup
@@ -216,14 +216,6 @@ class ImportModel:
             else:
                 state_dict = checkpoint
                 print("Using checkpoint directly as state dict")
-
-            # # Handle DataParallel wrapping if needed
-            # if isinstance(state_dict, dict) and any(k.startswith('module.') 
-            # for k in state_dict.keys()):
-            #     state_dict = {k.replace('module.', '', 1): v for k, v in 
-            # state_dict.items()}
-            #     print("Removed 'module.' prefix from state dict keys")
-
             # Load the state dict
             self.model.load_state_dict(state_dict)
             print(f"Successfully loaded weights from {self.model_ckpt_path}")
@@ -249,28 +241,5 @@ class ImportModel:
         os.makedirs(os.path.dirname(output_dir), exist_ok=True)
         torch.save(self.model.state_dict(), output_dir)
         print(f"Model saved to {output_dir}")
-
-        # Save to wandb if configured
-        if (
-            'wandb' in self.config
-            and self.config['wandb'].get('enabled', False)
-        ):
-            if wandb.run is None:
-                wandb.init(
-                    project=self.config['wandb'].get('project', 'model-eval'),
-                    name=self.config['wandb'].get('name', f"{save_name}"),
-                    config=self.config
-                )
-
-            # Log model as artifact
-            artifact = wandb.Artifact(
-                name=f"model-{save_name}",
-                type="model",
-                description=f"Trained {self.model_name} model"
-            )
-            artifact.add_file(output_dir)
-            wandb.log_artifact(artifact)
-
-            print(f"Model saved to wandb artifact: {artifact.name}")
 
         return output_dir
