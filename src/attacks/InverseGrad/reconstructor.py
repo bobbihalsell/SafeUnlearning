@@ -104,7 +104,7 @@ class InverseGradReconstructor():
         set_seed(seed)
 
 
-    def reconstruct(self, labels, image_size=[3, 32, 32], 
+    def reconstruct(self, labels, num_images, image_size=[3, 32, 32], 
                     image_mean = [0.5, 0.5, 0.5],
                     image_std = [0.5, 0.5, 0.5],
                     lr = 0.1, verbose = True):
@@ -116,15 +116,18 @@ class InverseGradReconstructor():
         self.ds = image_std[0]
         self.lr = lr
         self.verbose = verbose
-        labels = torch.as_tensor(labels, device = self.device)
-        self.num_images = labels.shape[0]
+        if labels:
+            labels = torch.as_tensor(labels, device = self.device)
+            self.num_images = labels.shape[0]
+        else:
+            self.num_images = num_images
 
         if self.num_images > 1 and self.config.scoring_choice in ['pixelmean', 'pixelmedian']:
             raise ValueError('Pixel mean/median scoring choice can only be performed on one image.')
 
         self.normalizer = transforms.Normalize(image_mean, image_std)
         
-        if eval: #TODO: maybe remove this 
+        if eval: 
             self.original_model.eval()
 
         input_data = self.input_gradient
@@ -133,22 +136,12 @@ class InverseGradReconstructor():
         scores = torch.zeros(self.config.num_runs, device=self.device)
 
         if labels is None:
-            # if self.num_images == 1 and self.iDLG:
-            # last_weight_min = torch.argmin(torch.sum(input_data[-2], dim=-1), dim=-1)
-            # labels = last_weight_min.detach().reshape((1,)).requires_grad_(False)
-            # self.reconstruct_label = False
             self.reconstruct_label = True
-        # else:
-            # DLG label recovery
-            # However this also improves conditioning for some LBFGS cases
-            # self.reconstruct_label = True
-            # self.reconstruct_label = False
 
             def loss_fn(pred, labels):
                 labels = torch.nn.functional.softmax(labels, dim=-1)
                 return torch.mean(torch.sum(- labels * torch.nn.functional.log_softmax(pred, dim=-1), 1))
             self.loss_fn_ce = loss_fn
-                # self.loss_fn = DistillKL(2)
         else:
             self.reconstruct_label = False
 
@@ -157,7 +150,6 @@ class InverseGradReconstructor():
                 x_trial, labels = self._run_trial(x[trial].to(self.device), input_data, labels)
                 # Finalize
                 scores[trial] = self._score_trial(x_trial, input_data, labels)
-                print(f'Score: {scores[trial]:2.4f}')
                 x[trial] = x_trial.to(self.device)
 
 
@@ -169,7 +161,6 @@ class InverseGradReconstructor():
         if self.config.scoring_choice in ['pixelmean', 'pixelmedian']:
             x_optimal, stats = self._average_trials(x, labels, input_data, stats)
         else:
-            print('Choosing optimal result ...')
             scores = scores[torch.isfinite(scores)]  # guard against NaN/-Inf scores?
             optimal_index = torch.argmin(scores)
             print(f'Optimal result score: {scores[optimal_index]:2.4f}')
@@ -199,7 +190,7 @@ class InverseGradReconstructor():
         x_trial.requires_grad = True
         if self.reconstruct_label:
             output_test = self.original_model(x_trial)
-            labels = torch.randn(output_test.shape[1]).to(**self.device).requires_grad_(True)
+            labels = torch.randn(output_test.shape[1]).to(self.device).requires_grad_(True)
 
             if self.config.optim == 'adam':
                 optimizer = torch.optim.Adam([x_trial, labels], lr=self.lr)
@@ -249,7 +240,6 @@ class InverseGradReconstructor():
                         else:
                             pass
 
-
         except KeyboardInterrupt:
             print(f'Recovery interrupted manually in iteration {iteration}!')
             pass
@@ -284,7 +274,7 @@ class InverseGradReconstructor():
             x_trial.grad = None
             loss_ce = self.loss_fn_ce(self.original_model((x_trial)), label)
             loss_kl = self.loss_fn(self.original_model((x_trial)), self.model_copy(self.normalizer(x_trial)))
-            loss =  loss_ce + loss_kl
+            loss =  loss_ce + 0*loss_kl
 
             gradient = torch.autograd.grad(loss, self.original_model.parameters(), create_graph=False)
             return reconstruction_costs([gradient], input_gradient,
@@ -292,30 +282,35 @@ class InverseGradReconstructor():
                                         weights=self.config.weights)
         elif self.config.scoring_choice == 'tv':
             return total_variation(x_trial)
-        elif self.config.scoring_choice in ['pixelmean', 'pixelmedians']:
+        elif self.config.scoring_choice in ['pixelmean', 'pixelmedian']:
             return 0.0
         else:
             raise ValueError()
 
     def _average_trials(self, x, labels, input_data, stats):
-        print(f'Computing a combined result via {self.config.scoring_choice} ...')
         if self.config.scoring_choice == 'pixelmedian':
             x_optimal, _ = x.median(dim=0, keepdims=False)
+            x = x.squeeze(1)
+            x_with_opt = torch.vstack([x, x_optimal])
+
         elif self.config.scoring_choice == 'pixelmean':
             x_optimal = x.mean(dim=0, keepdims=False)
+            x = x.squeeze(1)
+            x_with_opt = torch.vstack([x, x_optimal])
 
         self.original_model.zero_grad()
         if self.reconstruct_label:
-            labels = self.original_model(x_optimal).softmax(dim=1) #TODO: change loss here,
-        loss = self.loss_fn_ce(self.original_model(x_optimal), labels) #TODO: use kl?
+            labels = self.original_model(x_optimal).softmax(dim=1) 
+        loss = self.loss_fn_ce(self.original_model(x_optimal), labels) 
 
         gradient = torch.autograd.grad(loss, self.original_model.parameters(), create_graph=False)
         stats['opt'] = reconstruction_costs([gradient], input_data,
                                             cost_fn=self.config.cost_fn,
                                             indices=self.config.indices,
                                             weights=self.config.weights)
-        print(f'Optimal result score: {stats["opt"]:2.4f}')
-        return x_optimal, stats
+        if self.verbose:
+            print(f'Optimal result score: {stats["opt"]:2.4f}')
+        return x_with_opt, stats
 
 
 class DistillKL(nn.Module):

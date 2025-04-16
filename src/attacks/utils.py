@@ -6,6 +6,10 @@ import torch
 from typing import Optional
 import os
 from dataclasses import fields
+from attacks.metrics import psnr, mse_image_space, lpips_batch, MSE_R
+from torchvision import transforms
+from PIL import Image
+import glob
 
 
 class SaveImage:
@@ -47,9 +51,6 @@ class SaveImage:
         os.makedirs(self.directory, exist_ok=True)  # Ensure the directory exists
 
 
-
-
-
     def save_png(self, 
                  images: list, 
                  filename: Optional[str] = None, 
@@ -72,21 +73,24 @@ class SaveImage:
         self.num_images = len(images)
 
         images = images.clone().detach().to(self.device)
+        clipped_images = [torch.clamp(img, 0.0, 1.0) for img in images]
+
 
         if normalize:
-            images.mul_(self.image_std).add_(self.image_mean).clamp_(0, 1) 
+            clipped_images.mul_(self.image_std).add_(self.image_mean).clamp_(0, 1) 
 
 
         if self.num_images == 1:
-            plt.imshow(images[0].permute(1, 2, 0).cpu())
+            plt.imshow(clipped_images[0].permute(1, 2, 0).cpu())
             plt.axis('off')
         else:
             if n_cols is None:
-                n_cols = int(np.ceil(self.num_images / 2))
+                max_cols = 8
+                n_cols = min(max_cols, self.num_images)
             n_rows = int(np.ceil(self.num_images / n_cols))
 
-            _, h, w = images[0].shape
-            scale = 1.5
+            _, h, w = clipped_images[0].shape
+            scale = 2.5
             fig_width = (w * n_cols * scale) / 100
             fig_height = (h * n_rows * scale) / 100
             fig_size = (fig_width, fig_height)
@@ -94,7 +98,7 @@ class SaveImage:
             fig, axes = plt.subplots(n_rows, n_cols, figsize=fig_size, dpi=300)
             axes = np.array(axes).flatten()
 
-            for i, im in enumerate(images):
+            for i, im in enumerate(clipped_images):
                 axes[i].imshow(im.permute(1, 2, 0).cpu())
                 axes[i].axis('off')
 
@@ -177,6 +181,54 @@ def set_seed(seed: int = 42):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False  # Ensure deterministic behavior
 
+def calculate_metrics(img_batch, ref_batch, dataset_size, images = 1, verbose = True):
+    # Compute metrics
+    ref_batch = ref_batch.to('cuda') 
+    img_batch = img_batch.to('cuda')
+
+    # Make sure hat the range is the same for both batches
+    img_batch = torch.clamp(img_batch, 0.0, 1.0)
+    ref_batch = torch.clamp(ref_batch, 0.0, 1.0)
+
+    psnr_value = psnr(img_batch, ref_batch, dataset_size, factor=1)
+    if images == 1:
+        mse_value = mse_image_space(img_batch, ref_batch, dataset_size)
+    else:
+        mse_value = 0
+    
+    if verbose:
+        print("\n*** Evaluation Metrics ***")
+
+        for i, (mse, idx) in enumerate(psnr_value):
+            print(f"Recon image {i}: Best match is ref {idx} with MSE {mse:.6f}")
+        if images == 1:
+            print(f"MSE (Image Space): {mse_value:.6f}")
+            
+    return psnr_value, mse_value
+
+def load_from_directory(dir_path):
+    transform = transforms.ToTensor()
+    images = []
+
+    # Recursively find all image files in dir_path
+    image_paths = sorted(
+        glob.glob(os.path.join(dir_path, "**", "*.*"), recursive=True)
+    )
+    image_paths = [
+        p for p in image_paths if p.lower().endswith((".png", ".jpg", ".jpeg"))
+    ]
+
+    for img_path in image_paths:
+        img = Image.open(img_path).convert("RGB")
+        tensor_img = transform(img)
+        images.append(tensor_img)
+
+    if not images:
+        raise RuntimeError(f"No image files found in {dir_path} or its subdirectories.")
+
+    image_batch = torch.stack(images)
+    return image_batch
+
 
 
 if __name__ == "__main__":
@@ -186,7 +238,7 @@ if __name__ == "__main__":
                            experiment_name="example_experiment")
     
     # Create a dummy tensor of images
-    images = torch.randn(50, 3, 64, 64)  
+    images = torch.randn(32, 3, 64, 64)  
 
     # Save the images with custom parameters
 
@@ -197,5 +249,4 @@ if __name__ == "__main__":
     print(f"Loaded images shape: {loaded_images.shape}")
 
     save_image.save_png(loaded_images, 
-                         n_cols=10, 
-                         normalise=True)
+                         normalize=True)

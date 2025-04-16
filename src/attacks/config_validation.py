@@ -18,12 +18,9 @@ class InputValidator:
 
         data_config = config['data']
         self.model_name = data_config['model_name']
-        self.labels = data_config['labels']
+        self.labels = self._load_labels(data_config.get('labels', None))
         self.dataset_name = data_config['dataset_name']
         self.num_classes = data_config['num_classes']
-        # self.image_mean = data_config['image_mean']
-        # self.image_std = data_config['image_std']
-        # self.image_size = data_config['image_size']
         self.data_root = data_config['data_root']
 
         self.reconstructor_name = config['reconstructor']['type']
@@ -40,6 +37,14 @@ class InputValidator:
 
         self._validate_reconstructor_params()
         
+    def _load_labels(self, labels_cfg):
+        if isinstance(labels_cfg, str) and os.path.isfile(labels_cfg):
+            with open(labels_cfg, 'r') as f:
+                return [int(line.strip()) for line in f if line.strip()]
+        elif isinstance(labels_cfg, list):
+            return labels_cfg
+        else:
+            return None    
 
     def _validate_reconstructor_params(self):
         """
@@ -104,8 +109,13 @@ class InputValidator:
                               'load the dataset from must be provided. '
                               'data_root cannot be empty.')
         
-        if not isinstance(self.labels, list) or not all(isinstance(label, int) for label in self.labels):
-            raise ConfigError('Labels must be a list of integers.')
+        if self.labels:
+            if not isinstance(self.labels, list) or not all(isinstance(label, int) for label in self.labels):
+                raise ConfigError('Labels must be a list of integers.')
+        else:
+            if not isinstance(self.reconstructor_params['num_images'], int):
+                raise ConfigError('Either labels or num_images must be provided.')
+
         
     def _validate_experiment_params(self):
         """ Check some of the model-related config params from the YAML file.

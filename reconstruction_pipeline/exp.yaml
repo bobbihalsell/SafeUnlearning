@@ -1,0 +1,8 @@
+## parameters we're interested in
+method: ??
+epochs: ??
+samples: ??
+beta:
+seed: 42
+verbose: True
+

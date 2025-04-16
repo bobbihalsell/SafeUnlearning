@@ -2,7 +2,7 @@ name: scrub
 evaluate: true
 cfg:
   optimizer: sgd
-  lr: 0.01
+  lr: 0.0005
   lr_decay_factor: 0.1  # Multiplicative learning rate decay factor. Leave empty if not using LR scheduling
   epochs_per_lr_decay: 2 # Number of epoch intervals before the decay factor is applied to LR. Leave empty if not using LR scheduling.
   momentum: 0.9
