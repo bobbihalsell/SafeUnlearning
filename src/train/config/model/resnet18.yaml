@@ -4,7 +4,3 @@ freeze_all_except_classifier: false
 num_classes: ???
 checkpoint_path: # (OPTIONAL) Path to model weights to start/resume training from
 save_dir: ??? # directory to save the trained model
-train_cfg: # Only Adam optimizer is enabled
-  epochs: 10
-  lr: 0.001
-  weight_decay: 0.0001
