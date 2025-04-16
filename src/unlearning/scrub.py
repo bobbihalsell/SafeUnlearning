@@ -216,7 +216,6 @@ class SCRUB(BaseUnlearner):
         if self.alpha < 0 or self.gamma < 0:
             raise ValueError("Alpha and gamma must be non-negative.")
 
-        eval_dataloaders = [key for key in data_dict.keys() if key != 'retain']
         # Calculate total number of epochs and initialize counters
         total_epochs = self.max_epochs + self.min_epochs
         for e in range(total_epochs):
@@ -232,27 +231,24 @@ class SCRUB(BaseUnlearner):
                     optimizer)
 
             # Minimize divergence on retain data
-            retain_loss = self.min_epoch(
-                                model,
-                                unlearned_model,
-                                data_dict['retain'],
-                                optimizer
-                            )
+            self.min_epoch(
+                    model,
+                    unlearned_model,
+                    data_dict['retain'],
+                    optimizer
+                )
 
             if verbose:
                 if scheduler is not None:
                     current_lr = scheduler.optimizer.param_groups[0]['lr']
                 else:
                     current_lr = optimizer.param_groups[0]['lr']
-                print(f'Epoch {e+1} Retain Loss: {retain_loss} '
-                      f'LR: {current_lr:.5f}', end=' || ')
+                print(f'Epoch {e+1} LR: {current_lr:.5f}')
 
             if self.evaluate:
-                self.losses['retain'].append(retain_loss)
-                self._evaluate_additional_splits(
+                self._evaluate_all_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
-                    eval_dataloaders=eval_dataloaders,
                     verbose=verbose
                 )
 

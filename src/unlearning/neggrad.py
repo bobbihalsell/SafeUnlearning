@@ -68,11 +68,8 @@ class NegGrad(BaseUnlearner):
             data_dict,
             **kwargs)
 
-        eval_dataloaders = [key for key in data_dict.keys() if key != 'forget']
-
         # Main training loop
         for e in range(self.epochs):
-            total_forget_loss = 0
             for forget_inputs, forget_labels in data_dict['forget']:
                 unlearned_model.eval()
                 optimizer.zero_grad()
@@ -94,24 +91,19 @@ class NegGrad(BaseUnlearner):
 
                 loss.backward()
                 optimizer.step()
-                total_forget_loss += forget_loss.item()
 
-            avg_epoch_forget_loss = total_forget_loss/len(data_dict["forget"])
             if verbose:
                 if scheduler is not None:
                     current_lr = scheduler.optimizer.param_groups[0]['lr']
                 else:
                     current_lr = optimizer.param_groups[0]['lr']
-                print(f'Epoch {e+1}: Forget Loss: {avg_epoch_forget_loss} '
-                      f'LR: {current_lr:.5f}')
+                print(f'Epoch {e+1} LR: {current_lr:.5f}')
 
             if self.evaluate:
                 # Calculate average retain loss for this epoch
-                self.losses['forget'].append(avg_epoch_forget_loss)
-                self._evaluate_additional_splits(
+                self._evaluate_all_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
-                    eval_dataloaders=eval_dataloaders,
                     verbose=verbose
                 )
 
@@ -226,12 +218,8 @@ class NegGradPlus(BaseUnlearner):
         if self.beta == 1:
             raise ValueError("Please use FinetuneUnlearner if you wish to "
                              "perform gradient descent on only the retain set")
-
-        eval_dataloaders = [key for key in data_dict.keys() if
-                            key not in ['retain', 'forget']]
         # Main training loop
         for e in range(self.epochs):
-            total_forget_loss, total_retain_loss = 0, 0
             for retain_batch, forget_batch in zip(data_dict['retain'],
                                                   cycle(data_dict['forget'])
                                                   ):
@@ -270,13 +258,6 @@ class NegGradPlus(BaseUnlearner):
                     loss += l2_loss
                 loss.backward()
                 optimizer.step()
-                # Track losses
-                total_forget_loss += forget_loss.item()
-                total_retain_loss += retain_loss.item()
-
-            # Use retain batch length due to cycle algorithm for forget set
-            avg_epoch_forget_loss = total_forget_loss/len(data_dict["retain"])
-            avg_epoch_retain_loss = total_retain_loss/len(data_dict["retain"])
 
             if verbose:
                 if scheduler is not None:
@@ -287,12 +268,9 @@ class NegGradPlus(BaseUnlearner):
                       f'Forget Loss {forget_loss} LR: {current_lr:.5f}')
 
             if self.evaluate:
-                self.losses['retain'].append(avg_epoch_retain_loss)
-                self.losses['forget'].append(avg_epoch_forget_loss)
-                self._evaluate_additional_splits(
+                self._evaluate_all_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
-                    eval_dataloaders=eval_dataloaders,
                     verbose=verbose
                 )
 

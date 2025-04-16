@@ -157,34 +157,31 @@ class BaseUnlearner:
                 'Attempted to initialize scheduler, but '
                 'schedule information not available.')
 
-    def _evaluate_additional_splits(self,
-                                    model: nn.Module,
-                                    data_dict: Dict[str, DataLoader],
-                                    eval_dataloaders: List[str],
-                                    verbose: bool = True):
-        """ Evaluate the model on eval data splits.
+    def _evaluate_all_splits(self,
+                             model: nn.Module,
+                             data_dict: Dict[str, DataLoader],
+                             verbose: bool = True):
+        """ Evaluate the model on the data splits in data dict.
 
         Args:
             model: nn.Module
-            data_dict: The dictionary of dataloaders
-            eval_dataloaders: A list of splits which are eval sets
+            data_dict: The dictionary of dataloaders relevant to unlearning.
             verbose (bool): Whether to print the results
 
         Returns:
-            self.losses (dict): A dictionary of losses over the eval datasets and
-            relevant losses computed during the unlearning epoch
-            (e.g. retain/forget).
+            self.losses (dict): A dictionary of losses during the unlearning
+            job.
         """
         model.eval()
+
         for data_type, loader in data_dict.items():
-            if data_type in eval_dataloaders:
-                loader_loss, loader_acc = self._evaluate(model,
-                                                         loader)
-                self.losses[f"{data_type}"].append(loader_loss)
-                self.losses[f"{data_type}_acc"].append(loader_acc)
-                if verbose:
-                    print(f'{data_type.capitalize()} Loss: {loader_loss:.4f}',
-                          f'Acc: {loader_acc:.2f}%.', end=' || ')
+            loader_loss, loader_acc = self._evaluate(model,
+                                                     loader)
+            self.losses[f"{data_type}"].append(loader_loss)
+            self.losses[f"{data_type}_acc"].append(loader_acc)
+            if verbose:
+                print(f'{data_type.capitalize()} Loss: {loader_loss:.4f}',
+                        f'Acc: {loader_acc:.2f}%.', end=' || ')
         if verbose:
             print('')
 
