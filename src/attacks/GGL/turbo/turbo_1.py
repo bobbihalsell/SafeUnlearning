@@ -304,6 +304,13 @@ class Turbo1:
                     n_evals, fbest = self.n_evals, fX_next.min()
                     print(f"{n_evals}) New best: {fbest:.4}")
                     sys.stdout.flush()
+                    # Save latent vector
+                    best_x = X_next[np.argmin(fX_next)] 
+
+                    # Convert best z to tensor
+                    z_res = torch.from_numpy(best_x).unsqueeze(0).to(self.device)
+                    np.save(f"./././artifacts/run/best_latent_z_step{self.n_evals}.npy", z_res.detach().cpu().numpy())
+                    print(f"z_res saved at : best_latent_z_step{self.n_evals}.npy")
 
                 # Append data to the global history
                 self.X = np.vstack((self.X, deepcopy(X_next)))
