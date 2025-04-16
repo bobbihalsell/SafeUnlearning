@@ -175,8 +175,6 @@ class GGLReconstructor():
         unlearned_model, losses = scrub.unlearn(
             model=original_model,
             data_dict=forget_loader,
-            min_epochs=min_epochs,
-            max_epochs=max_epochs,
             verbose=verbose,
             **kwargs
         )
