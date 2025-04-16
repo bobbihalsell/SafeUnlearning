@@ -61,26 +61,16 @@ class FinetuneUnlearner(BaseUnlearner):
         Raises:
             ValueError: If 'retain' data is not in data_dict.
         """
-        model.to(self.device)
-        unlearned_model = copy.deepcopy(model)
-
-        # Validate and extract common hyperparameters
-        self.valid_args(**kwargs)
-        self.extract_hyperparameters(**kwargs)
-
-        # Ensure required data is available
         if 'retain' not in data_dict.keys():
             raise ValueError("'retain' data must be in data_dict.")
 
-        # Initialize loss tracking
-        losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
-
-        optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
-                                    lr=self.lr,
-                                    weight_decay=self.weight_decay)
+        model.to(self.device)
+        unlearned_model, losses, optimizer, scheduler = self._setup_unlearning(
+            model,
+            data_dict,
+            **kwargs)
 
         eval_dataloaders = [key for key in data_dict.keys() if key != 'retain']
-
         # Main training loop
         for e in range(self.epochs):
             total_retain_loss = 0
@@ -109,22 +99,24 @@ class FinetuneUnlearner(BaseUnlearner):
             avg_epoch_retain_loss = total_retain_loss/len(data_dict["retain"])
 
             if verbose:
-                print(f'Epoch {e}: Retain Loss: {avg_epoch_retain_loss}')
+                if scheduler is not None:
+                    current_lr = scheduler.optimizer.param_groups[0]['lr']
+                else:
+                    current_lr = optimizer.param_groups[0]['lr']
+                print(f'Epoch {e+1}: Retain Loss: {avg_epoch_retain_loss} '
+                      f'LR: {current_lr:.5f}')
 
             if self.evaluate:
                 # Calculate average retain loss for this epoch
                 losses['retain_losses'].append(avg_epoch_retain_loss)
-                unlearned_model.eval()
-                # Evaluate model on other datasets
-                for data_type in eval_dataloaders:
-                    loader_loss = self._evaluate(unlearned_model,
-                                                 data_dict[data_type],
-                                                 self.criterion).mean()
-                    losses[f"{data_type}_losses"].append(loader_loss.item())
-                    if verbose:
-                        print(f'{data_type.capitalize()} Loss: {loader_loss}',
-                              end='  ')
-                if verbose:
-                    print()
+                self._evaluate_additional_splits(
+                    model=unlearned_model,
+                    data_dict=data_dict,
+                    eval_dataloaders=eval_dataloaders,
+                    losses=losses
+                )
+
+            if scheduler is not None:
+                scheduler.step()
 
         return unlearned_model, losses

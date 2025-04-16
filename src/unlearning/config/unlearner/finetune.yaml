@@ -2,7 +2,7 @@ name: finetune
 evaluate: true
 cfg:
   optimizer: sgd
-  lr: 0.01
+  lr: 0.001
   lr_decay_factor: 0.1
   epochs_per_lr_decay: 2
   # momentum: 0.9
