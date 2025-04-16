@@ -74,7 +74,6 @@ class GGLReconstructor():
         """
         generated_image = self.generate_image(z, labels)
         
-
         # Create a copy
         recon = copy.deepcopy(self.original_model)
         recon.eval()
@@ -84,14 +83,14 @@ class GGLReconstructor():
             recon = self.perform_sgd_updates(generated_image, labels, recon, steps=1)
 
         if self.unlearning_method == 'scrub':
-            recon = self.perform_scrub_updates(generated_image, labels, recon, alpha=self.alpha, gamma=self.gamma, min_epochs=self.min_epochs, max_epochs=self.max_epochs, lr=self.lr, loss_fn=self.loss_fn, weight_decay=self.weight_decay, steps=1, use_l2_penalty=self.use_l2_penalty, scrub_optim=self.scrub_optim, momentum=self.momentum, lr_decay_factor=self.lr_decay_factor, epochs_per_lr_decay=self.epochs_per_lr_decay)
+            recon = self.perform_scrub_updates(generated_image, labels, recon, steps=1)
 
         if loss_type == 'interpolated':
             recon_1 = copy.deepcopy(self.original_model)
             if self.unlearning_method == 'neggrad':
-                recon_1 = self.perform_sgd_updates(generated_image, labels, recon_1,  steps=steps)
+                recon_1 = self.perform_sgd_updates(generated_image, labels, recon_1, steps=steps)
             if self.unlearning_method == 'scrub':
-                recon_1 = self.perform_scrub_updates(generated_image, labels, alpha=self.alpha, gamma=self.gamma, min_epochs=self.min_epochs, max_epochs=self.max_epochs, lr=self.lr, loss_fn=self.loss_fn, steps=steps, weight_decay=self.weight_decay, use_l2_penalty=self.use_l2_penalty, scrub_optim=self.scrub_optim, momentum=self.momentum, lr_decay_factor=self.lr_decay_factor, epochs_per_lr_decay=self.epochs_per_lr_decay)
+                recon_1 = self.perform_scrub_updates(generated_image, labels, recon,  steps=steps)
 
             # Interpolate between original and unlearned model
             interp_model = self.interpolate_models(self.original_model, self.target_model, alpha=0.5)
@@ -153,7 +152,7 @@ class GGLReconstructor():
             diff += torch.sum(abs(p1 - p2))  # L1 norm of the difference
         return diff.item()
     
-    def perform_scrub_updates(self, generated_image, labels, original_model, alpha, gamma, min_epochs, max_epochs, lr, loss_fn, weight_decay, use_l2_penalty=False, verbose=True, steps=None, scrub_optim='sgd', momentum=0, lr_decay_factor=None, epochs_per_lr_decay=None):
+    def perform_scrub_updates(self, generated_image, labels, original_model, verbose=True, steps=None):
         scrub = SCRUB(device=self.device)
 
         # Convert label to tensor if necessary
@@ -169,18 +168,18 @@ class GGLReconstructor():
         forget_dict = {'forget': forget_loader}
         # Hardcode any additional arguments needed for unlearn method
         kwargs = {
-            'alpha': alpha,
-            'gamma': gamma,
-            'loss_fn': loss_fn,
-            'lr': lr,
-            'min_epochs': min_epochs,
-            'max_epochs' : max_epochs,
-            'weight_decay': weight_decay,
-            'use_l2_penalty': use_l2_penalty,
-            'optimizer': scrub_optim,
-            'momentum': momentum,
-            'lr_decay_factor': lr_decay_factor, 
-            'epochs_per_lr_decay': epochs_per_lr_decay
+            'alpha': self.alpha,
+            'gamma': self.gamma,
+            'loss_fn': self.loss_fn,
+            'lr': self.lr,
+            'min_epochs': self.min_epochs,
+            'max_epochs' : self.max_epochs,
+            'weight_decay': self.weight_decay,
+            'use_l2_penalty': self.use_l2_penalty,
+            'optimizer': self.scrub_optim,
+            'momentum': self.momentum,
+            'lr_decay_factor': self.lr_decay_factor, 
+            'epochs_per_lr_decay': self.epochs_per_lr_decay
 
         }
 
@@ -253,7 +252,7 @@ class GGLReconstructor():
         Optimize the latent vector z using Turbo Bayesian Optimization.
         If `initial_z` is provided, it starts from there instead of a random initialization.
         """
-        label = self.label[0] #TODO: change for multiple instances
+        label = self.label[0] #Reconstruction is only for single image
 
         # Set the directory for saving results
         script_dir = os.path.dirname(os.path.abspath(__file__))
