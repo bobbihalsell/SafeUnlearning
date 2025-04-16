@@ -166,7 +166,7 @@ class GGLReconstructor():
         forget_dataset = torch.utils.data.TensorDataset(generated_image, labels)
         forget_loader = torch.utils.data.DataLoader(forget_dataset, batch_size=len(forget_dataset), shuffle=False)
 
-        forget_loader = {'forget': [(generated_image, labels)], 'retain': None}
+        forget_loader = {'forget': [(generated_image, labels)]}
         # Hardcode any additional arguments needed for unlearn method
         kwargs = {
             'alpha': alpha,
