@@ -83,8 +83,12 @@ class BaseUnlearner:
                 total += labels.size(0)
                 correct += predicted.eq(labels).sum().item()
 
-        val_loss /= len(dataloader.dataset)
-        val_acc = 100.0 * correct / total
+        if len(dataloader.dataset) > 0:
+            val_loss /= len(dataloader.dataset)
+        else:
+            val_loss = 0
+
+        val_acc = 100.0 * correct / total if total > 0 else 0
 
         return val_loss, val_acc
 

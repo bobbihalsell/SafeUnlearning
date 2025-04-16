@@ -2,7 +2,7 @@ import timm
 import torch
 import torch.nn as nn
 import torchvision
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 from train.image_loading import RobustImageFolder
 import os
 import hydra
@@ -165,12 +165,11 @@ class UnlearnApp(InputValidator):
                   d not in ['train', 'test'] and
                   not d.startswith('.')
                   ]
-        if 'retain' not in splits:
-            raise ValueError('Retain data required in dataset directory.')
         if 'forget' not in splits:
             raise ValueError('Forget data required in dataset directory.')
 
         dataloaders = {}
+
         for split in splits:
             if split not in self.batch_sizes:
                 raise ConfigError(
@@ -188,6 +187,18 @@ class UnlearnApp(InputValidator):
                 shuffle=(split in ['retain', 'forget']),
                 num_workers=self.num_workers,
                 pin_memory=True
+            )
+
+        sample_input, _ = dataset[0]
+        input_shape = sample_input.shape
+        # Add an empty retain dataloader if not present in the dataset
+        if 'retain' not in splits:
+            empty_x = torch.empty((0, *input_shape))
+            empty_labels = torch.empty((0,), dtype=torch.long)
+            empty_dataset = TensorDataset(empty_x, empty_labels)
+
+            dataloaders['retain'] = DataLoader(
+                empty_dataset
             )
 
         return dataloaders

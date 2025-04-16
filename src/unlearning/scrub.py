@@ -204,9 +204,6 @@ class SCRUB(BaseUnlearner):
             Tuple of (unlearned_model, losses) where losses contains
             tracked losses for each dataset type
         """
-        if ('retain' not in data_dict.keys() or
-                'forget' not in data_dict.keys()):
-            raise KeyError("forget and retain data must be in data_dict.")
         model.to(self.device)
         unlearned_model, scheduler = self._setup_unlearning(
             model,
