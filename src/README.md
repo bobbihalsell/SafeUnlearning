@@ -45,6 +45,7 @@ to load
 2. unlearn eg
 python src/unlearning/main.py dataset=cifar10 model=classloaded unlearner=neggrad dataset.save_path=./data model.num_classes=10
 
+python src/unlearning/maintest.py dataset=cifar10 model=torchvision unlearner=neggrad dataset.save_path=./data
 
 
 run
