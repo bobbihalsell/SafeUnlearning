@@ -3,7 +3,7 @@ from abc import abstractmethod
 import torch
 import torch.nn as nn
 from unlearning.utils import setup_device
-from typing import Dict, List
+from typing import Dict
 import copy
 import time
 
@@ -208,8 +208,9 @@ class BaseUnlearner:
         self._eval_initial_model(model,
                                  data_dict)
 
-        self.optimizer = self.initialize_optimizer(unlearned_model,
-                                              optimizer_name=self.optimizer)
+        self.optimizer = self.initialize_optimizer(
+            unlearned_model,
+            optimizer_name=self.optimizer)
 
         if (self.epochs_per_lr_decay is not None and
                 self.lr_decay_factor is not None):
