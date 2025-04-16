@@ -244,8 +244,8 @@ class SCRUB(BaseUnlearner):
                     current_lr = scheduler.optimizer.param_groups[0]['lr']
                 else:
                     current_lr = optimizer.param_groups[0]['lr']
-                print(f'Epoch {e+1}: Retain Loss: {retain_loss} '
-                      f'LR: {current_lr:.5f}')
+                print(f'Epoch {e+1} Retain Loss: {retain_loss} '
+                      f'LR: {current_lr:.5f}', end=' || ')
 
             if self.evaluate:
                 self.losses['retain'].append(retain_loss)

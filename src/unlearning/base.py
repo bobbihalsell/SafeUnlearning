@@ -54,7 +54,6 @@ class BaseUnlearner:
     def _evaluate(self,
                   model: nn.Module,
                   dataloader: torch.utils.data.DataLoader,
-                  loss_fn: nn.Module,
                   ) -> torch.Tensor:
         """
         Compute the evaluation loss of a model on a given dataset.
@@ -62,24 +61,32 @@ class BaseUnlearner:
         Args:
             model: The model to evaluate.
             dataloader: DataLoader containing evaluation data.
-            loss_fn: Loss function to compute model performance.
 
         Returns:
-            torch.Tensor: Tensor containing loss values for each batch in the dataloader.
+            Tuple (val_loss, val_acc)
         """
-        model = model.eval()
-        # Initialize tensor to store batch losses
-        batch_losses = torch.zeros(len(dataloader), device=self.device)
-        # Evaluate model on all batches
+        model.eval()
+        device = setup_device()
+        val_loss = 0.0
+        correct, total = 0, 0
+
         with torch.no_grad():
-            for batch_ndx, (inputs, targets) in enumerate(dataloader):
-                inputs = inputs.to(self.device)
-                targets = targets.to(self.device)
+            for batch in dataloader:
+                inputs, labels = batch
+                inputs, labels = inputs.to(device), labels.to(device)
+
                 outputs = model(inputs)
-                loss = loss_fn(outputs, targets)
-                # Store loss value
-                batch_losses[batch_ndx] = loss.detach().item()
-        return batch_losses
+                loss = self.criterion(outputs, labels)
+
+                val_loss += loss.item() * inputs.size(0)
+                _, predicted = outputs.max(1)
+                total += labels.size(0)
+                correct += predicted.eq(labels).sum().item()
+
+        val_loss /= len(dataloader.dataset)
+        val_acc = 100.0 * correct / total
+
+        return val_loss, val_acc
 
     def valid_args(self, **kwargs):
         """
@@ -171,15 +178,15 @@ class BaseUnlearner:
         model.eval()
         for data_type, loader in data_dict.items():
             if data_type in eval_dataloaders:
-                loader_loss = self._evaluate(model,
-                                             loader,
-                                             self.criterion).mean()
-                self.losses[f"{data_type}"].append(loader_loss.item())
+                loader_loss, loader_acc = self._evaluate(model,
+                                                         loader)
+                self.losses[f"{data_type}"].append(loader_loss)
+                self.losses[f"{data_type}_acc"].append(loader_acc)
                 if verbose:
                     print(f'{data_type.capitalize()} Loss: {loader_loss:.4f}',
-                          end='  ')
+                          f'Acc: {loader_acc:.2f}%.', end=' || ')
         if verbose:
-            print()
+            print('')
 
         return self.losses
 
@@ -191,10 +198,11 @@ class BaseUnlearner:
         self.valid_args(**kwargs)
         self.extract_hyperparameters(**kwargs)
 
-        # Initialize loss tracking
-        self.losses = {f"{data_type}": [] for
-                       data_type in data_dict.keys()}
-
+        # Initialize loss and accuracy tracking
+        self.losses = {f"{data_type}": [] for data_type in data_dict.keys()}
+        self.losses.update({
+            f"{data_type}_acc": [] for data_type in data_dict.keys()
+        })
         self._eval_initial_model(model,
                                  data_dict)
 
@@ -212,14 +220,17 @@ class BaseUnlearner:
     def _eval_initial_model(self, model, data_dict, verbose=True):
         """ Evaluate the initial model's performance on all dataset splits."""
         for data_type in data_dict.keys():
-            split_avg_loss = self._evaluate(
+            split_loss, split_acc = self._evaluate(
                 model,
                 dataloader=data_dict[data_type],
-                loss_fn=self.criterion
-            ).mean()
+            )
 
-            self.losses[data_type].append(split_avg_loss.item())
+            self.losses[data_type].append(split_loss)
+            self.losses[f"{data_type}_acc"].append(split_acc)
 
             if verbose:
                 print(f'Initial {data_type.capitalize()} Loss: '
-                      f'{split_avg_loss:.4f}', end='  ')
+                      f'{split_loss:.4f}. '
+                      f'Acc: {split_acc:.2f}%.', end=' || ')
+        if verbose:
+            print('')
