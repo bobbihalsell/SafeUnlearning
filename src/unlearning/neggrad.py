@@ -264,8 +264,7 @@ class NegGradPlus(BaseUnlearner):
                     current_lr = scheduler.optimizer.param_groups[0]['lr']
                 else:
                     current_lr = optimizer.param_groups[0]['lr']
-                print(f'Epoch {e+1} Retain Loss: {retain_loss} '
-                      f'Forget Loss {forget_loss} LR: {current_lr:.5f}')
+                print(f'Epoch {e+1} LR: {current_lr:.5f}')
 
             if self.evaluate:
                 self._evaluate_all_splits(
