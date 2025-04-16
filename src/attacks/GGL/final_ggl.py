@@ -368,6 +368,7 @@ class GGLReconstructor():
         os.makedirs(results_dir, exist_ok=True)
 
         z_dir = os.path.join(project_root, "artifacts", "run")
+        os.makedirs(z_dir, exist_ok=True)
 
 
         npy_data = {}
