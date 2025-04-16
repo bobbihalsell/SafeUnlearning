@@ -98,7 +98,7 @@ class InputValidator:
             raise ConfigError('A path to '
                               'load the dataset from must be provided. '
                               'dataset_save_dir cannot be empty.')
-        
+
     def _require(self, model_config, key):
         if key not in model_config:
             raise ConfigError(f"Missing required config key: '{key}'")
@@ -110,13 +110,13 @@ class InputValidator:
         This validates only some of the model parameters, as it is more
         efficient to use the EAFP approach for model name and
         initialization checking."""
-        if self.model_loading == 'class':
+        if self.load_method == 'class':
             self._validate_class_params(model_config)
-        elif self.model_loading == 'torchhub':
+        elif self.load_method == 'torchhub':
             self._validate_torchhub_params(model_config)
-        elif self.model_loading == 'torchvision':
+        elif self.load_method == 'torchvision':
             self._validate_torchvision_params(model_config)
-        elif self.model_loading == 'timm':
+        elif self.load_method == 'timm':
             self._validate_timm_params(model_config)
         else:
             raise ConfigError('Invalid model loading ')
@@ -148,4 +148,3 @@ class InputValidator:
         self.model_ckpt_path = model_config.get('model_ckpt_path', None)
         self.init_path = None
         self.model_kwargs = None
-
