@@ -68,10 +68,8 @@ class FinetuneUnlearner(BaseUnlearner):
             data_dict,
             **kwargs)
 
-        eval_dataloaders = [key for key in data_dict.keys() if key != 'retain']
         # Main training loop
         for e in range(self.epochs):
-            total_retain_loss = 0
             for retain_inputs, retain_labels in data_dict['retain']:
 
                 unlearned_model.eval()
@@ -82,7 +80,6 @@ class FinetuneUnlearner(BaseUnlearner):
 
                 retain_output = unlearned_model(retain_inputs)
                 retain_loss = self.criterion(retain_output, retain_labels)
-                total_retain_loss += retain_loss.item()
 
                 # Add L2 penalty if requested to maintain similarity to original model
                 if self.use_l2_penalty:
@@ -94,23 +91,18 @@ class FinetuneUnlearner(BaseUnlearner):
                 retain_loss.backward()
                 optimizer.step()
 
-            avg_epoch_retain_loss = total_retain_loss/len(data_dict["retain"])
-
             if verbose:
                 if scheduler is not None:
                     current_lr = scheduler.optimizer.param_groups[0]['lr']
                 else:
                     current_lr = optimizer.param_groups[0]['lr']
-                print(f'Epoch {e+1}: Retain Loss: {avg_epoch_retain_loss} '
-                      f'LR: {current_lr:.5f}')
+                print(f'Epoch {e+1}: LR: {current_lr:.5f}')
 
             if self.evaluate:
                 # Calculate average retain loss for this epoch
-                self.losses['retain'].append(avg_epoch_retain_loss)
-                self._evaluate_additional_splits(
+                self._evaluate_all_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
-                    eval_dataloaders=eval_dataloaders,
                     verbose=verbose
                 )
 
