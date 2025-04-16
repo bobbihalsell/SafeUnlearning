@@ -111,7 +111,7 @@ class SCRUB(BaseUnlearner):
         return (self.alpha * retain_kl)/Nr + self.gamma * retain_ce, retain_kl, retain_ce
 
     def max_epoch(self, model, unlearned_model,
-                  forget_loader, optimizer, step=True):
+                  forget_loader, step=True):
         """
         Perform one epoch of maximizing divergence on forget data.
         This is the "forgetting" step where we make the model outputs diverge
@@ -134,17 +134,17 @@ class SCRUB(BaseUnlearner):
             unl_out = unlearned_model(forget_x)
             loss, _ = self.forget_loss(original_out, unl_out)
             if step:
-                optimizer.zero_grad()
+                self.optimizer.zero_grad()
                 # We negate the loss because we want to maximize divergence
                 (-loss).backward()
-                optimizer.step()
+                self.optimizer.step()
             avg_loss += loss
         # Normalize by number of batches
         avg_loss = avg_loss/len(forget_loader)
 
         return avg_loss
 
-    def min_epoch(self, model, unlearned_model, retain_loader, optimizer):
+    def min_epoch(self, model, unlearned_model, retain_loader):
         """
         Perform one epoch of minimizing divergence on retain data.
 
@@ -153,7 +153,6 @@ class SCRUB(BaseUnlearner):
 
         Args:
             retain_loader: The retain DataLoader
-            optimizer: Optimizer for updating model parameters
 
         Returns:
             Average cross-entropy loss, for performance reporting
@@ -171,10 +170,10 @@ class SCRUB(BaseUnlearner):
             loss, kl_loss, ce_loss = self.retain_loss(
                 original_out, unl_out, retain_y
                 )
-            optimizer.zero_grad()
+            self.optimizer.zero_grad()
             # Perform optimization using combined loss
             loss.backward()
-            optimizer.step()
+            self.optimizer.step()
 
             avg_ce_loss += ce_loss
         avg_ce_loss = (avg_ce_loss/len(retain_loader) if
@@ -209,7 +208,7 @@ class SCRUB(BaseUnlearner):
                 'forget' not in data_dict.keys()):
             raise KeyError("forget and retain data must be in data_dict.")
         model.to(self.device)
-        unlearned_model, optimizer, scheduler = self._setup_unlearning(
+        unlearned_model, scheduler = self._setup_unlearning(
             model,
             data_dict,
             **kwargs)
@@ -229,15 +228,13 @@ class SCRUB(BaseUnlearner):
                 self.max_epoch(
                     model,
                     unlearned_model,
-                    data_dict['forget'],
-                    optimizer)
-
+                    data_dict['forget']
+                )
             # Minimize divergence on retain data
             self.min_epoch(
                     model,
                     unlearned_model,
                     data_dict['retain'],
-                    optimizer
                 )
             forward_pass_elapsed = time.time() - epoch_start_time
 
