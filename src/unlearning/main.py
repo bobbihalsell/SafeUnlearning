@@ -37,12 +37,12 @@ class UnlearnApp(InputValidator):
     def load_model(self):
         """Initialize the model based on model name from user configuration."""
         importer = ImportModel(
-            self.load_method,
-            self.model_name,
-            self.init_path,
-            self.model_ckpt_path,
-            self.model_kwargs,
-            self.num_classes,
+            load_method=self.load_method,
+            model_name=self.model_name,
+            num_classes=self.num_classes,
+            init_path=self.init_path,
+            model_ckpt_path=self.model_ckpt_path,
+            model_kwargs=self.model_kwargs,
             )
         model = importer.load_model()
 

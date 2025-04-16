@@ -14,10 +14,10 @@ class ImportModel:
                     self,
                     load_method: str,
                     model_name: str,
+                    num_classes: int,
                     init_path=None,
                     model_ckpt_path=None,
                     model_kwargs=None,
-                    num_classes=10,
                 ):
         self.device = setup_device()
         self.load_method = load_method
@@ -120,8 +120,8 @@ class ImportModel:
             try:
                 weights_param = 'DEFAULT' if pretrained else None
                 self.model = torch.hub.load(
-                    self.init_path, 
-                    self.model_name, 
+                    self.init_path,
+                    self.model_name,
                     weights=weights_param,
                     trust_repo="check"
                 )
@@ -144,34 +144,36 @@ class ImportModel:
 
     def _init_from_torchvision(self):
         try:
-            weights = (self.model_ckpt_path is None)
+            weights = "DEFAULT" if (self.model_ckpt_path is None) else None
             self.model = torchvision.models.get_model(
                         self.model_name,
                         weights=weights,
                     )
-            # Adjust the last layer based on model type
-            if hasattr(self.model, "fc"):  # ResNet-style
-                self.model.fc = torch.nn.Linear(
-                    self.model.fc.in_features, self.num_classes
-                )
-            elif hasattr(self.model, "classifier"):
-                # e.g MobileNet, EfficientNet, VGG, DenseNet
-                if isinstance(self.model.classifier, torch.nn.Sequential):
-                    # Handle cases like MobileNet where
-                    # classifier is Sequential
-                    last_layer_idx = len(self.model.classifier) - 1
-                    self.model.classifier[last_layer_idx] = torch.nn.Linear(
-                        self.model.classifier[last_layer_idx].in_features,
-                        self.num_classes
+            if self.num_classes != 1000:  # Not using ImageNet
+                print('Replacing default ImageNet classification head.')
+                # Adjust the last layer based on model type
+                if hasattr(self.model, "fc"):  # ResNet-style
+                    self.model.fc = torch.nn.Linear(
+                        self.model.fc.in_features, self.num_classes
                     )
+                elif hasattr(self.model, "classifier"):
+                    # e.g MobileNet, EfficientNet, VGG, DenseNet
+                    if isinstance(self.model.classifier, torch.nn.Sequential):
+                        # Handle cases like MobileNet where
+                        # classifier is Sequential
+                        last_layer_idx = len(self.model.classifier) - 1
+                        self.model.classifier[last_layer_idx] = torch.nn.Linear(
+                            self.model.classifier[last_layer_idx].in_features,
+                            self.num_classes
+                        )
+                    else:
+                        self.model.classifier = torch.nn.Linear(
+                            self.model.classifier.in_features, self.num_classes
+                        )
                 else:
-                    self.model.classifier = torch.nn.Linear(
-                        self.model.classifier.in_features, self.num_classes
+                    raise AttributeError(
+                        f"Unknown classification layer for {self.model_name}"
                     )
-            else:
-                raise AttributeError(
-                    f"Unknown classification layer for {self.model_name}"
-                )
         except Exception as e:
             raise ConfigError(f"Failed to load torchvision model: {str(e)}")
 
@@ -195,7 +197,7 @@ class ImportModel:
                     )
 
             # Load checkpoint and handle different formats
-            checkpoint = torch.load(self.model_ckpt_path, 
+            checkpoint = torch.load(self.model_ckpt_path,
                                     map_location=self.device)
 
             # Extract state dict
