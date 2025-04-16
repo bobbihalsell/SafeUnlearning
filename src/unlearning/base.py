@@ -154,7 +154,6 @@ class BaseUnlearner:
                                     model: nn.Module,
                                     data_dict: Dict[str, DataLoader],
                                     eval_dataloaders: List[str],
-                                    losses: Dict[str, list],
                                     verbose: bool = True):
         """ Evaluate the model on eval data splits.
 
@@ -162,11 +161,10 @@ class BaseUnlearner:
             model: nn.Module
             data_dict: The dictionary of dataloaders
             eval_dataloaders: A list of splits which are eval sets
-            losses (dict): The losses computed during the epoch
             verbose (bool): Whether to print the results
 
         Returns:
-            losses (dict): A dictionary of losses over the eval datasets and
+            self.losses (dict): A dictionary of losses over the eval datasets and
             relevant losses computed during the unlearning epoch
             (e.g. retain/forget).
         """
@@ -176,14 +174,14 @@ class BaseUnlearner:
                 loader_loss = self._evaluate(model,
                                              loader,
                                              self.criterion).mean()
-                losses[f"{data_type}_losses"].append(loader_loss.item())
+                self.losses[f"{data_type}"].append(loader_loss.item())
                 if verbose:
                     print(f'{data_type.capitalize()} Loss: {loader_loss:.4f}',
                           end='  ')
         if verbose:
             print()
 
-        return losses
+        return self.losses
 
     def _setup_unlearning(self, model, data_dict, **kwargs):
         """ Setup unlearned model, losses dictionary, optimizer, scheduler."""
@@ -194,7 +192,11 @@ class BaseUnlearner:
         self.extract_hyperparameters(**kwargs)
 
         # Initialize loss tracking
-        losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
+        self.losses = {f"{data_type}": [] for
+                       data_type in data_dict.keys()}
+
+        self._eval_initial_model(model,
+                                 data_dict)
 
         optimizer = self.initialize_optimizer(unlearned_model,
                                               optimizer_name=self.optimizer)
@@ -205,4 +207,19 @@ class BaseUnlearner:
         else:
             scheduler = None
 
-        return unlearned_model, losses, optimizer, scheduler
+        return unlearned_model, optimizer, scheduler
+
+    def _eval_initial_model(self, model, data_dict, verbose=True):
+        """ Evaluate the initial model's performance on all dataset splits."""
+        for data_type in data_dict.keys():
+            split_avg_loss = self._evaluate(
+                model,
+                dataloader=data_dict[data_type],
+                loss_fn=self.criterion
+            ).mean()
+
+            self.losses[data_type].append(split_avg_loss.item())
+
+            if verbose:
+                print(f'Initial {data_type.capitalize()} Loss: '
+                      f'{split_avg_loss:.4f}', end='  ')

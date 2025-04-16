@@ -94,7 +94,7 @@ class SGRU(BaseUnlearner):
             raise ValueError("'retain' and 'forget' data must be in data_dict.")
 
         # Initialize loss tracking
-        losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
+        losses = {f"{data_type}": [] for data_type in data_dict.keys()}
 
         optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
                                     lr=self.lr,
@@ -259,14 +259,14 @@ class SGRU(BaseUnlearner):
 
             if self.evaluate:
                 # Calculate average retain loss for this epoch
-                losses['retain_losses'].append(total_retain_loss/len(data_dict["retain"]))
+                losses['retain'].append(total_retain_loss/len(data_dict["retain"]))
                 unlearned_model.eval()
                 # Evaluate model on other datasets
                 for data_type in eval_only_data:
                     loader_loss = self._evaluate(unlearned_model,
                                                  data_dict[data_type],
                                                  self.criterion).mean()
-                    losses[f"{data_type}_losses"].append(loader_loss.item())
+                    losses[f"{data_type}"].append(loader_loss.item())
 
                     if verbose:
                         print(f'{data_type.capitalize()} Loss: {loader_loss}',

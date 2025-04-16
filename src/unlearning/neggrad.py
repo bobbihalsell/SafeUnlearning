@@ -47,7 +47,6 @@ class NegGrad(BaseUnlearner):
             data_dict: Dictionary containing dataloaders for different datasets.
                        Must include a 'forget' key with corresponding DataLoader.
             **kwargs: Additional arguments including:
-                - loss_fn: Loss function for training (will be negated) and evaluation.
                 - num_epochs: Number of training epochs (default: 1).
                 - lr: Learning rate (default: 1e-2).
                 - weight_decay: Weight decay parameter (default: 0).
@@ -64,7 +63,7 @@ class NegGrad(BaseUnlearner):
             raise ValueError("'forget' data must be in data_dict.")
 
         model.to(self.device)
-        unlearned_model, losses, optimizer, scheduler = self._setup_unlearning(
+        unlearned_model, optimizer, scheduler = self._setup_unlearning(
             model,
             data_dict,
             **kwargs)
@@ -108,19 +107,18 @@ class NegGrad(BaseUnlearner):
 
             if self.evaluate:
                 # Calculate average retain loss for this epoch
-                losses['forget_losses'].append(avg_epoch_forget_loss)
+                self.losses['forget'].append(avg_epoch_forget_loss)
                 self._evaluate_additional_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
                     eval_dataloaders=eval_dataloaders,
-                    losses=losses,
                     verbose=verbose
                 )
 
             if scheduler is not None:
                 scheduler.step()
 
-        return unlearned_model, losses
+        return unlearned_model, self.losses
 
 
 class NegGradPlus(BaseUnlearner):
@@ -215,7 +213,7 @@ class NegGradPlus(BaseUnlearner):
                        or if beta is 0 or 1 (which would make this equivalent to simpler methods).
         """
         model.to(self.device)
-        unlearned_model, losses, optimizer, scheduler = self._setup_unlearning(
+        unlearned_model, optimizer, scheduler = self._setup_unlearning(
             model,
             data_dict,
             **kwargs)
@@ -289,17 +287,16 @@ class NegGradPlus(BaseUnlearner):
                       f'Forget Loss: {forget_loss} LR: {current_lr:.5f}')
 
             if self.evaluate:
-                losses['retain_losses'].append(avg_epoch_retain_loss)
-                losses['forget_losses'].append(avg_epoch_forget_loss)
+                self.losses['retain'].append(avg_epoch_retain_loss)
+                self.losses['forget'].append(avg_epoch_forget_loss)
                 self._evaluate_additional_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
                     eval_dataloaders=eval_dataloaders,
-                    losses=losses,
                     verbose=verbose
                 )
 
             if scheduler is not None:
                 scheduler.step()
 
-        return unlearned_model, losses
+        return unlearned_model, self.losses

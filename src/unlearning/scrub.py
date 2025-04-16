@@ -155,7 +155,7 @@ class SCRUB(BaseUnlearner):
             optimizer: Optimizer for updating model parameters
 
         Returns:
-            Cross-entropy component of loss, for performance reporting
+            Average cross-entropy loss, for performance reporting
         """
         # Average CE loss is only for reporting
         avg_ce_loss = 0.0
@@ -208,7 +208,7 @@ class SCRUB(BaseUnlearner):
                 'forget' not in data_dict.keys()):
             raise KeyError("forget and retain data must be in data_dict.")
         model.to(self.device)
-        unlearned_model, losses, optimizer, scheduler = self._setup_unlearning(
+        unlearned_model, optimizer, scheduler = self._setup_unlearning(
             model,
             data_dict,
             **kwargs)
@@ -248,15 +248,15 @@ class SCRUB(BaseUnlearner):
                       f'LR: {current_lr:.5f}')
 
             if self.evaluate:
+                self.losses['retain'].append(retain_loss)
                 self._evaluate_additional_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
                     eval_dataloaders=eval_dataloaders,
-                    losses=losses,
                     verbose=verbose
                 )
 
             if scheduler is not None:
                 scheduler.step()
 
-        return unlearned_model, losses
+        return unlearned_model, self.losses

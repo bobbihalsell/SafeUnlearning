@@ -63,7 +63,7 @@ class FinetuneUnlearner(BaseUnlearner):
             raise ValueError("'retain' data must be in data_dict.")
 
         model.to(self.device)
-        unlearned_model, losses, optimizer, scheduler = self._setup_unlearning(
+        unlearned_model, optimizer, scheduler = self._setup_unlearning(
             model,
             data_dict,
             **kwargs)
@@ -106,16 +106,15 @@ class FinetuneUnlearner(BaseUnlearner):
 
             if self.evaluate:
                 # Calculate average retain loss for this epoch
-                losses['retain_losses'].append(avg_epoch_retain_loss)
+                self.losses['retain'].append(avg_epoch_retain_loss)
                 self._evaluate_additional_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
                     eval_dataloaders=eval_dataloaders,
-                    losses=losses,
                     verbose=verbose
                 )
 
             if scheduler is not None:
                 scheduler.step()
 
-        return unlearned_model, losses
+        return unlearned_model, self.losses
