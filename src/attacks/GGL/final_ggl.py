@@ -14,7 +14,9 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torchvision import transforms
 import os
+import shutil
 from unlearning.scrub import SCRUB
+
 
 
 
@@ -221,8 +223,11 @@ class GGLReconstructor():
         
         # Convert labels to one-hot encoding for BigGAN
         c = torch.nn.functional.one_hot(label_tensor, num_classes=self.num_classes).float().to(self.device)
+
         # Use BigGAN to generate an image
         with torch.no_grad():
+            noise_vector = noise_vector.to(dtype=torch.float32)
+            c = c.to(dtype=torch.float32)
             generated_image = self.generator(noise_vector, c, 1)  # 1 is the truncation value
 
         # Rescale image to 224x224 
@@ -333,7 +338,7 @@ class GGLReconstructor():
         transform = transforms.ToPILImage()
         img_pil = transform(x.clamp(0, 1))  # Clamp to [0, 1] range
         img_pil.save(x_path)  # Save the image to specified path
-        print(f"Image saved to {z_path}")
+        print(f"Image saved to {x_path}")
 
         # Convert z to numpy and save
         if isinstance(z, torch.Tensor):
@@ -342,6 +347,49 @@ class GGLReconstructor():
             z_np = np.array(z)
         
         np.save(z_path, z_np)
-        print(f"Latent vector z saved to {x_path}.npy")
+        print(f"Latent vector z saved to {z_path}.npy")
+
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.abspath(os.path.join(script_dir, "..", ".."))
+        # Build the path to the artifacts folder
+        results_dir = os.path.join(project_root, "artifacts", "run", z_path)
+        # Ensure the directory exists
+        os.makedirs(results_dir, exist_ok=True)
+
+        z_dir = os.path.join(project_root, "artifacts", "run")
+
+
+        npy_data = {}
+
+        label = self.label[0] 
+
+        labels = torch.tensor([label])  # Assign a label
+
+        for filename in os.listdir(z_dir):
+            if filename.endswith(".npy"):
+                full_path = os.path.join(z_dir, filename)
+                npy_data[filename] = np.load(full_path)
+
+                latent_tensor = torch.from_numpy(npy_data[filename]).to(self.device)  # Ensure it's on the right device
+
+
+                image = self.generate_image(latent_tensor, labels)
+                image = image.detach().cpu()
+                image = (image.squeeze(0) + 1) / 2.0  # Normalize from [-1, 1] to [0, 1]
+                transform = transforms.ToPILImage()
+                img_pil = transform(image.clamp(0, 1))  # Clamp to [0, 1] range
+
+                # Create output filename
+                image_filename = filename.replace(".npy", ".png")
+                
+                output_path = os.path.join(results_dir, image_filename)
+                print(output_path)
+                img_pil.save(output_path)
+                print(f"Saved generated image for {filename} to {output_path}")
+
+        # Clearn z_dir for next experiment
+        shutil.rmtree(z_dir)
+        os.makedirs(z_dir, exist_ok=True)
+
 
     
