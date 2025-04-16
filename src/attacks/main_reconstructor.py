@@ -10,7 +10,7 @@ from omegaconf import OmegaConf, DictConfig
 from omegaconf.errors import MissingMandatoryValue
 import wandb
 
-from attacks.utils import set_seed, setup_device, safe_dataclass_load, SaveImage
+from attacks.utils import set_seed, setup_device, safe_dataclass_load, SaveImage, calculate_metrics, load_from_directory
 from datasets.cifar10 import CIFAR10_MEAN, CIFAR10_STD
 from datasets.cifar100 import CIFAR100_MEAN, CIFAR_100_STD
 from datasets.imagenet import IMAGENET_MEAN, IMAGENET_STD
@@ -156,8 +156,7 @@ class ReconstructorApp(InputValidator):
                           self.output_dir)
         return saver
 
-    def calculate_metrics(self):
-        pass
+
 
     def run(self):
         print('running...')
@@ -183,15 +182,17 @@ class ReconstructorApp(InputValidator):
 
         # Step 4: Reconstruction
         self.initalise_image_params()
+        
         reconstructor = self.initialize_reconstructor(unlearned_model, original_model)
         print('reconstructor initialized')
 
         start_time = time.time()
         print(self.reconstructor_name)
         if self.reconstructor_name == 'ggl':
-            reconstruction, z_res, losses = reconstructor.reconstruct()
+            z_res, reconstruction, losses = reconstructor.reconstruct()
         elif self.reconstructor_name == 'inversegrad':
             reconstruction, losses = reconstructor.reconstruct(labels = self.labels,
+                                                               num_images = self.reconstructor_params['num_images'],
                                                             image_size= self.image_size,
                                                             image_mean= self.image_mean,
                                                             image_std=self.image_std,
@@ -203,20 +204,34 @@ class ReconstructorApp(InputValidator):
             print(f"Reconstruction Losses: {losses}")
 
 
-        wandb.log({
-            'reconstruction_time': total_time,
-            'losses': losses,
-            'reconstruction': wandb.Image(reconstruction),
-        })
-
         # # Step 5: Save the reconstructed image
         image_saver = self.save_results()
         image_saver.save_png(reconstruction,
                              normalize=False)
         
-        self.calculate_metrics()
+        # # Step 6: Calculate metrics
+        ref_batch = load_from_directory(self.data_root)
+        num_images = reconstruction.shape[0]
+        psnr_value, mse_value = calculate_metrics(reconstruction, ref_batch, self.image_size, num_images, self.verbose)
 
 
+        # # Step 7: Save metrics
+        table = wandb.Table(columns=["img_id", "psnr", "best_ref_index"])
+        for i, (p, idx) in enumerate(psnr_value):
+            table.add_data(i, p, idx)
+
+        psnr_max = max([p for p, _ in psnr_value])
+
+        wandb.log({
+            'reconstruction_time': total_time,
+            'losses': losses,
+            'reconstruction': wandb.Image(reconstruction),
+            'psnr_table': table,
+            'max_psnr': psnr_max,
+            'mse_image_space': mse_value
+        })
+        wandb.finish()
+        
 @hydra.main(version_base=None,
             config_path="config",
             config_name="config")

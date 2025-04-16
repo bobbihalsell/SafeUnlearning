@@ -1,1 +1,1 @@
-python src/unlearning/main.py dataset=cifar10 model=mobilenet_v2 unlearner=finetune dataset.save_path=./data model.num_classes=10 model.model_ckpt_path=./artifacts/models/cifar_test/mobilenet_v2_42_original.pt output_dir=artifact_hydra
+python src/unlearning/main.py dataset=cifar10 model=mobilenet_v2 unlearner=finetune dataset.save_path=./data model.num_classes=10 model.model_ckpt_path=./artifacts/models/cifar_test/mobilenet_v2_42_original.pt model.output_dir=artifact_hydra unlearner.cfg.epochs=4

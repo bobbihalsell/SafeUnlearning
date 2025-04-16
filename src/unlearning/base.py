@@ -3,6 +3,9 @@ from abc import abstractmethod
 import torch
 import torch.nn as nn
 from unlearning.utils import setup_device
+from typing import Dict
+import copy
+import time
 
 
 class BaseUnlearner:
@@ -52,7 +55,6 @@ class BaseUnlearner:
     def _evaluate(self,
                   model: nn.Module,
                   dataloader: torch.utils.data.DataLoader,
-                  loss_fn: nn.Module,
                   ) -> torch.Tensor:
         """
         Compute the evaluation loss of a model on a given dataset.
@@ -60,22 +62,31 @@ class BaseUnlearner:
         Args:
             model: The model to evaluate.
             dataloader: DataLoader containing evaluation data.
-            loss_fn: Loss function to compute model performance.
 
         Returns:
-            torch.Tensor: Tensor containing loss values for each batch in the dataloader.
+            Tuple (val_loss, val_acc)
         """
-        model = model.eval()
-        # Initialize tensor to store batch losses
-        batch_losses = torch.zeros(len(dataloader), device=self.device)
-        # Evaluate model on all batches
-        for batch_ndx, (inputs, targets) in enumerate(dataloader):
-            inputs, targets = inputs.to(self.device), targets.to(self.device)
-            outputs = model(inputs)
-            loss = loss_fn(outputs, targets)
-            # Store loss value
-            batch_losses[batch_ndx] = loss.detach().item()
-        return batch_losses
+        model.eval()
+        val_loss = 0.0
+        correct, total = 0, 0
+
+        with torch.no_grad():
+            for batch in dataloader:
+                inputs, labels = batch
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
+
+                outputs = model(inputs)
+                loss = self.criterion(outputs, labels)
+
+                val_loss += loss.item() * inputs.size(0)
+                _, predicted = outputs.max(1)
+                total += labels.size(0)
+                correct += predicted.eq(labels).sum().item()
+
+        val_loss /= len(dataloader.dataset)
+        val_acc = 100.0 * correct / total
+
+        return val_loss, val_acc
 
     def valid_args(self, **kwargs):
         """
@@ -116,9 +127,12 @@ class BaseUnlearner:
                                          lr=self.lr,
                                          weight_decay=self.weight_decay)
         elif optimizer_name == 'sgd':
+            momentum = getattr(self, "momentum", None)
+            if momentum is None:
+                momentum = 0
             optimizer = torch.optim.SGD(model.parameters(),
                                         lr=self.lr,
-                                        momentum=self.momentum,
+                                        momentum=momentum,
                                         weight_decay=self.weight_decay)
         else:
             raise ValueError(
@@ -144,3 +158,89 @@ class BaseUnlearner:
             raise Exception(
                 'Attempted to initialize scheduler, but '
                 'schedule information not available.')
+
+    def _evaluate_all_splits(self,
+                             model: nn.Module,
+                             data_dict: Dict[str, DataLoader],
+                             verbose: bool = True):
+        """ Evaluate the model on the data splits in data dict.
+
+        Args:
+            model: nn.Module
+            data_dict: The dictionary of dataloaders relevant to unlearning.
+            verbose (bool): Whether to print the results
+
+        Returns:
+            self.losses (dict): A dictionary of losses during the unlearning
+            job.
+        """
+        model.eval()
+
+        for data_type, loader in data_dict.items():
+            start_eval_time = time.time()
+            loader_loss, loader_acc = self._evaluate(model,
+                                                     loader)
+            self.losses[f"{data_type}"].append(loader_loss)
+            self.losses[f"{data_type}_acc"].append(loader_acc)
+            elapsed = time.time() - start_eval_time
+            if verbose:
+                print(f'{data_type.capitalize()} Loss: {loader_loss:.4f} '
+                      f'Acc: {loader_acc:.2f}%. '
+                      f'Time: {elapsed:.1f} s', end=' || ')
+        if verbose:
+            print('')
+
+        return self.losses
+
+    def _setup_unlearning(self, model, data_dict, **kwargs):
+        """ Setup unlearned model, losses dictionary, optimizer, scheduler."""
+        unlearned_model = copy.deepcopy(model)
+
+        # Validate and extract common hyperparameters
+        self.valid_args(**kwargs)
+        self.extract_hyperparameters(**kwargs)
+
+        # Initialize loss and accuracy tracking
+        self.losses = {f"{data_type}": [] for data_type in data_dict.keys()}
+        self.losses.update({
+            f"{data_type}_acc": [] for data_type in data_dict.keys()
+        })
+        self._eval_initial_model(model,
+                                 data_dict)
+
+        self.optimizer = self.initialize_optimizer(
+            unlearned_model,
+            optimizer_name=self.optimizer)
+
+        if (self.epochs_per_lr_decay is not None and
+                self.lr_decay_factor is not None):
+            scheduler = self.initialize_scheduler(optimizer=self.optimizer)
+        else:
+            scheduler = None
+
+        return unlearned_model, scheduler
+
+    def _eval_initial_model(self, model, data_dict, verbose=True):
+        """ Evaluate the initial model's performance on all dataset splits."""
+        for data_type in data_dict.keys():
+            split_loss, split_acc = self._evaluate(
+                model,
+                dataloader=data_dict[data_type],
+            )
+
+            self.losses[data_type].append(split_loss)
+            self.losses[f"{data_type}_acc"].append(split_acc)
+
+            if verbose:
+                print(f'Initial {data_type.capitalize()} Loss: '
+                      f'{split_loss:.4f}. '
+                      f'Acc: {split_acc:.2f}%.', end=' || ')
+        if verbose:
+            print('')
+
+    def _print_forward_pass_metrics(self, epoch_num, time_taken):
+        """ Print metrics for the user when forward pass is complete."""
+        current_lr = self.optimizer.param_groups[0]['lr']
+        print(f'Epoch {epoch_num+1} Forward Pass Complete. '
+              f'LR: {current_lr:.5f}. '
+              f'Time taken: {time_taken:.1f} s')

@@ -1,10 +1,9 @@
-import torch
 import torch.nn as nn
-import copy
-from unlearning.utils import (l2_penalty)
+from unlearning.utils import l2_penalty
 from unlearning.base import BaseUnlearner
 from typing import Dict
 from torch.utils.data import DataLoader
+import time
 
 
 class FinetuneUnlearner(BaseUnlearner):
@@ -64,40 +63,28 @@ class FinetuneUnlearner(BaseUnlearner):
         Raises:
             ValueError: If 'retain' data is not in data_dict.
         """
-        model.to(self.device)
-        unlearned_model = copy.deepcopy(model)
-
-        # Validate and extract common hyperparameters
-        self.valid_args(**kwargs)
-        self.extract_hyperparameters(**kwargs)
-
-        # Ensure required data is available
         if 'retain' not in data_dict.keys():
             raise ValueError("'retain' data must be in data_dict.")
 
-        # Initialize loss tracking
-        losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
-
-        optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
-                                    lr=self.lr,
-                                    weight_decay=self.weight_decay)
-
-        eval_dataloaders = [key for key in data_dict.keys() if key != 'retain']
+        model.to(self.device)
+        unlearned_model, scheduler = self._setup_unlearning(
+            model,
+            data_dict,
+            **kwargs)
 
         # Main training loop
         for e in range(self.epochs):
-            total_retain_loss = 0
+            epoch_start_time = time.time()
             for retain_inputs, retain_labels in data_dict['retain']:
 
                 unlearned_model.eval()
-                optimizer.zero_grad()
+                self.optimizer.zero_grad()
 
                 retain_inputs = retain_inputs.to(self.device)
                 retain_labels = retain_labels.to(self.device)
 
                 retain_output = unlearned_model(retain_inputs)
                 retain_loss = self.criterion(retain_output, retain_labels)
-                total_retain_loss += retain_loss.item()
 
                 # Add L2 penalty if requested to maintain similarity to 
                 # original model
@@ -108,27 +95,21 @@ class FinetuneUnlearner(BaseUnlearner):
                     retain_loss += l2_loss
 
                 retain_loss.backward()
-                optimizer.step()
-
-            avg_epoch_retain_loss = total_retain_loss/len(data_dict["retain"])
+                self.optimizer.step()
+            forward_pass_elapsed = time.time() - epoch_start_time
 
             if verbose:
-                print(f'Epoch {e}: Retain Loss: {avg_epoch_retain_loss}')
+                self._print_forward_pass_metrics(e, forward_pass_elapsed)
 
             if self.evaluate:
                 # Calculate average retain loss for this epoch
-                losses['retain_losses'].append(avg_epoch_retain_loss)
-                unlearned_model.eval()
-                # Evaluate model on other datasets
-                for data_type in eval_dataloaders:
-                    loader_loss = self._evaluate(unlearned_model,
-                                                 data_dict[data_type],
-                                                 self.criterion).mean()
-                    losses[f"{data_type}_losses"].append(loader_loss.item())
-                    if verbose:
-                        print(f'{data_type.capitalize()} Loss: {loader_loss}',
-                              end='  ')
-                if verbose:
-                    print()
+                self._evaluate_all_splits(
+                    model=unlearned_model,
+                    data_dict=data_dict,
+                    verbose=verbose
+                )
 
-        return unlearned_model, losses
+            if scheduler is not None:
+                scheduler.step()
+
+        return unlearned_model, self.losses

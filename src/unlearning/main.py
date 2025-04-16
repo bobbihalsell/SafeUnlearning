@@ -14,7 +14,7 @@ from unlearning.scrub import SCRUB
 from unlearning.kunlearn import KUnlearn
 from unlearning.neggrad import NegGrad, NegGradPlus
 from unlearning.utils import save_model, set_seed, setup_device, ConfigError
-from unlearning.importmodel import ImportModel
+import time
 
 
 class UnlearnApp(InputValidator):
@@ -132,7 +132,7 @@ class UnlearnApp(InputValidator):
             dataloaders[split] = DataLoader(
                 dataset,
                 batch_size=batch_size,
-                shuffle=(split == 'retain'),  # Only shuffle retain set
+                shuffle=(split in ['retain', 'forget']),
                 num_workers=self.num_workers,
                 pin_memory=True
             )
@@ -157,11 +157,14 @@ class UnlearnApp(InputValidator):
         # Step 3: Perform unlearning
         unlearner = self.initialize_unlearner()
         print('Unlearning algorithm initialized.')
+        start_time = time.time()
         unlearned_model, losses = unlearner.unlearn(original_model,
                                                     data_dict=dataloaders,
                                                     verbose=self.verbose,
                                                     **self.unlearn_params)
-        print('Model unlearning complete.')
+        # Log the time taken for the whole unlearning job
+        job_run_time = (time.time() - start_time)/60
+        print(f'Model unlearning complete. Time: {job_run_time:.1f} min')
 
         # Step 4: Save the unlearned model
         save_model(unlearned_model,
