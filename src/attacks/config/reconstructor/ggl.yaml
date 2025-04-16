@@ -15,5 +15,11 @@ cfg:
   gp_optim: "AdamW"
   use_scheduler: True
   initial_lr: 1
+  weight_decay: 0
+  use_l2_penalty: False
+  scrub_optim: sgd
+  momentum: 0
+  lr_decay_factor: 
+  epochs_per_lr_decay: 
 
 

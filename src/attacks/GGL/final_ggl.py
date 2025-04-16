@@ -22,7 +22,7 @@ from unlearning.scrub import SCRUB
 
 class GGLReconstructor():
     #def __init__(self, original_model, target_model, generator, loss_fn, unlearning_method, loss_models='l1', num_classes=1000, num_updates=None, lr=0.01, search_dim=128, use_tanh=False, budget=500, alpha=None, gamma=None, min_epochs=None, max_epochs=None, label=None, save_img=None, save_z=None, batch_size=1):
-    def __init__(self, original_model, target_model, loss_fn, search_dim=128, use_tanh=False, budget=500, loss_models='l1', unlearning_method='neggrad', num_classes=1000, num_updates=None, lr=0.01,  alpha=None, gamma=None, min_epochs=None, max_epochs=None, labels=None, exp_name='ggl', initial_z=None, batch_size=1, gp_optim="AdamW", use_scheduler=False, initial_lr=1):
+    def __init__(self, original_model, target_model, loss_fn, search_dim=128, use_tanh=False, budget=500, loss_models='l1', unlearning_method='neggrad', num_classes=1000, num_updates=None, lr=0.01,  alpha=None, gamma=None, min_epochs=None, max_epochs=None, labels=None, exp_name='ggl', initial_z=None, batch_size=1, gp_optim="AdamW", use_scheduler=False, initial_lr=1, weight_decay=0, use_l2_penalty=False, scrub_optim='sgd', momentum=0, lr_decay_factor=None, epochs_per_lr_decay=None):
         """
         original_model: The original model (pre-update).
         target_model: The target model (unlearned model).
@@ -59,6 +59,12 @@ class GGLReconstructor():
         self.gp_optim = gp_optim
         self.use_scheduler=use_scheduler
         self.initial_lr=initial_lr
+        self.weight_decay=weight_decay
+        self.use_l2_penalty=use_l2_penalty
+        self.scrub_optim=scrub_optim
+        self.momentum=momentum
+        self.lr_decay_factor=lr_decay_factor
+        self.epochs_per_lr_decay=epochs_per_lr_decay
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -78,14 +84,14 @@ class GGLReconstructor():
             recon = self.perform_sgd_updates(generated_image, labels, recon, steps=1)
 
         if self.unlearning_method == 'scrub':
-            recon = self.perform_scrub_updates(generated_image, labels, recon, alpha=self.alpha, gamma=self.gamma, min_epochs=self.min_epochs, max_epochs=self.max_epochs, lr=self.lr, loss_fn=self.loss_fn, steps=1)
+            recon = self.perform_scrub_updates(generated_image, labels, recon, alpha=self.alpha, gamma=self.gamma, min_epochs=self.min_epochs, max_epochs=self.max_epochs, lr=self.lr, loss_fn=self.loss_fn, weight_decay=self.weight_decay, steps=1, use_l2_penalty=self.use_l2_penalty, scrub_optim=self.scrub_optim, momentum=self.momentum, lr_decay_factor=self.lr_decay_factor, epochs_per_lr_decay=self.epochs_per_lr_decay)
 
         if loss_type == 'interpolated':
             recon_1 = copy.deepcopy(self.original_model)
             if self.unlearning_method == 'neggrad':
                 recon_1 = self.perform_sgd_updates(generated_image, labels, recon_1,  steps=steps)
             if self.unlearning_method == 'scrub':
-                recon_1 = self.perform_sgd_updates(generated_image, labels, alpha=self.alpha, gamma=self.gamma, min_epochs=self.min_epochs, max_epochs=self.max_epochs, lr=self.lr, loss_fn=self.loss_fn, steps=steps)
+                recon_1 = self.perform_scrub_updates(generated_image, labels, alpha=self.alpha, gamma=self.gamma, min_epochs=self.min_epochs, max_epochs=self.max_epochs, lr=self.lr, loss_fn=self.loss_fn, steps=steps, weight_decay=self.weight_decay, use_l2_penalty=self.use_l2_penalty, scrub_optim=self.scrub_optim, momentum=self.momentum, lr_decay_factor=self.lr_decay_factor, epochs_per_lr_decay=self.epochs_per_lr_decay)
 
             # Interpolate between original and unlearned model
             interp_model = self.interpolate_models(self.original_model, self.target_model, alpha=0.5)
@@ -147,7 +153,7 @@ class GGLReconstructor():
             diff += torch.sum(abs(p1 - p2))  # L1 norm of the difference
         return diff.item()
     
-    def perform_scrub_updates(self, generated_image, labels, original_model, alpha, gamma, min_epochs, max_epochs, lr, loss_fn, verbose=True, steps=None):
+    def perform_scrub_updates(self, generated_image, labels, original_model, alpha, gamma, min_epochs, max_epochs, lr, loss_fn, weight_decay, use_l2_penalty=False, verbose=True, steps=None, scrub_optim='sgd', momentum=0, lr_decay_factor=None, epochs_per_lr_decay=None):
         scrub = SCRUB(device=self.device)
 
         # Convert label to tensor if necessary
@@ -160,6 +166,7 @@ class GGLReconstructor():
         forget_dataset = torch.utils.data.TensorDataset(generated_image, labels)
         forget_loader = torch.utils.data.DataLoader(forget_dataset, batch_size=len(forget_dataset), shuffle=False)
 
+        forget_loader = {'forget': [(generated_image, labels)]}
         # Hardcode any additional arguments needed for unlearn method
         kwargs = {
             'alpha': alpha,
@@ -167,7 +174,13 @@ class GGLReconstructor():
             'loss_fn': loss_fn,
             'lr': lr,
             'min_epochs': min_epochs,
-            'max_epochs' : max_epochs
+            'max_epochs' : max_epochs,
+            'weight_decay': weight_decay,
+            'use_l2_penalty': use_l2_penalty,
+            'optimizer': scrub_optim,
+            'momentum': momentum,
+            'lr_decay_factor': lr_decay_factor, 
+            'epochs_per_lr_decay': epochs_per_lr_decay
 
         }
 
