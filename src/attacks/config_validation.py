@@ -84,9 +84,9 @@ class InputValidator:
                 raise ConfigError('Missing required params for GGL reconstruction:'
                                   f' {', '.join(missing_ggl_params)}')
             
-        elif self.reconstructor_name == 'inversegrad':
-            print("checking inverse grad params")
-            # Check for required Inverse Grad-specific parameters
+        elif self.reconstructor_name == 'invertgrad':
+            print("checking invert grad params")
+            # Check for required Invert Grad-specific parameters
             required_igrad_params = ['grad_diff_lr', 'signed', 'boxed',
                                    'cost_fn', 'indices', 'weights',
                                    'optim', 'num_runs', 'recon_iterations',
@@ -97,7 +97,7 @@ class InputValidator:
                 if param not in self.reconstructor_params:
                     missing_igrad_params.append(param)
             if missing_igrad_params:
-                raise ConfigError('Missing required params for Inverse Grad reconstruction:'
+                raise ConfigError('Missing required params for Invert Grad reconstruction:'
                                   f' {', '.join(missing_igrad_params)}')
     
 
