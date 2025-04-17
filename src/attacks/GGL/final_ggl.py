@@ -1,31 +1,68 @@
+import os
+import copy
+import shutil
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import copy
-import numpy as np
-from pytorch_pretrained_biggan import BigGAN
-from torchvision import transforms
-from attacks.GGL.turbo import Turbo1
-from torchvision import transforms
-import os
-import shutil
-from unlearning.scrub import SCRUB
 from torch.utils.data import DataLoader, TensorDataset
 
+from torchvision import transforms
+from pytorch_pretrained_biggan import BigGAN
 
-class GGLReconstructor():
-    def __init__(self, original_model, target_model, loss_fn, search_dim=128, use_tanh=False, budget=500, loss_models='l1', unlearning_method='neggrad', num_classes=1000, num_updates=None, lr=0.01,  labels=None, exp_name='ggl', initial_z_path=None, batch_size=1, gp_optim="AdamW", use_scheduler=False, initial_lr=1):
+from attacks.GGL.turbo import Turbo1
+from unlearning.scrub import SCRUB
+
+
+
+class GGLReconstructor:
+    def __init__(
+        self,
+        original_model,
+        target_model,
+        loss_fn,
+        loss_models='l1',
+        unlearning_method='neggrad',
+        num_classes=1000,
+        num_updates=None,
+        lr=0.001,
+        labels=None,
+        exp_name='ggl',
+        initial_z_path=None,
+        batch_size=1,
+        gp_optim="AdamW",
+        use_scheduler=False,
+        initial_lr=1,
+        search_dim=128,
+        use_tanh=False,
+        budget=500,
+    ):
         """
-        original_model: The original model (pre-update).
-        target_model: The target model (unlearned model).
-        generator: The BigGAN generator.
-        loss_fn: The loss function to compute the loss on model output.
-        num_classes: The number of classes for classification.
-        num_updates: The number of SGD updates to perform on the original model using the generated image.
-        lr: Learning rate for SGD updates.
-        search_dim: The dimension of the latent space (size of z).
-        use_tanh: Whether to apply tanh activation to the latent vector z.
-        budget: The maximum number of evaluations for Bayesian Optimization.
+        Initialize the GGLReconstructor object.
+
+        Args:
+            original_model: The original model (pre-update).
+            target_model: The target model (unlearned model).
+            loss_fn: The loss function to compute the loss on model output.
+            loss_models: The loss for the objective function of optimization 
+                process.
+            unlearning_method: Method used for unlearning (scrub or neggrad).
+            num_classes: Number of classes in classification.
+            num_updates: The number of SGD updates to performed during 
+                unlearning.
+            lr: Learning rate for SGD updates during unlearning.
+            labels: Label of the forgotten image.
+            exp_name: Cusomisable exp_name for saving results.
+            initial_z_path: Path where inital latent vector z should be loaded 
+                from (might be None).
+            batch_size: Batch size.
+            gp_optim: Optimiser for Gaussian Process in Turbo
+            use_scheduler: Whether to use scheduler during Gaussian Process
+            initial_lr: Initial lr for Gaussian Process optimiser updates
+            search_dim: The dimension of the latent space (size of z).
+            use_tanh: Whether to apply tanh activation to the latent vector z.
+            budget: The maximum number of evaluations for Bayesian Optimization.
         """
         self.original_model = original_model
         self.target_model = target_model
@@ -48,7 +85,8 @@ class GGLReconstructor():
         self.gp_optim = gp_optim
         self.use_scheduler=use_scheduler
         self.initial_lr=initial_lr
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda" if torch.cuda.is_available() 
+                                    else "cpu")
 
 
     def evaluate_loss(self, z, labels, loss_type=None, steps=None, **kwargs):
@@ -63,22 +101,28 @@ class GGLReconstructor():
 
         if self.unlearning_method == 'neggrad':
             # Perform neggrad update on recon
-            recon = self.perform_sgd_updates(generated_image, labels, recon, steps=steps)
+            recon = self.perform_sgd_updates(generated_image, labels, recon, 
+                                                steps=steps)
 
         if self.unlearning_method == 'scrub':
-            recon = self.perform_scrub_updates(generated_image, labels, recon, steps=steps, **kwargs)
+            recon = self.perform_scrub_updates(generated_image, labels, recon, 
+                                                steps=steps, **kwargs)
 
         if loss_type == 'interpolated':
             # Calculate interpolated loss
             recon_1 = copy.deepcopy(self.original_model)
             recon_1.eval()
             if self.unlearning_method == 'neggrad':
-                recon_1 = self.perform_sgd_updates(generated_image, labels, recon_1, steps=1)
+                recon_1 = self.perform_sgd_updates(generated_image, labels, 
+                                                    recon_1, steps=1)
             if self.unlearning_method == 'scrub':
-                recon_1 = self.perform_scrub_updates(generated_image, labels, recon_1,  steps=1, **kwargs)
+                recon_1 = self.perform_scrub_updates(generated_image, labels,
+                                                    recon_1,  steps=1, **kwargs)
 
             # Interpolate between original and unlearned model
-            interp_model = self.interpolate_models(self.original_model, self.target_model, alpha=0.5)
+            interp_model = self.interpolate_models(self.original_model, 
+                                                    self.target_model, 
+                                                    alpha=0.5)
 
             # Compute two differences
             loss_1 = self.compute_model_difference_l2(recon_1, interp_model)
@@ -164,24 +208,6 @@ class GGLReconstructor():
         forget_dict['retain'] = DataLoader(
             empty_dataset
         )
-
-        # Save values needed for scrub
-        """
-        kwargs = {
-            'alpha': self.alpha,
-            'gamma': self.gamma,
-            'loss_fn': self.loss_fn,
-            'lr': self.lr,
-            'min_epochs': self.min_epochs,
-            'max_epochs' : self.max_epochs,
-            'weight_decay': self.weight_decay,
-            'use_l2_penalty': self.use_l2_penalty,
-            'optimizer': self.scrub_optim,
-            'momentum': self.momentum,
-            'lr_decay_factor': self.lr_decay_factor, 
-            'epochs_per_lr_decay': self.epochs_per_lr_decay
-
-        }"""
 
         # Run the unlearning process
         unlearned_model, losses = scrub.unlearn(
