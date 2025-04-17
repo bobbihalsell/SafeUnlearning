@@ -6,6 +6,7 @@ from unlearning.utils import setup_device
 from typing import Dict
 import copy
 import time
+import wandb
 
 
 class BaseUnlearner:
@@ -244,3 +245,22 @@ class BaseUnlearner:
         print(f'Epoch {epoch_num+1} Forward Pass Complete. '
               f'LR: {current_lr:.5f}. '
               f'Time taken: {time_taken:.1f} s')
+
+    def _log_metrics_in_wandb(self,
+                              epoch: int,
+                              retain_loss: float,
+                              retain_acc: float,
+                              forget_loss: float,
+                              forget_acc: float,
+                              val_loss: float,
+                              val_acc: float):
+        """ Log evaluation metrics in WandB."""
+        wandb.log({
+            "Retain Loss": retain_loss,
+            "Retain Accuracy": retain_acc,
+            "Forget Loss": forget_loss,
+            "Forget Accuracy": forget_acc,
+            "Val Loss": val_loss,
+            "Val Accuracy": val_acc,
+            "epoch": epoch
+            })

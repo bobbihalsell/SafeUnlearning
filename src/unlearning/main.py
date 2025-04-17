@@ -16,6 +16,7 @@ from unlearning.neggrad import NegGrad, NegGradPlus
 from unlearning.utils import save_model, set_seed, setup_device, ConfigError
 from unlearning.importmodel import ImportModel
 import time
+import wandb
 
 
 class UnlearnApp(InputValidator):
@@ -192,6 +193,12 @@ def main(cfg: DictConfig):
             f'{missing_keys}. \n'
             'Hint: python file.py key=value sets the appropriate value.')
     app = UnlearnApp(cfg)
+    if app.wandb_config is not None:
+        wandb.init(
+            project=app.wandb_config.project_name,
+            id=app.wandb_config.run_id,
+            config=OmegaConf.to_container(cfg, resolve=True)
+        )
     app.run()
 
 
