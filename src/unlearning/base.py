@@ -224,6 +224,9 @@ class BaseUnlearner:
         self.losses.update({
             f"{data_type}_acc": [] for data_type in data_dict.keys()
         })
+        self.losses.update({
+            f"{data_type}_time": [] for data_type in data_dict.keys()
+        })
         self._eval_initial_model(model,
                                  data_dict)
 
