@@ -8,9 +8,3 @@ unlearned_weights: ???
 output_dir: ./artifacts/
 seed: 42
 verbose: true
-wandb: # optional Weights and Biases configuration
-  project: MU reconstruction
-  extra_config:  # optional extra configuration to be logged in wandb
-    unlearning_method: 
-    beta: 
-    epochs: 
