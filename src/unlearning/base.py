@@ -274,11 +274,11 @@ class BaseUnlearner:
                               val_acc: float):
         """ Log evaluation metrics in WandB."""
         wandb.log({
-            "Retain Loss": retain_loss,
-            "Retain Accuracy": retain_acc,
-            "Forget Loss": forget_loss,
-            "Forget Accuracy": forget_acc,
-            "Val Loss": val_loss,
-            "Val Accuracy": val_acc,
-            "epoch": epoch
+            "Retain/Loss": retain_loss,
+            "Retain/Accuracy": retain_acc,
+            "Forget/Loss": forget_loss,
+            "Forget/Accuracy": forget_acc,
+            "Val/Loss": val_loss,
+            "Val/Accuracy": val_acc,
+            "Epoch": epoch
             })

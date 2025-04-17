@@ -3,7 +3,6 @@ defaults:
   - model: ???
   - dataset: ???
   - unlearner: ???
-  - wandb_cfg:
 seed: 42
 verbose: true
 output_dir: ./artifacts/models

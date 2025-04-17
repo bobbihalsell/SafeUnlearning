@@ -186,12 +186,16 @@ def main(cfg: DictConfig):
     app = UnlearnApp(cfg)
     if app.wandb_config is not None:
         wandb.init(
-            project=app.wandb_config.project_name,
-            id=app.wandb_config.run_id,
+            project=app.wandb_config['project_name'],
+            id=app.wandb_config['run_id'],
             config=OmegaConf.to_container(cfg, resolve=True)
         )
         app.wandb_enabled = True
+    else:
+        app.wandb_enabled = False
     app.run()
+    if app.wandb_config is not None:
+        wandb.finish()
 
 
 if __name__ == '__main__':
