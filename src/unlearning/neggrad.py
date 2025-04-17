@@ -22,6 +22,7 @@ class NegGrad(BaseUnlearner):
         self,
         device: Optional[torch.device] = None,
         evaluate: bool = False,
+        wandb_enabled: bool = False
     ):
         """
         Initialize the NegGrad unlearning object.
@@ -31,7 +32,7 @@ class NegGrad(BaseUnlearner):
                    If None, will be automatically determined.
             evaluate: Whether to track and return evaluation metrics during unlearning.
         """
-        super(NegGrad, self).__init__(device, evaluate)
+        super(NegGrad, self).__init__(device, evaluate, wandb_enabled)
 
     def unlearn(self,
                 model: nn.Module,
@@ -54,8 +55,7 @@ class NegGrad(BaseUnlearner):
                 - use_l2_penalty: Whether to add L2 regularization penalty (default: False).
 
         Returns:
-            Tuple of (unlearned_model, losses) where losses contains
-            tracked losses for each dataset type.
+            Tuple of (unlearned_model, logs)
 
         Raises:
             ValueError: If 'forget' data is not in data_dict.
@@ -94,22 +94,24 @@ class NegGrad(BaseUnlearner):
                 loss.backward()
                 self.optimizer.step()
             forward_pass_elapsed = time.time() - epoch_start_time
-
+            if self.wandb_enabled:
+                self._log_forward_pass_time_in_wandb(epoch=e+1,
+                                                     time=forward_pass_elapsed)
             if verbose:
                 self._print_forward_pass_metrics(e, forward_pass_elapsed)
-
             if self.evaluate:
                 # Calculate average retain loss for this epoch
                 self._evaluate_all_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
+                    epoch=e+1,
                     verbose=verbose
                 )
 
             if scheduler is not None:
                 scheduler.step()
 
-        return unlearned_model, self.losses
+        return unlearned_model, self.logs
 
 
 class NegGradPlus(BaseUnlearner):
@@ -125,6 +127,7 @@ class NegGradPlus(BaseUnlearner):
         self,
         device: Optional[torch.device] = None,
         evaluate: bool = False,
+        wandb_enabled: bool = False
     ):
         """
         Initialize the NegGrad+ unlearning object.
@@ -134,7 +137,7 @@ class NegGradPlus(BaseUnlearner):
                    If None, will be automatically determined.
             evaluate: Whether to track and return evaluation metrics during unlearning.
         """
-        super(NegGradPlus, self).__init__(device, evaluate)
+        super(NegGradPlus, self).__init__(device, evaluate, wandb_enabled)
 
     def _calculate_loss(
         self,
@@ -196,8 +199,8 @@ class NegGradPlus(BaseUnlearner):
                   PLEASE USE NegGrad FOR BETA = 0, FinetuneUnlearner FOR BETA = 1.
 
         Returns:
-            Tuple of (unlearned_model, losses) where losses contains
-            tracked losses for each dataset type.
+            Tuple of (unlearned_model, logs)
+
 
         Raises:
             ValueError: If either 'forget' or 'retain' data is missing from data_dict,
@@ -260,18 +263,20 @@ class NegGradPlus(BaseUnlearner):
                 self.optimizer.step()
 
             forward_pass_elapsed = time.time() - epoch_start_time
-
+            if self.wandb_enabled:
+                self._log_forward_pass_time_in_wandb(epoch=e+1,
+                                                     time=forward_pass_elapsed)
             if verbose:
                 self._print_forward_pass_metrics(e, forward_pass_elapsed)
-
             if self.evaluate:
                 self._evaluate_all_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
+                    epoch=e+1,
                     verbose=verbose
                 )
 
             if scheduler is not None:
                 scheduler.step()
 
-        return unlearned_model, self.losses
+        return unlearned_model, self.logs

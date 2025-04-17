@@ -12,11 +12,11 @@ from datasets.imagenet import get_imagenet_test_transform
 from unlearning.config_validation import InputValidator
 from unlearning.finetune import FinetuneUnlearner
 from unlearning.scrub import SCRUB
-from unlearning.kunlearn import KUnlearn
 from unlearning.neggrad import NegGrad, NegGradPlus
 from unlearning.utils import save_model, set_seed, setup_device, ConfigError
 from unlearning.importmodel import ImportModel
 import time
+import wandb
 
 
 class UnlearnApp(InputValidator):
@@ -34,6 +34,8 @@ class UnlearnApp(InputValidator):
         # Output directory
         self.output_dir = config['output_dir']
         os.makedirs(self.output_dir, exist_ok=True)
+        # Set to true in main() if user provided wandb_config
+        self.wandb_enabled = False
 
     def load_model(self):
         """Initialize the model based on model name from user configuration."""
@@ -54,37 +56,27 @@ class UnlearnApp(InputValidator):
         if self.unlearner_name == 'finetune':
             unlearner = FinetuneUnlearner(
                 self.device,
-                self.evaluate
+                self.evaluate,
+                self.wandb_enabled
             )
         elif self.unlearner_name == 'neggrad':
             unlearner = NegGrad(
                 self.device,
-                self.evaluate
+                self.evaluate,
+                self.wandb_enabled
             )
         elif self.unlearner_name == 'neggradplus':
             unlearner = NegGradPlus(
                 self.device,
-                self.evaluate
+                self.evaluate,
+                self.wandb_enabled
             )
         elif self.unlearner_name == 'scrub':
             unlearner = SCRUB(
                 self.device,
-                self.evaluate
+                self.evaluate,
+                self.wandb_enabled
             )
-        elif self.unlearner_name == 'euk':
-            unlearner = KUnlearn(
-                k=self.unlearn_params['k'],
-                method=self.unlearner_name,
-                device=self.device,
-                evaluate=self.evaluate
-                )
-        elif self.unlearner_name == 'cfk':
-            unlearner = KUnlearn(
-                k=self.unlearn_params['k'],
-                method=self.unlearner_name,
-                device=self.device,
-                evaluate=self.evaluate
-                )
         else:
             raise ValueError(f'unlearner_name {self.unlearner_name}'
                              ' not supported.')
@@ -178,6 +170,8 @@ class UnlearnApp(InputValidator):
         # Log the time taken for the whole unlearning job
         job_run_time = (time.time() - start_time)/60
         print(f'Model unlearning complete. Time: {job_run_time:.1f} min')
+        if self.wandb_enabled:
+            wandb.log({'total_run_mins': job_run_time})
 
         # Step 4: Save the unlearned model
         save_model(unlearned_model,
@@ -204,7 +198,19 @@ def main(cfg: DictConfig):
             f'{missing_keys}. \n'
             'Hint: python file.py key=value sets the appropriate value.')
     app = UnlearnApp(cfg)
+    if app.wandb_config is not None:
+        wandb.init(
+            project=app.wandb_config['project_name'],
+            id=app.wandb_config['run_id'],
+            config=OmegaConf.to_container(cfg, resolve=True),
+            resume='never'  # Always make sure the unlearning run ID is new
+        )
+        app.wandb_enabled = True
+    else:
+        app.wandb_enabled = False
     app.run()
+    if app.wandb_config is not None:
+        wandb.finish()
 
 
 if __name__ == '__main__':

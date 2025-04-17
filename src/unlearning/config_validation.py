@@ -22,6 +22,8 @@ class InputValidator:
         model_config = config['model']
         self.load_method = model_config['load_method']
 
+        self.wandb_config = config.get('wandb_cfg', None)
+
         self.verbose = config['verbose']
 
         self._validate_unlearner_params()

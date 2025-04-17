@@ -5,7 +5,7 @@ cfg:
   lr: 0.001
   lr_decay_factor: 0.1
   epochs_per_lr_decay: 2
-  # momentum: 0.9
+  momentum: 0.9
   weight_decay: 0.00001
   use_l2_penalty: false
   epochs: 2

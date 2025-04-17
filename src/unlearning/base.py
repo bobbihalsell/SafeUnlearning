@@ -6,13 +6,15 @@ from unlearning.utils import setup_device
 from typing import Dict
 import copy
 import time
+import wandb
 
 
 class BaseUnlearner:
     """ Base class for all machine unlearning implementations."""
     def __init__(self,
                  device,
-                 evaluate: bool = False
+                 evaluate: bool = False,
+                 wandb_enabled: bool = False
                  ):
         """
         Initialize the BaseUnlearner.
@@ -24,7 +26,7 @@ class BaseUnlearner:
         self.device = device if device is not None else setup_device()
         self.evaluate = evaluate
         self.criterion = nn.CrossEntropyLoss()
-
+        self.wandb_enabled = wandb_enabled
 
     @abstractmethod
     def unlearn(
@@ -166,6 +168,7 @@ class BaseUnlearner:
     def _evaluate_all_splits(self,
                              model: nn.Module,
                              data_dict: Dict[str, DataLoader],
+                             epoch: int,
                              verbose: bool = True):
         """ Evaluate the model on the data splits in data dict.
 
@@ -175,8 +178,7 @@ class BaseUnlearner:
             verbose (bool): Whether to print the results
 
         Returns:
-            self.losses (dict): A dictionary of losses during the unlearning
-            job.
+            self.logs (dict): A logs dictionary
         """
         model.eval()
 
@@ -184,9 +186,11 @@ class BaseUnlearner:
             start_eval_time = time.time()
             loader_loss, loader_acc = self._evaluate(model,
                                                      loader)
-            self.losses[f"{data_type}"].append(loader_loss)
-            self.losses[f"{data_type}_acc"].append(loader_acc)
+
+            self.logs[f"{data_type}"].append(loader_loss)
+            self.logs[f"{data_type}_acc"].append(loader_acc)
             elapsed = time.time() - start_eval_time
+            self.logs[f"{data_type}_time"].append(elapsed)
             if verbose:
                 print(f'{data_type.capitalize()} Loss: {loader_loss:.4f} '
                       f'Acc: {loader_acc:.2f}%. '
@@ -194,7 +198,21 @@ class BaseUnlearner:
         if verbose:
             print('')
 
-        return self.losses
+        if self.wandb_enabled:
+            self._log_metrics_in_wandb(
+                epoch=epoch,
+                retain_loss=self.logs['retain'][-1],
+                retain_acc=self.logs['retain_acc'][-1],
+                retain_time=self.logs['retain_time'][-1],
+                forget_loss=self.logs['forget'][-1],
+                forget_acc=self.logs['forget_acc'][-1],
+                forget_time=self.logs['forget_time'][-1],
+                val_loss=self.logs['val'][-1],
+                val_acc=self.logs['val_acc'][-1],
+                val_time=self.logs['val_time'][-1],
+            )
+
+        return self.logs
 
     def _setup_unlearning(self, model, data_dict, **kwargs):
         """ Setup unlearned model, losses dictionary, optimizer, scheduler."""
@@ -205,9 +223,12 @@ class BaseUnlearner:
         self.extract_hyperparameters(**kwargs)
 
         # Initialize loss and accuracy tracking
-        self.losses = {f"{data_type}": [] for data_type in data_dict.keys()}
-        self.losses.update({
+        self.logs = {f"{data_type}": [] for data_type in data_dict.keys()}
+        self.logs.update({
             f"{data_type}_acc": [] for data_type in data_dict.keys()
+        })
+        self.logs.update({
+            f"{data_type}_time": [] for data_type in data_dict.keys()
         })
         self._eval_initial_model(model,
                                  data_dict)
@@ -231,9 +252,14 @@ class BaseUnlearner:
                 model,
                 dataloader=data_dict[data_type],
             )
+            if self.wandb_enabled:
+                wandb.log({
+                    f'Initial {data_type.capitalize()} Loss': split_loss,
+                    f'Initial {data_type.capitalize()} Acc': split_acc
+                })
 
-            self.losses[data_type].append(split_loss)
-            self.losses[f"{data_type}_acc"].append(split_acc)
+            self.logs[data_type].append(split_loss)
+            self.logs[f"{data_type}_acc"].append(split_acc)
 
             if verbose:
                 print(f'Initial {data_type.capitalize()} Loss: '
@@ -248,3 +274,34 @@ class BaseUnlearner:
         print(f'Epoch {epoch_num+1} Forward Pass Complete. '
               f'LR: {current_lr:.5f}. '
               f'Time taken: {time_taken:.1f} s')
+
+    def _log_forward_pass_time_in_wandb(self, epoch, time):
+        wandb.log({
+            'Epoch': epoch,
+            'forward_pass_time': time
+        })
+
+    def _log_metrics_in_wandb(self,
+                              epoch: int,
+                              retain_loss: float,
+                              retain_acc: float,
+                              retain_time: float,
+                              forget_loss: float,
+                              forget_acc: float,
+                              forget_time: float,
+                              val_loss: float,
+                              val_acc: float,
+                              val_time: float):
+        """ Log evaluation metrics in WandB."""
+        wandb.log({
+            "Retain/Loss": retain_loss,
+            "Retain/Accuracy": retain_acc,
+            "Retain/Time": retain_time,
+            "Forget/Loss": forget_loss,
+            "Forget/Accuracy": forget_acc,
+            "Forget/Time": forget_time,
+            "Val/Loss": val_loss,
+            "Val/Accuracy": val_acc,
+            "Val/Time": val_time,
+            "Epoch": epoch
+            })

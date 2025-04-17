@@ -21,6 +21,7 @@ class FinetuneUnlearner(BaseUnlearner):
     def __init__(self,
                  device,
                  evaluate: bool = False,
+                 wandb_enabled: bool = False
                  ):
         """
         Initialize the FinetuneUnlearner class.
@@ -29,7 +30,7 @@ class FinetuneUnlearner(BaseUnlearner):
             device: Computing device (CPU/GPU) to use for computations.
                    If None, will be automatically determined.
         """
-        super().__init__(device, evaluate)
+        super().__init__(device, evaluate, wandb_enabled)
 
     def unlearn(self,
                 model: nn.Module,
@@ -54,14 +55,7 @@ class FinetuneUnlearner(BaseUnlearner):
                     (default: False).
 
         Returns:
-            If self.evaluate is True:
-                Tuple of (unlearned_model, losses_dict) where losses_dict 
-                contains tracked losses for each dataset type.
-            Otherwise:
-                The unlearned model.
-
-        Raises:
-            ValueError: If 'retain' data is not in data_dict.
+            Tuple of (unlearned_model, logs)
         """
         if 'retain' not in data_dict.keys():
             raise ValueError("'retain' data must be in data_dict.")
@@ -97,19 +91,21 @@ class FinetuneUnlearner(BaseUnlearner):
                 retain_loss.backward()
                 self.optimizer.step()
             forward_pass_elapsed = time.time() - epoch_start_time
-
+            if self.wandb_enabled:
+                self._log_forward_pass_time_in_wandb(epoch=e+1,
+                                                     time=forward_pass_elapsed)
             if verbose:
                 self._print_forward_pass_metrics(e, forward_pass_elapsed)
-
             if self.evaluate:
                 # Calculate average retain loss for this epoch
                 self._evaluate_all_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
+                    epoch=e+1,
                     verbose=verbose
                 )
 
             if scheduler is not None:
                 scheduler.step()
 
-        return unlearned_model, self.losses
+        return unlearned_model, self.logs

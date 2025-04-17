@@ -1,9 +1,7 @@
-import os
 import torch
 import torch.nn as nn
 import copy
-from unlearning.utils import (l2_penalty)
-from itertools import cycle
+from unlearning.utils import l2_penalty
 from unlearning.base import BaseUnlearner
 from typing import Dict
 from torch.utils.data import DataLoader

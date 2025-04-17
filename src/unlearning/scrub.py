@@ -22,6 +22,7 @@ class SCRUB(BaseUnlearner):
     def __init__(self,
                  device,
                  evaluate: bool = False,
+                 wandb_enabled: bool = False
                  ):
         """
         Initialize the SCRUB unlearning class.
@@ -31,7 +32,7 @@ class SCRUB(BaseUnlearner):
                    If None, will be automatically determined.
             evaluate: Whether to track and return evaluation metrics during unlearning.
         """
-        super().__init__(device, evaluate)
+        super().__init__(device, evaluate, wandb_enabled)
         # Following authors' specification
         self.criterion = nn.CrossEntropyLoss()
 
@@ -201,8 +202,7 @@ class SCRUB(BaseUnlearner):
             **kwargs: Additional hyperparameters for SCRUB
 
         Returns:
-            Tuple of (unlearned_model, losses) where losses contains
-            tracked losses for each dataset type
+            Tuple of (unlearned_model, logs)
         """
         model.to(self.device)
         unlearned_model, scheduler = self._setup_unlearning(
@@ -234,18 +234,20 @@ class SCRUB(BaseUnlearner):
                     data_dict['retain'],
                 )
             forward_pass_elapsed = time.time() - epoch_start_time
-
+            if self.wandb_enabled:
+                self._log_forward_pass_time_in_wandb(epoch=e+1,
+                                                     time=forward_pass_elapsed)
             if verbose:
                 self._print_forward_pass_metrics(e, forward_pass_elapsed)
-
             if self.evaluate:
                 self._evaluate_all_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
+                    epoch=e+1,
                     verbose=verbose
                 )
 
             if scheduler is not None:
                 scheduler.step()
 
-        return unlearned_model, self.losses
+        return unlearned_model, self.logs
