@@ -8,6 +8,9 @@ import numpy as np
 
 FORGET_ROOT = "./data/forget"
 FORGET_POOL = "./forget_pool"  # where all possible forget samples are
+
+RETAIN_ROOT = "./data/retain"
+RETAIN_POOL = "./retain_pool"
 SEED = 42
 
 # Redo symlinks based on number of unlearning samples
@@ -16,40 +19,46 @@ def reset_forget_folder():
         shutil.rmtree(FORGET_ROOT)
     os.makedirs(FORGET_ROOT)
 
-def create_symlinks(n=1, label_output_path="reconstruction_pipeline/labels.txt"):
-    reset_forget_folder()
+def reset_retain_folder():
+    if os.path.exists(RETAIN_ROOT):
+        shutil.rmtree(RETAIN_ROOT)
+    os.makedirs(RETAIN_ROOT)
+
+def create_symlinks(pool, root, n=1, label_output_path="reconstruction_pipeline/labels.txt", create_labels = False):
+    # Sample across all classes
     random.seed(SEED)
     all_samples = []
-    for class_name in os.listdir(FORGET_POOL):
-        class_path = os.path.join(FORGET_POOL, class_name)
+    for class_name in sorted(os.listdir(pool)):
+        class_path = os.path.join(pool, class_name)
         if not os.path.isdir(class_path):
             continue
-        for sample_name in os.listdir(class_path):
+        for sample_name in sorted(os.listdir(class_path)):
             full_sample_path = os.path.join(class_path, sample_name)
             all_samples.append((class_name, sample_name, full_sample_path))
 
-    # Sample across all classes
+
     chosen = random.sample(all_samples, min(n, len(all_samples)))
 
     labels = []
     for class_name, sample_name, src in chosen:
-        dst_class_path = os.path.join(FORGET_ROOT, class_name)
+        dst_class_path = os.path.join(root, class_name)
         os.makedirs(dst_class_path, exist_ok=True)
         dst = os.path.join(dst_class_path, sample_name)
         os.symlink(os.path.abspath(src), dst)
         labels.append(class_name)
 
     # Write labels to a file
-    with open(label_output_path, "w") as f:
-        for label in labels:
-            f.write(f"{label}\n")
+    if create_labels:
+        with open(label_output_path, "w") as f:
+            for label in labels:
+                f.write(f"{label}\n")
 
 
 
 def save_forget_images(output_dir="forget_previews", n=1, max_cols=8, dpi=300):
     os.makedirs(output_dir, exist_ok=True)
     images = []
-    for folder_name in os.listdir(FORGET_ROOT):
+    for folder_name in sorted(os.listdir(FORGET_ROOT)):
         folder_path = os.path.join(FORGET_ROOT, folder_name)
         if not os.path.isdir(folder_path):
             continue
@@ -88,16 +97,24 @@ def save_forget_images(output_dir="forget_previews", n=1, max_cols=8, dpi=300):
 
 
 
-def main(n, label_output_path):
-    create_symlinks(n, label_output_path)
+def main(n_forget, n_retain, label_output_path):
+    reset_forget_folder()
+    create_symlinks(FORGET_POOL, FORGET_ROOT, n_forget, label_output_path, create_labels=True)
 
-    if not os.path.exists(f"forget_previews/forget_{n}.png"):
-        save_forget_images(n=n)
+    reset_retain_folder()
+    if n_retain > 0:
+        create_symlinks(RETAIN_POOL, RETAIN_ROOT, n_retain)
+    else:
+        pass
+
+    if not os.path.exists(f"forget_previews/forget_{n_forget}.png"):
+        save_forget_images(n=n_forget)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--n", type=int, required=True)
+    parser.add_argument("--n_forget", type=int, required=True)
+    parser.add_argument("--n_retain", type=int, required=True)
     parser.add_argument("--label_output_path", type=str, default="labels.txt")
     args = parser.parse_args()
 
-    main(n=args.n, label_output_path=args.label_output_path)
+    main(n_forget=args.n_forget, n_retain=args.n_retain, label_output_path=args.label_output_path)

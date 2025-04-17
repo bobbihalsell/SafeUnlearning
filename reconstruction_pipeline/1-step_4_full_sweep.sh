@@ -1,0 +1,1 @@
+python reconstruction_pipeline/step_3_run_experiment.py samples=1,2,4,8,16,32 epochs=1,2,3,4 verbose=False method=neggrad seed=0,1,2,3

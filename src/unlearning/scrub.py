@@ -204,9 +204,6 @@ class SCRUB(BaseUnlearner):
         Returns:
             Tuple of (unlearned_model, logs)
         """
-        if ('retain' not in data_dict.keys() or
-                'forget' not in data_dict.keys()):
-            raise KeyError("forget and retain data must be in data_dict.")
         model.to(self.device)
         unlearned_model, scheduler = self._setup_unlearning(
             model,

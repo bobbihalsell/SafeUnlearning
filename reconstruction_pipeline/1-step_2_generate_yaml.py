@@ -14,7 +14,7 @@ output_dir: ./artifacts
 
         "src/unlearning/config/dataset/cifar10_exp.yaml": """
 name: cifar10
-save_path: ./data/forget
+save_path: ./data
 cfg:
   batch_sizes:
     retain: 32
@@ -61,7 +61,7 @@ model_name: resnet18
 dataset_name: cifar10
 labels: ???  # Set at runtime
 num_classes: 10
-data_root: ./data
+data_root: ./data/forget/
 """
     }
 
@@ -78,6 +78,11 @@ if __name__ == "__main__":
         if not os.path.exists("./forget_pool"):
                 os.rename("./data/forget", "./data/forget_pool")
                 shutil.move("./data/forget_pool", "./")
+        
+        if not os.path.exists("./retain_pool"):
+                os.rename("./data/retain", "./data/retain_pool")
+                shutil.move("./data/retain_pool", "./")
+
 
         create_base_yaml()
     
