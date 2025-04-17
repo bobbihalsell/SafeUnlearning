@@ -287,7 +287,7 @@ class InverseGradReconstructor():
                 if self.config.lr_decay:
                     scheduler.step()
 
-                    if (iteration + 1 == recon_iterations) or iteration % 500 == 0 and self.verbose:
+                    if (iteration + 1 == recon_iterations or iteration % 500 == 0) and self.verbose:
                         print(f'It: {iteration}. Rec. loss: {rec_loss.item():2.4f}.')
 
                     if (iteration + 1) % 500 == 0:
