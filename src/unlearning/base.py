@@ -174,7 +174,7 @@ class BaseUnlearner:
             verbose (bool): Whether to print the results
 
         Returns:
-            self.losses (dict): A dictionary of losses during the unlearning
+            self.logs (dict): A dictionary of losses during the unlearning
             job.
         """
         model.eval()
@@ -184,10 +184,10 @@ class BaseUnlearner:
             loader_loss, loader_acc = self._evaluate(model,
                                                      loader)
 
-            self.losses[f"{data_type}"].append(loader_loss)
-            self.losses[f"{data_type}_acc"].append(loader_acc)
+            self.logs[f"{data_type}"].append(loader_loss)
+            self.logs[f"{data_type}_acc"].append(loader_acc)
             elapsed = time.time() - start_eval_time
-            self.losses[f"{data_type}_time"].append(elapsed)
+            self.logs[f"{data_type}_time"].append(elapsed)
             if verbose:
                 print(f'{data_type.capitalize()} Loss: {loader_loss:.4f} '
                       f'Acc: {loader_acc:.2f}%. '
@@ -198,18 +198,18 @@ class BaseUnlearner:
         if self.wandb_enabled:
             self._log_metrics_in_wandb(
                 epoch=epoch,
-                retain_loss=self.losses['retain'][-1],
-                retain_acc=self.losses['retain_acc'][-1],
-                retain_time=self.losses['retain_time'][-1],
-                forget_loss=self.losses['forget'][-1],
-                forget_acc=self.losses['forget_acc'][-1],
-                forget_time=self.losses['forget_time'][-1],
-                val_loss=self.losses['val'][-1],
-                val_acc=self.losses['val_acc'][-1],
-                val_time=self.losses['val_time'][-1],
+                retain_loss=self.logs['retain'][-1],
+                retain_acc=self.logs['retain_acc'][-1],
+                retain_time=self.logs['retain_time'][-1],
+                forget_loss=self.logs['forget'][-1],
+                forget_acc=self.logs['forget_acc'][-1],
+                forget_time=self.logs['forget_time'][-1],
+                val_loss=self.logs['val'][-1],
+                val_acc=self.logs['val_acc'][-1],
+                val_time=self.logs['val_time'][-1],
             )
 
-        return self.losses
+        return self.logs
 
     def _setup_unlearning(self, model, data_dict, **kwargs):
         """ Setup unlearned model, losses dictionary, optimizer, scheduler."""
@@ -220,11 +220,11 @@ class BaseUnlearner:
         self.extract_hyperparameters(**kwargs)
 
         # Initialize loss and accuracy tracking
-        self.losses = {f"{data_type}": [] for data_type in data_dict.keys()}
-        self.losses.update({
+        self.logs = {f"{data_type}": [] for data_type in data_dict.keys()}
+        self.logs.update({
             f"{data_type}_acc": [] for data_type in data_dict.keys()
         })
-        self.losses.update({
+        self.logs.update({
             f"{data_type}_time": [] for data_type in data_dict.keys()
         })
         self._eval_initial_model(model,
@@ -255,8 +255,8 @@ class BaseUnlearner:
                     f'Initial {data_type.capitalize()} Acc': split_acc
                 })
 
-            self.losses[data_type].append(split_loss)
-            self.losses[f"{data_type}_acc"].append(split_acc)
+            self.logs[data_type].append(split_loss)
+            self.logs[f"{data_type}_acc"].append(split_acc)
 
             if verbose:
                 print(f'Initial {data_type.capitalize()} Loss: '

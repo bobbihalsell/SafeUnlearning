@@ -111,7 +111,7 @@ class NegGrad(BaseUnlearner):
             if scheduler is not None:
                 scheduler.step()
 
-        return unlearned_model, self.losses
+        return unlearned_model, self.logs
 
 
 class NegGradPlus(BaseUnlearner):
@@ -278,4 +278,4 @@ class NegGradPlus(BaseUnlearner):
             if scheduler is not None:
                 scheduler.step()
 
-        return unlearned_model, self.losses
+        return unlearned_model, self.logs
