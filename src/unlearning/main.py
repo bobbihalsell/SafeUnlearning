@@ -188,7 +188,8 @@ def main(cfg: DictConfig):
         wandb.init(
             project=app.wandb_config['project_name'],
             id=app.wandb_config['run_id'],
-            config=OmegaConf.to_container(cfg, resolve=True)
+            config=OmegaConf.to_container(cfg, resolve=True),
+            resume='never'  # Always make sure the unlearning run ID is new
         )
         app.wandb_enabled = True
     else:
