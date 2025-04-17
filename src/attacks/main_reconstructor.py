@@ -189,7 +189,7 @@ class ReconstructorApp(InputValidator):
         start_time = time.time()
         print(self.reconstructor_name)
         if self.reconstructor_name == 'ggl':
-            z_res, reconstruction, losses = reconstructor.reconstruct()
+            z_res, reconstruction, losses = reconstructor.reconstruct(**self.unlearner_params)
         elif self.reconstructor_name == 'inversegrad':
             reconstruction, losses = reconstructor.reconstruct(labels = self.labels,
                                                                num_images = self.reconstructor_params['num_images'],

@@ -27,6 +27,12 @@ class InputValidator:
         self.reconstructor_lr = config['reconstructor']['lr']
         self.reconstructor_params = config['reconstructor']['cfg']
 
+
+        if 'unlearner' in config['reconstructor']:
+            self.unlearner_params = config['reconstructor']['unlearner']
+        else:
+            self.unlearner_params = {}
+
         self.wandb_project = config['wandb']['project']
         self.extra_config = self.wandb.get('extra_config', {})
 
@@ -63,9 +69,8 @@ class InputValidator:
         # Add specific parameters based on unlearner type
         elif self.reconstructor_name == 'ggl':
             # Check for required SCRUB-specific parameters
-            required_ggl_params = ['num_updates', 'unlearning_method',
-                                     'alpha', 'gamma', 'min_epochs',
-                                     'max_epochs', 'batch_size',
+            required_ggl_params = ['num_updates', 'unlearning_method', 
+                                     'batch_size',
                                      'loss_models', 'budget',
                                      'search_dim', 'use_tanh', 
                                      'gp_optim', 'use_scheduler', 

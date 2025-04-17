@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 
 class GGLReconstructor():
-    def __init__(self, original_model, target_model, loss_fn, search_dim=128, use_tanh=False, budget=500, loss_models='l1', unlearning_method='neggrad', num_classes=1000, num_updates=None, lr=0.01,  alpha=None, gamma=None, min_epochs=None, max_epochs=None, labels=None, exp_name='ggl', initial_z=None, batch_size=1, gp_optim="AdamW", use_scheduler=False, initial_lr=1, weight_decay=0, use_l2_penalty=False, scrub_optim='sgd', momentum=0, lr_decay_factor=None, epochs_per_lr_decay=None):
+    def __init__(self, original_model, target_model, loss_fn, search_dim=128, use_tanh=False, budget=500, loss_models='l1', unlearning_method='neggrad', num_classes=1000, num_updates=None, lr=0.01,  labels=None, exp_name='ggl', initial_z_path=None, batch_size=1, gp_optim="AdamW", use_scheduler=False, initial_lr=1):
         """
         original_model: The original model (pre-update).
         target_model: The target model (unlearned model).
@@ -36,31 +36,22 @@ class GGLReconstructor():
         self.num_classes = num_classes
         self.num_updates = num_updates
         self.lr = lr
+        self.batch_size=batch_size
         self.search_dim = search_dim
         self.use_tanh = use_tanh
         self.budget = budget
         self.type = loss_models
         self.unlearning_method = unlearning_method
-        self.alpha = alpha 
-        self.gamma = gamma
-        self.min_epochs = min_epochs
-        self.max_epochs = max_epochs
         self.label = labels
         self.exp_name = exp_name
-        self.initial_z_path = initial_z
+        self.initial_z_path = initial_z_path
         self.gp_optim = gp_optim
         self.use_scheduler=use_scheduler
         self.initial_lr=initial_lr
-        self.weight_decay=weight_decay
-        self.use_l2_penalty=use_l2_penalty
-        self.scrub_optim=scrub_optim
-        self.momentum=momentum
-        self.lr_decay_factor=lr_decay_factor
-        self.epochs_per_lr_decay=epochs_per_lr_decay
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-    def evaluate_loss(self, z, labels, loss_type=None, steps=None):
+    def evaluate_loss(self, z, labels, loss_type=None, steps=None, **kwargs):
         """
         Evaluates thee loss for the given latent vector z.
         """
@@ -75,7 +66,7 @@ class GGLReconstructor():
             recon = self.perform_sgd_updates(generated_image, labels, recon, steps=steps)
 
         if self.unlearning_method == 'scrub':
-            recon = self.perform_scrub_updates(generated_image, labels, recon, steps=steps)
+            recon = self.perform_scrub_updates(generated_image, labels, recon, steps=steps, **kwargs)
 
         if loss_type == 'interpolated':
             # Calculate interpolated loss
@@ -84,7 +75,7 @@ class GGLReconstructor():
             if self.unlearning_method == 'neggrad':
                 recon_1 = self.perform_sgd_updates(generated_image, labels, recon_1, steps=1)
             if self.unlearning_method == 'scrub':
-                recon_1 = self.perform_scrub_updates(generated_image, labels, recon_1,  steps=1)
+                recon_1 = self.perform_scrub_updates(generated_image, labels, recon_1,  steps=1, **kwargs)
 
             # Interpolate between original and unlearned model
             interp_model = self.interpolate_models(self.original_model, self.target_model, alpha=0.5)
@@ -146,7 +137,7 @@ class GGLReconstructor():
             diff += torch.sum(abs(p1 - p2))  # L1 norm of the difference
         return diff.item()
     
-    def perform_scrub_updates(self, generated_image, labels, original_model, verbose=True, steps=None):
+    def perform_scrub_updates(self, generated_image, labels, original_model, verbose=True, steps=None, **kwargs):
         """
         Perform scrub updates to mimic the unlearning process.
         """
@@ -175,6 +166,7 @@ class GGLReconstructor():
         )
 
         # Save values needed for scrub
+        """
         kwargs = {
             'alpha': self.alpha,
             'gamma': self.gamma,
@@ -189,13 +181,14 @@ class GGLReconstructor():
             'lr_decay_factor': self.lr_decay_factor, 
             'epochs_per_lr_decay': self.epochs_per_lr_decay
 
-        }
+        }"""
 
         # Run the unlearning process
         unlearned_model, losses = scrub.unlearn(
             model=original_model,
             data_dict=forget_dict,
             verbose=verbose,
+            lr=self.lr,
             **kwargs
         )
 
@@ -207,7 +200,7 @@ class GGLReconstructor():
         """
         if steps is None:
             steps = self.num_updates
-        optimizer = optim.SGD(updated_model_attacker.parameters(), lr=0.001)
+        optimizer = optim.SGD(updated_model_attacker.parameters(), lr=self.lr)
         for _ in range(steps):
             optimizer.zero_grad()
             pred = updated_model_attacker(generated_image)
@@ -256,11 +249,17 @@ class GGLReconstructor():
         return generated_image
 
 
-    def reconstruct(self, initial_z=None):
+    def reconstruct(self, **kwargs):
         """
         Optimize the latent vector z using Turbo Bayesian Optimization.
         If `initial_z` is provided, it starts from there instead of a random initialization.
         """
+        if self.initial_z_path is not None:
+            z = np.load(self.initial_z_path)
+            initial_z = torch.from_numpy(z).float().to(self.device)  
+        else:
+            initial_z = None
+
         # It is always assumed that reconstruction is for a single image
         label = self.label[0] 
 
@@ -282,7 +281,7 @@ class GGLReconstructor():
         labels = labels.to(self.device)
 
         # Define the objective function
-        f = lambda z: self.evaluate_loss(z, labels, loss_type=self.type)  
+        f = lambda z: self.evaluate_loss(z, labels, loss_type=self.type, **kwargs)  
 
         # Define search space
         z_lb = -2 * np.ones(self.search_dim)
