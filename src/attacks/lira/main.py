@@ -3,6 +3,7 @@ from pathlib import Path
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
+from omegaconf.errors import MissingMandatoryValue
 
 from attacks.lira.compute_lira import run as lira_score
 from attacks.lira.config_validation import LiRAValidator
@@ -53,3 +54,25 @@ class LiRAApp:
         self.train_test_models()
         self.unlearn_models()
         self.get_scores()
+
+
+@hydra.main(version_base=None,
+            config_path="config",
+            config_name="config")
+def main(cfg: DictConfig):
+    # Print the config for the user first
+    print('============ Run Configuration ============')
+    print(OmegaConf.to_yaml(cfg))
+    print('============================================')
+    missing_keys = OmegaConf.missing_keys(cfg)
+    if missing_keys:
+        raise MissingMandatoryValue(
+            'Missing the following required arguments in the configuration: '
+            f'{missing_keys}. \n'
+            'Hint: python file.py key=value sets the appropriate value.')
+    app = LiRAApp(cfg)
+    app.run()
+
+
+if __name__ == '__main__':
+    main()

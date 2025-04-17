@@ -71,7 +71,7 @@ def run(config, unlearner, root, save_path):
                 )
             unlearned_model = app.run(loaders, model_ckpt_path)
             torch.save(
-                unlearned_model.state_dict(),
+                {"model_state_dict": unlearned_model.state_dict()},
                 root
                 / save_path
                 / "models"

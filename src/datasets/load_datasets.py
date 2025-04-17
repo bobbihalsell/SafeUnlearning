@@ -33,7 +33,7 @@ def load_train_val_test_datasets(dataset_name: str,
                                  proportion: float,
                                  val_ratio: float,
                                  dataset_load_dir: str,
-                                 dataset_save_dir: str,
+                                 dataset_save_dir: str = "",
                                  transform: torchvision.transforms = None):
     """ Load, optionally filter, and save dataset in ImageFolder format. """
 
@@ -104,16 +104,17 @@ def load_train_val_test_datasets(dataset_name: str,
                                                              1 - val_ratio)
 
     # Save datasets to ImageFolder format
-    _save_as_imagefolder(raw_train_subset,
-                         root_path=dataset_save_dir,
-                         name='train')
-    _save_as_imagefolder(raw_val_subset,
-                         root_path=dataset_save_dir,
-                         name='val')
-    if raw_test is not None:
-        _save_as_imagefolder(raw_test,
-                             root_path=dataset_save_dir,
-                             name='test')
+    if dataset_save_dir:
+        _save_as_imagefolder(raw_train_subset,
+                            root_path=dataset_save_dir,
+                            name='train')
+        _save_as_imagefolder(raw_val_subset,
+                            root_path=dataset_save_dir,
+                            name='val')
+        if raw_test is not None:
+            _save_as_imagefolder(raw_test,
+                                root_path=dataset_save_dir,
+                                name='test')
 
     return raw_train_subset, raw_val_subset, raw_test
 

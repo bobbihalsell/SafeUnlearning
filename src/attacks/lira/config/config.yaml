@@ -1,0 +1,9 @@
+attack:
+  name: lira
+  cfg:
+    num_splits: 10
+    num_forgets: 5
+
+exp_name: lira_test_config
+seed: 42
+device: cuda
