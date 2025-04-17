@@ -247,8 +247,8 @@ class InverseGradReconstructor():
             if self.config.optim == 'adam':
                 optimizer = torch.optim.Adam([x_trial, labels], lr=self.lr)
             elif self.config.optim == 'sgd': 
-                optimizer = torch.optim.SGD([x_trial, labels], lr = self.lr, momentum=0.9, nesterov=True)
-            elif self.config.optim== 'LBFGS':
+                optimizer = torch.optim.SGD([x_trial, labels], lr=self.lr, momentum=0.9, nesterov=True)
+            elif self.config.optim == 'LBFGS':
                 optimizer = torch.optim.LBFGS([x_trial, labels])
             elif self.config.optim == 'adamw':
                 optimizer = torch.optim.AdamW([x_trial, labels], lr=self.lr)
@@ -260,8 +260,8 @@ class InverseGradReconstructor():
             if self.config.optim == 'adam':
                 optimizer = torch.optim.Adam([x_trial], lr=self.lr)
             elif self.config.optim == 'sgd':  
-                optimizer = torch.optim.SGD([x_trial], lr = self.lr, momentum=0.9, nesterov=True)
-            elif self.config.optim== 'LBFGS':
+                optimizer = torch.optim.SGD([x_trial], lr=self.lr, momentum=0.9, nesterov=True)
+            elif self.config.optim == 'LBFGS':
                 optimizer = torch.optim.LBFGS([x_trial])
             elif self.config.optim == 'adamw':
                 optimizer = torch.optim.AdamW([x_trial, labels], lr=self.lr)
@@ -280,14 +280,14 @@ class InverseGradReconstructor():
             for iteration in range(recon_iterations):
 
                 if self.config.boxed:
-                    x_trial.data  = torch.clamp(x_trial.data, 0, 1)
+                    x_trial.data = torch.clamp(x_trial.data, 0, 1)
 
                 closure = self._gradient_closure(optimizer, x_trial, input_data, labels)
                 rec_loss = optimizer.step(closure)
                 if self.config.lr_decay:
                     scheduler.step()
 
-                    if (iteration + 1 == recon_iterations) or iteration % 500 == 0 and self.verbose:
+                    if (iteration + 1 == recon_iterations or iteration % 500 == 0) and self.verbose:
                         print(f'It: {iteration}. Rec. loss: {rec_loss.item():2.4f}.')
 
                     if (iteration + 1) % 500 == 0:
@@ -302,14 +302,14 @@ class InverseGradReconstructor():
 
         return x_trial.detach(), labels
 
-    def _gradient_closure(self, 
-                          optimizer, 
-                          x_trial, 
-                          input_gradient, 
+    def _gradient_closure(self,
+                          optimizer,
+                          x_trial,
+                          input_gradient,
                           label):
         """
-        Closure function for the optimizer. This function computes the loss and gradients
-        for the current trial.
+        Closure function for the optimizer. This function computes the loss and 
+        gradients for the current trial.
         Args:
             optimizer (torch.optim.Optimizer): Optimizer for the trial.
             x_trial (torch.Tensor): Input image for the trial.
@@ -325,7 +325,7 @@ class InverseGradReconstructor():
             self.original_model.zero_grad()
 
             loss_ce = self.loss_fn_ce(self.original_model(self.normalizer(x_trial)), label)
-            loss_kl = self.loss_fn(self.original_model(self.normalizer(x_trial)), self.model_copy(self.normalizer(x_trial.to)))
+            loss_kl = self.loss_fn(self.original_model(self.normalizer(x_trial)), self.model_copy(self.normalizer(x_trial)))
 
             # Combine the losses
             loss = loss_ce + loss_kl
@@ -336,7 +336,7 @@ class InverseGradReconstructor():
                                             weights=self.config.weights)
             
             # Add total variation regularization if specified
-            if self.config.total_variation> 0:
+            if self.config.total_variation > 0:
                 rec_loss += self.config.total_variation * total_variation(x_trial)
 
             rec_loss.backward()
@@ -381,11 +381,13 @@ class InverseGradReconstructor():
             return 0.0
         
         else:
-            raise ValueError("Not a valid scoring choice. Choose from ['loss', 'tv', 'pixelmean', 'pixelmedian']")
+            raise ValueError("Not a valid scoring choice. Choose from ['loss'," \
+            " 'tv', 'pixelmean', 'pixelmedian']")
 
     def _average_trials(self, x, labels, input_data, stats):
         """
-        Average the trials and compute the optimal result based on the specified scoring choice. 
+        Average the trials and compute the optimal result based on the 
+        specified scoring choice. 
         
         Args:
             x (torch.Tensor): Input images for the trials.
@@ -429,13 +431,14 @@ class DistillKL(nn.Module):
     """
     Kullback-Leibler Divergence Loss for Distillation.
     This class implements the Kullback-Leibler divergence loss function
-    for distillation, as described in the paper "Distilling the Knowledge in a Neural Network"
+    for distillation, as described in the paper "Distilling the Knowledge 
+    in a Neural Network"
     https://arxiv.org/pdf/1503.02531).
 
     Higher temperatures lead to softer probability distributions.
     
     Args:
-        T (float): Temperature parameter for scaling the logits. 
+        T (float): Temperature parameter for scaling the logits.
     """
 
     def __init__(self, T):

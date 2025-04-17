@@ -91,7 +91,7 @@ class ReconstructorApp(InputValidator):
             model = self.initialize_model()
             # Load state dict
             checkpoint = torch.load(model_path, map_location=self.device)
-            checkpoint = checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint
+            checkpoint = checkpoint["model_state_dict"] if "model_state_dict" in checkpoint else checkpoint
             model.load_state_dict(checkpoint)
             model = model.to(self.device)
             print(f"Loaded model from {model_path}")
@@ -137,7 +137,8 @@ class ReconstructorApp(InputValidator):
                 device = self.device,
                 original_model = original_model,
                 unlearned_model = unlearned_model,
-                config = safe_dataclass_load(InverseGradConfig, self.reconstructor_params)
+                config = safe_dataclass_load(InverseGradConfig, self.reconstructor_params),
+                seed = self.seed
             )
         else:
             raise ValueError(f'reconstructor {self.reconstructor_name}'
@@ -168,16 +169,17 @@ class ReconstructorApp(InputValidator):
         original_model = self.load_model_from_disk(self.original_weights)
 
         # Step 3: Initialize wandb
-        config = self.reconstructor_params.copy() 
-        config['type'] = self.reconstructor_name
-        config['reconstructor_lr'] = self.reconstructor_lr  
-        config.update(self.extra_config)
-        
-        wandb.init(
-            project = self.wandb_project,
-            config = config,
-            group = self.experiment_name
-            )
+        if self.wandb_enabled:
+            config = self.reconstructor_params.copy() 
+            config['type'] = self.reconstructor_name
+            config['reconstructor_lr'] = self.reconstructor_lr  
+            config.update(self.extra_config)
+            
+            wandb.init(
+                project = self.wandb_project,
+                config = config,
+                group = self.experiment_name
+                )
         
 
         # Step 4: Reconstruction
@@ -199,9 +201,9 @@ class ReconstructorApp(InputValidator):
                                                             lr= self.reconstructor_lr,
                                                             verbose=self.verbose)
         total_time = time.time() - start_time
-        if self.verbose:
-            print(f"Reconstruction completed in {total_time:.2f} seconds")
-            print(f"Reconstruction Losses: {losses}")
+
+        print(f"Reconstruction completed in {total_time:.2f} seconds")
+        print(f"Reconstruction Losses: {losses}")
 
 
         # # Step 5: Save the reconstructed image
@@ -216,21 +218,22 @@ class ReconstructorApp(InputValidator):
 
 
         # # Step 7: Save metrics
-        table = wandb.Table(columns=["img_id", "psnr", "best_ref_index"])
-        for i, (p, idx) in enumerate(psnr_value):
-            table.add_data(i, p, idx)
+        if self.wandb_enabled:
+            table = wandb.Table(columns=["img_id", "psnr", "best_ref_index"])
+            for i, (p, idx) in enumerate(psnr_value):
+                table.add_data(i, p, idx)
 
-        psnr_max = max([p for p, _ in psnr_value])
+            psnr_max = max([p for p, _ in psnr_value])
 
-        wandb.log({
-            'reconstruction_time': total_time,
-            'losses': losses,
-            'reconstruction': wandb.Image(reconstruction),
-            'psnr_table': table,
-            'max_psnr': psnr_max,
-            'mse_image_space': mse_value
-        })
-        wandb.finish()
+            wandb.log({
+                'reconstruction_time': total_time,
+                'losses': losses,
+                'reconstruction': wandb.Image(reconstruction),
+                'psnr_table': table,
+                'max_psnr': psnr_max,
+                'mse_image_space': mse_value
+            })
+            wandb.finish()
         
 @hydra.main(version_base=None,
             config_path="config",
@@ -253,4 +256,4 @@ if __name__ == '__main__':
     main()
 
     # Run pip install -e .
-    # Run python src/attacks/main_reconstructor.py experiment=reconstruction dataset=cifar10 reconstructor=inversegrad 
+    # Run python src/attacks/main_reconstructor.py data=cifar10 reconstructor=inversegrad
