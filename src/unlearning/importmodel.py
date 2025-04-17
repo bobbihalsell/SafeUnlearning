@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 from unlearning.utils import ConfigError
 from train.utils import setup_device
 import os
@@ -153,21 +154,21 @@ class ImportModel:
                 print('Replacing default ImageNet classification head.')
                 # Adjust the last layer based on model type
                 if hasattr(self.model, "fc"):  # ResNet-style
-                    self.model.fc = torch.nn.Linear(
+                    self.model.fc = nn.Linear(
                         self.model.fc.in_features, self.num_classes
                     )
                 elif hasattr(self.model, "classifier"):
                     # e.g MobileNet, EfficientNet, VGG, DenseNet
-                    if isinstance(self.model.classifier, torch.nn.Sequential):
+                    if isinstance(self.model.classifier, nn.Sequential):
                         # Handle cases like MobileNet where
                         # classifier is Sequential
                         last_layer_idx = len(self.model.classifier) - 1
-                        self.model.classifier[last_layer_idx] = torch.nn.Linear(
+                        self.model.classifier[last_layer_idx] = nn.Linear(
                             self.model.classifier[last_layer_idx].in_features,
                             self.num_classes
                         )
                     else:
-                        self.model.classifier = torch.nn.Linear(
+                        self.model.classifier = nn.Linear(
                             self.model.classifier.in_features, self.num_classes
                         )
                 else:
@@ -194,25 +195,36 @@ class ImportModel:
             if not os.path.exists(self.model_ckpt_path):
                 raise ConfigError(
                     f"Weight file not found: {self.model_ckpt_path}"
-                    )
+                )
 
-            # Load checkpoint and handle different formats
-            checkpoint = torch.load(self.model_ckpt_path,
-                                    map_location=self.device)
+            # Load checkpoint
+            checkpoint = torch.load(
+                self.model_ckpt_path, 
+                map_location=self.device
+                )
 
-            # Extract state dict
-            if (
-                isinstance(checkpoint, dict)
-                and 'model_state_dict' in checkpoint
-            ):
-                state_dict = checkpoint['model_state_dict']
-                print("Found model_state_dict key in checkpoint")
+            # Extract state dict smartly
+            if isinstance(checkpoint, dict):
+                if 'model_state_dict' in checkpoint:
+                    state_dict = checkpoint['model_state_dict']
+                    print("Found 'model_state_dict' key in checkpoint.")
+                elif 'state_dict' in checkpoint:
+                    state_dict = checkpoint['state_dict']
+                    print("Found 'state_dict' key in checkpoint.")
+                else:
+                    state_dict = checkpoint
+                    print("Checkpoint looks like a pure state dict.")
             else:
                 state_dict = checkpoint
-                print("Using checkpoint directly as state dict")
+                print("Checkpoint is not a dict, using directly.")
+
             # Load the state dict
             self.model.load_state_dict(state_dict)
             print(f"Successfully loaded weights from {self.model_ckpt_path}")
 
         except Exception as e:
             raise ConfigError(f"Failed to load weights: {str(e)}")
+
+        
+        
+

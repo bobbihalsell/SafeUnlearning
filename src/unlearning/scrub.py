@@ -30,7 +30,8 @@ class SCRUB(BaseUnlearner):
         Args:
             device: Computing device (CPU/GPU) to use for computations.
                    If None, will be automatically determined.
-            evaluate: Whether to track and return evaluation metrics during unlearning.
+            evaluate: Whether to track and return evaluation metrics during 
+                unlearning.
         """
         super().__init__(device, evaluate, wandb_enabled)
         # Following authors' specification
@@ -41,7 +42,8 @@ class SCRUB(BaseUnlearner):
                        model2_logits: torch.Tensor
                        ) -> torch.Tensor:
         """
-        Calculate the Kullback-Leibler divergence between outputs of two models.
+        Calculate the Kullback-Leibler divergence between the outputs of 
+        two models.
 
         Args:
             model1_logits: Logits (pre-softmax outputs) from the first model
@@ -108,8 +110,9 @@ class SCRUB(BaseUnlearner):
         Nr = len(original_out)
         retain_kl = self._kl_divergence(original_out, unl_out)
         retain_ce = self.criterion(unl_out, true_y)
+        weighted_loss = (self.alpha * retain_kl)/Nr + self.gamma * retain_ce
 
-        return (self.alpha * retain_kl)/Nr + self.gamma * retain_ce, retain_kl, retain_ce
+        return weighted_loss, retain_kl, retain_ce
 
     def max_epoch(self, model, unlearned_model,
                   forget_loader, step=True):
@@ -121,7 +124,8 @@ class SCRUB(BaseUnlearner):
         Args:
             forget_loader: The forget DataLoader
             optimizer: Optimizer for updating model parameters
-            step: Whether to perform optimization step (True) or just compute loss (False)
+            step: Whether to perform optimization step (True) or just compute 
+            loss (False)
 
         Returns:
             Average KL loss across all batches

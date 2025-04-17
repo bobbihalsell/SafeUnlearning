@@ -1,25 +1,27 @@
 import torch
 import torch.nn as nn
-import copy
 from unlearning.utils import l2_penalty
 from unlearning.base import BaseUnlearner
 from typing import Dict
 from torch.utils.data import DataLoader
 import time
 
+
 class SGRU(BaseUnlearner):
     """
     Subspace Gradient Redirection Unlearning (SGRU) for machine unlearning.
     
-    SGRU identifies principal gradient directions associated with the forget dataset
-    and redirects gradients from the retain dataset away from these directions during
-    fine-tuning. By projecting gradients orthogonally to the forget subspace, the model
-    learns to preserve knowledge from retain data while systematically unlearning 
-    patterns specific to the forget data.
+    SGRU identifies principal gradient directions associated with the forget 
+    dataset and redirects gradients from the retain dataset away from these 
+    directions during fine-tuning. By projecting gradients orthogonally to the 
+    forget subspace, the model learns to preserve knowledge from retain data 
+    while systematically unlearning  patterns specific to the forget data.
     
     This method:
-    1. Identifies the principal components of gradients on forget data using SVD
-    2. Projects retain data gradients away from these directions during training
+    1. Identifies the principal components of gradients on forget data using 
+        SVD
+    2. Projects retain data gradients away from these directions during 
+        training
     3. Periodically recalculates the forget subspace for optimal unlearning
     """
     def __init__(self, 
@@ -33,7 +35,8 @@ class SGRU(BaseUnlearner):
         Args:
             device: Computing device (CPU/GPU) to use for computations.
                    If None, will be automatically determined.
-            evaluate: Whether to track and return evaluation metrics during unlearning.
+            evaluate: Whether to track and return evaluation metrics during 
+                unlearning.
         """
         super().__init__(device, evaluate, wandb_enabled)
         self.criterion = nn.CrossEntropyLoss()
@@ -48,11 +51,13 @@ class SGRU(BaseUnlearner):
 
         Args:
             model: The original model to perform unlearning on.
-            data_dict: Dictionary of dataloaders, must include both 'retain' and 'forget' keys
-                    with the respective datasets. Other keys (e.g., 'test') will
+            data_dict: Dictionary of dataloaders, must include both 'retain' 
+                    and 'forget' keys with the respective datasets. Other keys 
+                    (e.g., 'test') will
                     be used for evaluation if self.evaluate is True.
             verbose: Whether to print progress during unlearning.
-            save_checkpoint: Whether to save model checkpoints during unlearning.
+            save_checkpoint: Whether to save model checkpoints during 
+                unlearning.
             save_freq: Frequency (in epochs) for saving checkpoints.
             save_path: Directory to save checkpoints.
             **kwargs: Additional arguments including:
@@ -60,16 +65,17 @@ class SGRU(BaseUnlearner):
                 - num_epochs: Number of training epochs (default: 1).
                 - lr: Learning rate (default: 1e-2).
                 - weight_decay: Weight decay parameter (default: 0).
-                - use_l2_penalty: Whether to add L2 regularization (default: False).
-                - recalc_freq: Frequency to recalculate forget subspace (default: 1).
-                - num_components: Number of principal components to use (default: 10).
-                - redirection_strength: Lambda value for gradient deflection (default: 1.0).
-                - max_grad_norm: Maximum gradient norm for clipping (default: 1.0).
+                - use_l2_penalty: Whether to add L2 regularization 
+                    (default: False).
+                - recalc_freq: Frequency to recalculate forget subspace 
+                - num_components: Number of principal components to use 
+                - redirection_strength: Lambda value for gradient deflection 
+                - max_grad_norm: Maximum gradient norm for clipping 
 
         Returns:
             If self.evaluate is True:
-                Tuple of (unlearned_model, losses_dict) where losses_dict contains
-                tracked losses for each dataset type.
+                Tuple of (unlearned_model, losses_dict) where losses_dict 
+                contains tracked losses for each dataset type.
             Otherwise:
                 The unlearned model.
 
@@ -95,8 +101,7 @@ class SGRU(BaseUnlearner):
 
         # Ensure required data is available
         if ('retain' not in data_dict.keys() 
-            or 'forget' not in data_dict.keys()
-            ):
+           or 'forget' not in data_dict.keys()):
             raise ValueError(
                 "'retain' and 'forget' data must be in data_dict."
                 )
@@ -174,7 +179,8 @@ class SGRU(BaseUnlearner):
                         if k > 0:
                             try:
                                 if grad_matrix.size(0) == grad_matrix.size(1):
-                                    # Add a small value to diagonal for stability
+                                    # Add a small value to diagonal for 
+                                    # numerical stability
                                     epsilon = 1e-8
                                     reg_matrix = grad_matrix + torch.eye(
                                                     grad_matrix.size(0), 
@@ -242,7 +248,7 @@ class SGRU(BaseUnlearner):
                             
                             # Collect current gradients for this group
                             group_grads = []
-                            param_shapes = [] # Ror reshaping later
+                            param_shapes = []  # Ror reshaping later
                             for _, param in params:
                                 if param.grad is not None:
                                     group_grads.append(param.grad.view(-1))
@@ -268,7 +274,7 @@ class SGRU(BaseUnlearner):
                             start_idx = 0
                             for i, (_, param) in enumerate(params):
                                 if (param.grad is not None 
-                                    and i < len(param_shapes)):
+                                   and i < len(param_shapes)):
                                     num_params = param.numel()
                                     end_idx = start_idx + num_params
                                     param_grad = flat_grad[start_idx:end_idx]
@@ -284,23 +290,23 @@ class SGRU(BaseUnlearner):
 
                 self.optimizer.step()
 
-                forward_pass_elapsed = time.time() - epoch_start_time
-                if self.wandb_enabled:
-                    self._log_forward_pass_time_in_wandb(
-                        epoch=e+1,
-                        time=forward_pass_elapsed
-                        )
-                if verbose:
-                    self._print_forward_pass_metrics(e, forward_pass_elapsed)
-                if self.evaluate:
-                    self._evaluate_all_splits(
-                        model=unlearned_model,
-                        data_dict=data_dict,
-                        epoch=e+1,
-                        verbose=verbose
+            forward_pass_elapsed = time.time() - epoch_start_time
+            if self.wandb_enabled:
+                self._log_forward_pass_time_in_wandb(
+                    epoch=e+1,
+                    time=forward_pass_elapsed
                     )
+            if verbose:
+                self._print_forward_pass_metrics(e, forward_pass_elapsed)
+            if self.evaluate:
+                self._evaluate_all_splits(
+                    model=unlearned_model,
+                    data_dict=data_dict,
+                    epoch=e+1,
+                    verbose=verbose
+                )
 
-                if scheduler is not None:
-                    scheduler.step()
+            if scheduler is not None:
+                scheduler.step()
 
-            return unlearned_model, self.logs
+        return unlearned_model, self.logs

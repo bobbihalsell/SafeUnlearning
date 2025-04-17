@@ -1,8 +1,8 @@
 import torch.nn as nn
 import copy
 from unlearning.finetune import FinetuneUnlearner
-from typing import Optional, Union, Tuple, List, Dict, Any
-from torch.utils.data import DataLoader, TensorDataset
+from typing import Dict
+from torch.utils.data import DataLoader
 
 
 class KUnlearn(FinetuneUnlearner):
@@ -24,7 +24,7 @@ class KUnlearn(FinetuneUnlearner):
                  k: int,
                  device,
                  method: str = 'cfk',
-                 init=None,
+                 reinit_method=None,
                  evaluate: bool = False,
                  wandb_enabled: bool = False
                  ):
@@ -49,7 +49,9 @@ class KUnlearn(FinetuneUnlearner):
         self.k = k
         assert method in ['cfk', 'euk'], "Method must be 'cfk' or 'euk'."
         self.method = method
-        self.init = init
+        self.reinit_method = reinit_method
+        print(f'eval: {evaluate}')
+        print(f'self eval: {self.evaluate}')
 
     def _freeze_first_k_layers(self, model):
         """
@@ -68,7 +70,8 @@ class KUnlearn(FinetuneUnlearner):
         # Validate k value against model structure
         if len(layers) < self.k:
             raise ValueError(
-                "k is larger than the total number of layers in the model."
+                "k is larger than the total number of layers in the model "
+                f"{(len(layers))}."
                 )
         
         # Freeze parameters in the first k layers
@@ -100,14 +103,16 @@ class KUnlearn(FinetuneUnlearner):
         # Reinitialize parameters in layers after the k-th layer
         for i in range(self.k, len(layers)):
             for param in layers[i].parameters():
-                if self.init == "zero":
+                if self.reinit_method == "zero":
                     # Set all weights to zero
                     param.data.zero_()
-                elif self.init == "randn":
+                elif self.reinit_method == "randn":
                     # Initialize with standard normal distribution
                     param.data.normal_()
                 else:
-                    raise ValueError(f"Invalid initialiastion: {self.init}")
+                    raise ValueError(
+                        f"Invalid initialiastion: {self.reinit_method}"
+                        )
         return model
 
     def unlearn(self,

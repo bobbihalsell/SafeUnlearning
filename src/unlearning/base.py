@@ -37,16 +37,20 @@ class BaseUnlearner:
         val_loader: DataLoader,
     ) -> nn.Module:
         """
-        Unlearns specific data from a model while retaining performance on other data.
+        Unlearns specific data from a model while retaining performance on 
+        other data.
 
         This is an abstract method that must be implemented by all subclasses
         with their specific unlearning strategy.
 
         Args:
             model: The model to perform unlearning on.
-            retain_loader: DataLoader containing data the model should continue to perform well on.
-            forget_loader: DataLoader containing data the model should "forget".
-            val_loader: DataLoader containing validation data to evaluate performance.
+            retain_loader: DataLoader containing data the model should 
+                continue to perform well on.
+            forget_loader: DataLoader containing data the model should 
+                "forget".
+            val_loader: DataLoader containing validation data to evaluate 
+                performance.
 
         Returns:
             The unlearned model.

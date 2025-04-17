@@ -13,6 +13,8 @@ from unlearning.config_validation import InputValidator
 from unlearning.finetune import FinetuneUnlearner
 from unlearning.scrub import SCRUB
 from unlearning.neggrad import NegGrad, NegGradPlus
+from unlearning.SGRU import SGRU
+from unlearning.kunlearn import KUnlearn
 from unlearning.utils import save_model, set_seed, setup_device, ConfigError
 from unlearning.importmodel import ImportModel
 import time
@@ -74,6 +76,30 @@ class UnlearnApp(InputValidator):
         elif self.unlearner_name == 'scrub':
             unlearner = SCRUB(
                 self.device,
+                self.evaluate,
+                self.wandb_enabled
+            )
+        elif self.unlearner_name == 'sgru':
+            unlearner = SGRU(
+                self.device,
+                self.evaluate,
+                self.wandb_enabled
+            )
+        elif self.unlearner_name == 'euk':
+            unlearner = KUnlearn(
+                self.k,
+                self.device,
+                self.unlearner_name,
+                self.reinit_method,
+                self.evaluate,
+                self.wandb_enabled
+            )
+        elif self.unlearner_name == 'cfk':
+            unlearner = KUnlearn(
+                self.k,
+                self.device,
+                self.unlearner_name,
+                None,
                 self.evaluate,
                 self.wandb_enabled
             )
