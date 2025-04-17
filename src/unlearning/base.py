@@ -273,7 +273,7 @@ class BaseUnlearner:
 
     def _log_forward_pass_time_in_wandb(self, epoch, time):
         wandb.log({
-            'Epoch': epoch+1,
+            'Epoch': epoch,
             'forward_pass_time': time
         })
 
