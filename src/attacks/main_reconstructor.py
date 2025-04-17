@@ -137,7 +137,8 @@ class ReconstructorApp(InputValidator):
                 device = self.device,
                 original_model = original_model,
                 unlearned_model = unlearned_model,
-                config = safe_dataclass_load(InverseGradConfig, self.reconstructor_params)
+                config = safe_dataclass_load(InverseGradConfig, self.reconstructor_params),
+                seed = self.seed
             )
         else:
             raise ValueError(f'reconstructor {self.reconstructor_name}'
