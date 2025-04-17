@@ -15,7 +15,6 @@ class InputValidator:
         self.verbose = config['verbose']
 
         self.wandb = config.get('wandb_cfg', None)
-        print("wandb config", self.wandb)
 
         data_config = config['data']
         self.model_name = data_config['model_name']
