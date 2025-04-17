@@ -16,7 +16,7 @@ from datasets.cifar100 import CIFAR100_MEAN, CIFAR_100_STD
 from datasets.imagenet import IMAGENET_MEAN, IMAGENET_STD
 from attacks.config_validation import InputValidator  
 from attacks.GGL.final_ggl import GGLReconstructor
-from attacks.InverseGrad.reconstructor import InverseGradReconstructor,InverseGradConfig
+from attacks.InvertGrad.reconstructor import InvertGradReconstructor,InvertGradConfig
 
 DEFAULT_SEED = 42
 
@@ -132,12 +132,12 @@ class ReconstructorApp(InputValidator):
                 **self.reconstructor_params
             )
 
-        elif self.reconstructor_name == 'inversegrad':
-            reconstructor = InverseGradReconstructor(
+        elif self.reconstructor_name == 'invertgrad':
+            reconstructor = InvertGradReconstructor(
                 device = self.device,
                 original_model = original_model,
                 unlearned_model = unlearned_model,
-                config = safe_dataclass_load(InverseGradConfig, self.reconstructor_params),
+                config = safe_dataclass_load(InvertGradConfig, self.reconstructor_params),
                 seed = self.seed
             )
         else:
@@ -192,7 +192,7 @@ class ReconstructorApp(InputValidator):
         print(self.reconstructor_name)
         if self.reconstructor_name == 'ggl':
             z_res, reconstruction, losses = reconstructor.reconstruct(**self.unlearner_params)
-        elif self.reconstructor_name == 'inversegrad':
+        elif self.reconstructor_name == 'invertgrad':
             reconstruction, losses = reconstructor.reconstruct(labels = self.labels,
                                                                num_images = self.reconstructor_params['num_images'],
                                                             image_size= self.image_size,
@@ -256,4 +256,4 @@ if __name__ == '__main__':
     main()
 
     # Run pip install -e .
-    # Run python src/attacks/main_reconstructor.py data=cifar10 reconstructor=inversegrad
+    # Run python src/attacks/main_reconstructor.py data=cifar10 reconstructor=invertgrad

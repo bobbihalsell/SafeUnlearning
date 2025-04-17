@@ -7,14 +7,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 
-from attacks.InverseGrad.medianfilt import MedianPool2d
+from attacks.InvertGrad.medianfilt import MedianPool2d
 from ..utils import set_seed
 
 
 @dataclass
-class InverseGradConfig:
+class InvertGradConfig:
     """
-    Configuration for the Inverse Gradient Reconstructor.
+    Configuration for the Invert Gradient Reconstructor.
     Attributes:
         grad_diff_lr (float): Learning rate for gradient difference.
         signed (bool): Whether to use signed gradients.
@@ -56,7 +56,7 @@ class InverseGradConfig:
             self.total_variation = float(self.total_variation)
 
 
-class InverseGradReconstructor():
+class InvertGradReconstructor():
     """
     Implements a gradient inversion attack as introduced in
     "Inverting Gradients -- How Easy Is It to Break Privacy in Federated Learning?"
@@ -77,7 +77,7 @@ class InverseGradReconstructor():
                  device, 
                  original_model, 
                  unlearned_model,  
-                 config: InverseGradConfig = InverseGradConfig(),
+                 config: InvertGradConfig = InvertGradConfig(),
                  seed = 42
                  ):
         """
@@ -87,7 +87,7 @@ class InverseGradReconstructor():
             device (torch.device): Device to run the reconstruction on (CPU or GPU).
             original_model (torch.nn.Module): The original model before unlearning.
             unlearned_model (torch.nn.Module): The model after unlearning.
-            config (InverseGradConfig): Configuration object for the reconstruction process.
+            config (InvertGradConfig): Configuration object for the reconstruction process.
         """
         self.config = config
 
