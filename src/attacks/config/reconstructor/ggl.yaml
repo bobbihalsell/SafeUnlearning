@@ -3,10 +3,6 @@ lr: 0.01
 cfg:
   num_updates: 1
   unlearning_method: neggrad
-  alpha: None
-  gamma: None
-  min_epochs: None
-  max_epochs: None
   batch_size: 1
   loss_models: "l2"  # 'l1', 'l2', 'weighted', or 'interpolated'
   budget: 1000  # Budget for Bayesian Optimization
@@ -15,9 +11,15 @@ cfg:
   gp_optim: "AdamW"
   use_scheduler: True
   initial_lr: 1
+  initial_z_path: 
+unlearner:
+  alpha: None
+  gamma: None
+  min_epochs: None
+  max_epochs: None
   weight_decay: 0
   use_l2_penalty: False
-  scrub_optim: sgd
+  optimizer: sgd
   momentum: 0
   lr_decay_factor: 
   epochs_per_lr_decay: 
