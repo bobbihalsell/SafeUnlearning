@@ -202,8 +202,7 @@ class SCRUB(BaseUnlearner):
             **kwargs: Additional hyperparameters for SCRUB
 
         Returns:
-            Tuple of (unlearned_model, losses) where losses contains
-            tracked losses for each dataset type
+            Tuple of (unlearned_model, logs)
         """
         if ('retain' not in data_dict.keys() or
                 'forget' not in data_dict.keys()):

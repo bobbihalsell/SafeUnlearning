@@ -55,14 +55,7 @@ class FinetuneUnlearner(BaseUnlearner):
                     (default: False).
 
         Returns:
-            If self.evaluate is True:
-                Tuple of (unlearned_model, losses_dict) where losses_dict 
-                contains tracked losses for each dataset type.
-            Otherwise:
-                The unlearned model.
-
-        Raises:
-            ValueError: If 'retain' data is not in data_dict.
+            Tuple of (unlearned_model, logs)
         """
         if 'retain' not in data_dict.keys():
             raise ValueError("'retain' data must be in data_dict.")

@@ -174,8 +174,7 @@ class BaseUnlearner:
             verbose (bool): Whether to print the results
 
         Returns:
-            self.logs (dict): A dictionary of losses during the unlearning
-            job.
+            self.logs (dict): A logs dictionary
         """
         model.eval()
 

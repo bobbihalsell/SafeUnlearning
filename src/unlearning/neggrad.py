@@ -55,8 +55,7 @@ class NegGrad(BaseUnlearner):
                 - use_l2_penalty: Whether to add L2 regularization penalty (default: False).
 
         Returns:
-            Tuple of (unlearned_model, losses) where losses contains
-            tracked losses for each dataset type.
+            Tuple of (unlearned_model, logs)
 
         Raises:
             ValueError: If 'forget' data is not in data_dict.
@@ -199,8 +198,8 @@ class NegGradPlus(BaseUnlearner):
                   PLEASE USE NegGrad FOR BETA = 0, FinetuneUnlearner FOR BETA = 1.
 
         Returns:
-            Tuple of (unlearned_model, losses) where losses contains
-            tracked losses for each dataset type.
+            Tuple of (unlearned_model, logs)
+
 
         Raises:
             ValueError: If either 'forget' or 'retain' data is missing from data_dict,
