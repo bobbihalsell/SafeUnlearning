@@ -22,6 +22,7 @@ class SCRUB(BaseUnlearner):
     def __init__(self,
                  device,
                  evaluate: bool = False,
+                 wandb_enabled: bool = False
                  ):
         """
         Initialize the SCRUB unlearning class.
@@ -31,7 +32,7 @@ class SCRUB(BaseUnlearner):
                    If None, will be automatically determined.
             evaluate: Whether to track and return evaluation metrics during unlearning.
         """
-        super().__init__(device, evaluate)
+        super().__init__(device, evaluate, wandb_enabled)
         # Following authors' specification
         self.criterion = nn.CrossEntropyLoss()
 
@@ -245,6 +246,7 @@ class SCRUB(BaseUnlearner):
                 self._evaluate_all_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
+                    epoch=e+1,
                     verbose=verbose
                 )
 

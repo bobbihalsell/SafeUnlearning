@@ -21,6 +21,7 @@ class FinetuneUnlearner(BaseUnlearner):
     def __init__(self,
                  device,
                  evaluate: bool = False,
+                 wandb_enabled: bool = False
                  ):
         """
         Initialize the FinetuneUnlearner class.
@@ -29,7 +30,7 @@ class FinetuneUnlearner(BaseUnlearner):
             device: Computing device (CPU/GPU) to use for computations.
                    If None, will be automatically determined.
         """
-        super().__init__(device, evaluate)
+        super().__init__(device, evaluate, wandb_enabled)
 
     def unlearn(self,
                 model: nn.Module,
@@ -106,6 +107,7 @@ class FinetuneUnlearner(BaseUnlearner):
                 self._evaluate_all_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
+                    epoch=e+1,
                     verbose=verbose
                 )
 

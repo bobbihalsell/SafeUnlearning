@@ -13,7 +13,8 @@ class BaseUnlearner:
     """ Base class for all machine unlearning implementations."""
     def __init__(self,
                  device,
-                 evaluate: bool = False
+                 evaluate: bool = False,
+                 wandb_enabled: bool = False
                  ):
         """
         Initialize the BaseUnlearner.
@@ -25,7 +26,7 @@ class BaseUnlearner:
         self.device = device if device is not None else setup_device()
         self.evaluate = evaluate
         self.criterion = nn.CrossEntropyLoss()
-
+        self.wandb_enabled = wandb_enabled
 
     @abstractmethod
     def unlearn(
@@ -163,6 +164,7 @@ class BaseUnlearner:
     def _evaluate_all_splits(self,
                              model: nn.Module,
                              data_dict: Dict[str, DataLoader],
+                             epoch: int,
                              verbose: bool = True):
         """ Evaluate the model on the data splits in data dict.
 
@@ -181,6 +183,7 @@ class BaseUnlearner:
             start_eval_time = time.time()
             loader_loss, loader_acc = self._evaluate(model,
                                                      loader)
+
             self.losses[f"{data_type}"].append(loader_loss)
             self.losses[f"{data_type}_acc"].append(loader_acc)
             elapsed = time.time() - start_eval_time
@@ -190,6 +193,16 @@ class BaseUnlearner:
                       f'Time: {elapsed:.1f} s', end=' || ')
         if verbose:
             print('')
+
+        if self.wandb_enabled:
+            self._log_metrics_in_wandb(
+                epoch=epoch,
+                retain_loss=self.losses['retain'][-1],
+                retain_acc=self.losses['retain_acc'][-1],
+                forget_loss=self.losses['forget'][-1],
+                forget_acc=self.losses['forget_acc'][-1],
+                val_loss=self.losses['val'][-1],
+                val_acc=self.losses['val_acc'][-1])
 
         return self.losses
 
@@ -228,6 +241,11 @@ class BaseUnlearner:
                 model,
                 dataloader=data_dict[data_type],
             )
+            if self.wandb_enabled:
+                wandb.log({
+                    f'Initial {data_type.capitalize()} Loss': split_loss,
+                    f'Initial {data_type.capitalize()} Acc': split_acc
+                })
 
             self.losses[data_type].append(split_loss)
             self.losses[f"{data_type}_acc"].append(split_acc)

@@ -22,6 +22,7 @@ class NegGrad(BaseUnlearner):
         self,
         device: Optional[torch.device] = None,
         evaluate: bool = False,
+        wandb_enabled: bool = False
     ):
         """
         Initialize the NegGrad unlearning object.
@@ -31,7 +32,7 @@ class NegGrad(BaseUnlearner):
                    If None, will be automatically determined.
             evaluate: Whether to track and return evaluation metrics during unlearning.
         """
-        super(NegGrad, self).__init__(device, evaluate)
+        super(NegGrad, self).__init__(device, evaluate, wandb_enabled)
 
     def unlearn(self,
                 model: nn.Module,
@@ -103,6 +104,7 @@ class NegGrad(BaseUnlearner):
                 self._evaluate_all_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
+                    epoch=e+1,
                     verbose=verbose
                 )
 
@@ -125,6 +127,7 @@ class NegGradPlus(BaseUnlearner):
         self,
         device: Optional[torch.device] = None,
         evaluate: bool = False,
+        wandb_enabled: bool = False
     ):
         """
         Initialize the NegGrad+ unlearning object.
@@ -134,7 +137,7 @@ class NegGradPlus(BaseUnlearner):
                    If None, will be automatically determined.
             evaluate: Whether to track and return evaluation metrics during unlearning.
         """
-        super(NegGradPlus, self).__init__(device, evaluate)
+        super(NegGradPlus, self).__init__(device, evaluate, wandb_enabled)
 
     def _calculate_loss(
         self,
@@ -268,6 +271,7 @@ class NegGradPlus(BaseUnlearner):
                 self._evaluate_all_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
+                    epoch=e+1,
                     verbose=verbose
                 )
 
