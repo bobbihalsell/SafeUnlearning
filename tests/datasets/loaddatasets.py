@@ -150,7 +150,7 @@ class TestDatasetUtils(unittest.TestCase):
         # Use self to store the datasets
         self.saved_datasets = {}
         
-        def side_effect(dataset, root_path, name):
+        def side_effect(dataset, name):
             self.saved_datasets[name] = dataset
             print(f"Mock _save_as_imagefolder called with {name}")
         
@@ -184,9 +184,7 @@ class TestDatasetUtils(unittest.TestCase):
             self.assertIn('test', self.saved_datasets)
             
             # Calculate expected sizes
-            # 100 samples * proportion * (1-val_ratio)
             expected_train_size = int(100 * 0.5 * 0.8) 
-            # 100 samples * proportion * val_ratio
             expected_val_size = int(100 * 0.5 * 0.2)  
             
             self.assertEqual(len(self.saved_datasets['train']), 
@@ -196,7 +194,6 @@ class TestDatasetUtils(unittest.TestCase):
     
     def test_load_train_val_test_datasets_cifar100(self):
         """Test loading CIFAR100 dataset."""
-        # Use self to store the datasets
         self.saved_datasets = {}
         
         def side_effect(dataset, root_path, name):
@@ -301,8 +298,7 @@ class TestImageNetLoading(unittest.TestCase):
         # Setup the mock with side effect
         mock_save = MagicMock(side_effect=save_side_effect)
         
-        # Patch both the RobustImageFolder class and _save_as_imagefolder 
-        # function
+        # Patch RobustImageFolder class and _save_as_imagefolder function
         with patch('src.datasets.load_datasets.RobustImageFolder', 
                    return_value=MockDataset(1000, 5)), \
              patch(
@@ -343,8 +339,7 @@ class TestImageNetLoading(unittest.TestCase):
         # Setup the mock with side effect
         mock_save = MagicMock(side_effect=save_side_effect)
         
-        # Patch both the RobustImageFolder class and _save_as_imagefolder 
-        # function
+        # Patch RobustImageFolder class and _save_as_imagefolder function
         with patch('src.datasets.load_datasets.RobustImageFolder', 
                    return_value=MockDataset(1000, 5)), \
              patch(

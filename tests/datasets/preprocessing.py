@@ -2,16 +2,16 @@ import unittest
 import torch
 import numpy as np
 import os
+import sys
 import tempfile
 import shutil
-import pickle
 from torch.utils.data import Dataset, DataLoader, Subset
-from unittest.mock import patch, MagicMock
 
 # Import the functions to test
-import sys
-import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+sys.path.insert(
+    0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    )
+
 from src.datasets.preprocessing import (
     remove_samples_by_indices,
     remove_samples_by_class,
@@ -27,7 +27,8 @@ class MockDataset(Dataset):
     def __init__(self, num_samples=100, num_classes=10, with_targets=True):
         self.data = torch.randn(num_samples, 3, 32, 32)
         # Create targets as a sequence from 0 to num_classes, repeating
-        self.targets = torch.tensor([i % num_classes for i in range(num_samples)])
+        self.targets = torch.tensor([i % num_classes 
+                                     for i in range(num_samples)])
         self.with_targets = with_targets
     
     def __len__(self):
@@ -35,6 +36,7 @@ class MockDataset(Dataset):
     
     def __getitem__(self, idx):
         return self.data[idx], self.targets[idx].item()
+
 
 class TestPreprocessing(unittest.TestCase):
     
@@ -63,8 +65,11 @@ class TestPreprocessing(unittest.TestCase):
         )
         
         # Check sizes
-        self.assertEqual(len(retain_set), len(self.dataset) - len(forget_indices))
-        self.assertEqual(len(forget_set), len(forget_indices))
+        self.assertEqual(len(retain_set), 
+                         len(self.dataset) - len(forget_indices))
+        
+        self.assertEqual(len(forget_set), 
+                         len(forget_indices))
         
         # Check that the forget set contains the right indices
         for i, idx in enumerate(forget_indices):
@@ -78,7 +83,8 @@ class TestPreprocessing(unittest.TestCase):
         )
         
         # Check it's just the retain set
-        self.assertEqual(len(retain_set_only), len(self.dataset) - len(forget_indices))
+        self.assertEqual(len(retain_set_only), 
+                         len(self.dataset) - len(forget_indices))
     
     def test_remove_samples_by_class(self):
         """Test removing samples by class."""
@@ -92,8 +98,10 @@ class TestPreprocessing(unittest.TestCase):
         
         # Check sizes
         expected_forget_size = len(classes_to_forget) * num_to_forget
-        self.assertEqual(len(forget_set), expected_forget_size)
-        self.assertEqual(len(retain_set), len(self.dataset) - expected_forget_size)
+        self.assertEqual(len(forget_set), 
+                         expected_forget_size)
+        self.assertEqual(len(retain_set), 
+                         len(self.dataset) - expected_forget_size)
         
         # Verify that forgotten samples are from the right classes
         forget_classes = set()
@@ -120,7 +128,8 @@ class TestPreprocessing(unittest.TestCase):
         forget_labels = [1, 3, 5]
         
         # Count samples with these labels in the original dataset
-        forget_count = sum(1 for _, label in self.dataset if label in forget_labels)
+        forget_count = sum(1 for _, label in self.dataset 
+                           if label in forget_labels)
         
         # Test with return_forget=True
         retain_set, forget_set = remove_classes(
@@ -154,9 +163,15 @@ class TestPreprocessing(unittest.TestCase):
         save_loaders(save_path, **test_loaders)
         
         # Check that files were created
-        self.assertTrue(os.path.exists(os.path.join(save_path, "train_dataset.pkl")))
-        self.assertTrue(os.path.exists(os.path.join(save_path, "test_dataset.pkl")))
-        self.assertTrue(os.path.exists(os.path.join(save_path, "loader_configs.pkl")))
+        self.assertTrue(
+            os.path.exists(os.path.join(save_path, "train_dataset.pkl"))
+            )
+        self.assertTrue(
+            os.path.exists(os.path.join(save_path, "test_dataset.pkl"))
+            )
+        self.assertTrue(
+            os.path.exists(os.path.join(save_path, "loader_configs.pkl"))
+            )
         
         # Load the loaders
         loaded_loaders = load_loaders(save_path)
@@ -170,8 +185,12 @@ class TestPreprocessing(unittest.TestCase):
         self.assertEqual(loaded_loaders['test'].batch_size, 64)
         
         # Check dataset sizes
-        self.assertEqual(len(loaded_loaders['train'].dataset), len(self.dataset))
-        self.assertEqual(len(loaded_loaders['test'].dataset), len(self.dataset))
+        self.assertEqual(
+            len(loaded_loaders['train'].dataset), len(self.dataset)
+            )
+        self.assertEqual(
+            len(loaded_loaders['test'].dataset), len(self.dataset)
+            )
     
     def test_train_val_split(self):
         """Test splitting a dataset into train and validation sets."""
@@ -192,25 +211,40 @@ class TestPreprocessing(unittest.TestCase):
         train_indices = set(train_subset.indices)
         val_indices = set(val_dataset.indices)
         
-        self.assertEqual(len(train_indices.intersection(val_indices)), 0)
-        self.assertEqual(len(train_indices) + len(val_indices), len(self.dataset))
-    
-    def test_get_all_loaders_instances(self):
-        """Test the get_all_loaders function with 'instances' method."""
-        test_dataset = MockDataset(num_samples=50, num_classes=10)
-        forget_indices = [0, 10, 20, 30]
+        self.assertEqual(
+            len(train_indices.intersection(val_indices)), 0
+            )
+        self.assertEqual(
+            len(train_indices) + len(val_indices), len(self.dataset)
+            )
         
-        # Create loaders
-        forget_loader, retain_loader, train_loader, val_loader, test_loader = get_all_loaders(
+    def test_get_all_loaders_instances(self):
+        """Test the get_all_loaders function with the 'instances' method."""
+        test_dataset = MockDataset(num_samples=50, num_classes=10)
+     
+        val_ratio = 0.1
+        val_size = int(len(self.dataset) * val_ratio)
+        all_indices = list(range(len(self.dataset)))
+        np.random.shuffle(all_indices) 
+        # These are the indices that will be in the training set
+        train_indices = all_indices[val_size:] 
+        
+        # Now select a few indices from the training subset to forget
+        forget_indices = train_indices[:4] 
+        
+        # Create loaders using get_all_loaders function
+        all_loaders = get_all_loaders(
             train_data=self.dataset,
             test_data=test_dataset,
             method='instances',
-            val_ratio=0.1,
+            val_ratio=val_ratio,
             forget_set_indices=forget_indices,
             verbose=False
         )
+        (forget_loader, retain_loader, train_loader, 
+         val_loader, test_loader) = all_loaders
         
-        # Check loaders exist and have correct batch sizes
+        # Check that batch sizes are as expected
         self.assertEqual(forget_loader.batch_size, 64)
         self.assertEqual(retain_loader.batch_size, 64)
         self.assertEqual(train_loader.batch_size, 128)
@@ -218,20 +252,48 @@ class TestPreprocessing(unittest.TestCase):
         self.assertEqual(test_loader.batch_size, 128)
         
         # Check dataset sizes
-        self.assertEqual(len(forget_loader.dataset), len(forget_indices))
-        self.assertEqual(len(retain_loader.dataset) + len(forget_loader.dataset), 
-                         len(train_loader.dataset))
-        self.assertLess(len(train_loader.dataset), len(self.dataset))  # Due to val_ratio
+        self.assertEqual(len(forget_loader.dataset), len(forget_indices), 
+                         f"Expected {len(forget_indices)} instances in "
+                         f"forget_loader, got {len(forget_loader.dataset)}")
+
+        # Check that retain_loader + forget_loader = train_loader size
+        self.assertEqual(
+            len(retain_loader.dataset) + len(forget_loader.dataset),
+            len(train_loader.dataset),
+            "Total size of retain and forget loaders does not match train "
+            "loader size"
+        )
+
+        # Check test loader dataset size matches test dataset
+        self.assertEqual(len(test_loader.dataset), len(test_dataset),
+                         "Test loader size does not match the test dataset "
+                         "size")
+        
+        # Get the actual indices in the loaders
+        forget_indices_in_loader = forget_loader.dataset.indices
+        
+        # Ensure that the forgotten indices are in the forget_loader
+        for index in forget_indices:
+            self.assertIn(index, forget_indices_in_loader, 
+                          f"Forgotten index {index} not found in forget_loader"
+                          )
+        
+        # Check validation set size
+        self.assertEqual(len(val_loader.dataset), val_size, 
+                         "Validation loader size doesn't match expected "
+                         "val_ratio")
+        
+        # Ensure test dataset remains unchanged
         self.assertEqual(len(test_loader.dataset), len(test_dataset))
-    
+        
     def test_get_all_loaders_class_instances(self):
         """Test the get_all_loaders function with 'class_instances' method."""
         test_dataset = MockDataset(num_samples=50, num_classes=10)
         forget_labels = [0, 2]
         num_to_forget = 3
         
-        # Create loaders
-        forget_loader, retain_loader, train_loader, val_loader, test_loader = get_all_loaders(
+        # Create loaders using get_all_loaders function
+        all_loaders = get_all_loaders(
             train_data=self.dataset,
             test_data=test_dataset,
             method='class_instances',
@@ -240,25 +302,51 @@ class TestPreprocessing(unittest.TestCase):
             num_to_forget=num_to_forget,
             verbose=False
         )
+        (forget_loader, retain_loader, train_loader, 
+         val_loader, test_loader) = all_loaders
         
-        # Check forget loader size
+        # Check that retain + forget = train
+        self.assertEqual(
+            len(retain_loader.dataset) + len(forget_loader.dataset),
+            len(train_loader.dataset)
+        )
+
+        # Check that training set is 90% of the dataset
+        self.assertAlmostEqual(len(train_loader.dataset) / len(self.dataset), 
+                               0.9, delta=0.05)
+
+        # Check that validation set is 10% of the dataset
+        self.assertAlmostEqual(len(val_loader.dataset) / len(self.dataset), 
+                               0.1, delta=0.05)
+
+        # Check that no loader is empty
+        for loader in [forget_loader, retain_loader, train_loader, 
+                       val_loader, test_loader]:
+            self.assertGreater(len(loader.dataset), 0, f"{loader} is empty!")
+        
+        # Check label distribution in forget_loader and retain_loader
+        forget_labels_in_loader = [label for _, label in forget_loader.dataset]
+        for label in forget_labels:
+            self.assertIn(label, forget_labels_in_loader, 
+                          f"Label {label} missing in forget_loader")
+
+        # Check that forget_loader contains exactly num_to_forget instances per class in forget_labels
         expected_forget_size = len(forget_labels) * num_to_forget
-        self.assertEqual(len(forget_loader.dataset), expected_forget_size)
+        self.assertEqual(len(forget_loader.dataset), expected_forget_size, 
+                         f"Expected forget_loader size: {expected_forget_size}"
+                         f", got: {len(forget_loader.dataset)}")
         
-        # Check relationship between datasets
-        self.assertEqual(len(retain_loader.dataset) + len(forget_loader.dataset), 
-                         len(train_loader.dataset))
-    
+        # Ensure test dataset remains unchanged
+        self.assertEqual(len(test_loader.dataset), len(test_dataset))
+
+
     def test_get_all_loaders_class(self):
-        """Test the get_all_loaders function with 'class' method."""
+        """Test the get_all_loaders function with the 'class' method."""
         test_dataset = MockDataset(num_samples=50, num_classes=10)
         forget_labels = [1, 3, 5]
         
-        # Count samples with these labels to predict forget_loader size
-        forget_count = sum(1 for _, label in self.dataset if label in forget_labels)
-        
-        # Create loaders
-        forget_loader, retain_loader, train_loader, val_loader, test_loader = get_all_loaders(
+        # Create loaders using get_all_loaders function
+        all_loaders = get_all_loaders(
             train_data=self.dataset,
             test_data=test_dataset,
             method='class',
@@ -266,21 +354,43 @@ class TestPreprocessing(unittest.TestCase):
             forget_labels=forget_labels,
             verbose=False
         )
-        
-        # Check sizes accounting for validation split
-        val_size = int(len(self.dataset) * 0.1)
-        train_size_after_val = len(self.dataset) - val_size
-        
-        # Calculate expected forget count in the training subset
-        # This is approximate since the random split affects class distribution
-        expected_forget_count = int(forget_count * (train_size_after_val / len(self.dataset)))
-        
-        # We check with some tolerance due to randomness in the val split
-        self.assertAlmostEqual(len(forget_loader.dataset), expected_forget_count, delta=15)
+        (forget_loader, retain_loader, train_loader, 
+         val_loader, test_loader) = all_loaders
         
         # Check that retain + forget = train
-        self.assertEqual(len(retain_loader.dataset) + len(forget_loader.dataset), 
-                         len(train_loader.dataset))
+        self.assertEqual(
+            len(retain_loader.dataset) + len(forget_loader.dataset),
+            len(train_loader.dataset)
+        )
+
+        # Check that training set is 90% of the dataset
+        self.assertAlmostEqual(
+            len(train_loader.dataset) / len(self.dataset), 0.9, delta=0.05
+            )
+
+        # Check that validation set is 10% of the dataset
+        self.assertAlmostEqual(
+            len(val_loader.dataset) / len(self.dataset), 0.1, delta=0.05
+            )
+        
+        # Check that no loader is empty
+        for loader in [forget_loader, retain_loader, 
+                       train_loader, val_loader, test_loader]:
+            self.assertGreater(len(loader.dataset), 0, f"{loader} is empty!")
+        
+        # Check label distribution in forget_loader and retain_loader
+        forget_labels_in_loader = [label for _, label in forget_loader.dataset]
+        for label in forget_labels:
+            self.assertIn(label, forget_labels_in_loader, 
+                          f"Label {label} missing in forget_loader")
+
+        retain_labels_in_loader = [label for _, label in retain_loader.dataset]
+        for label in forget_labels:
+            self.assertNotIn(label, retain_labels_in_loader, 
+                             f"Label {label} found in retain_loader")
+            
+        # Ensure test dataset remains unchanged
+        self.assertEqual(len(test_loader.dataset), len(test_dataset))
     
     def test_get_all_loaders_invalid_method(self):
         """Test that get_all_loaders raises an error for invalid methods."""

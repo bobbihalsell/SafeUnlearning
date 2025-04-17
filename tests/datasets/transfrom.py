@@ -107,7 +107,8 @@ class TestTransformations(unittest.TestCase):
         
         # Test normalization - original image had 128 for all channels
         # After ToTensor, it becomes 128/255 = 0.502
-        # After normalization, it should be (0.502 - mean) / std for each channel
+        # After normalization, it should be (0.502 - mean) / std 
+        # for each channel
         expected_channel0 = ((0.502 - cifar10.CIFAR10_MEAN[0]) / 
                              cifar10.CIFAR10_STD[0])
         # Check that values are close to expected
@@ -152,14 +153,16 @@ class TestTransformations(unittest.TestCase):
         
         # Check output is a tensor with the right shape and type
         self.assertIsInstance(output, torch.Tensor)
-        self.assertEqual(output.shape, (3, 224, 224))  # CenterCrop to 224x224
+        self.assertEqual(
+            output.shape, 
+            (3, 224, 224)  # ImageNet typically uses 224x224
+        )
         self.assertEqual(output.dtype, torch.float32)
-        
-        # Test normalization - original image had 128 for all channels
-        # After ToTensor, it becomes 128/255 = 0.502
-        # After normalization, should be (0.502 - mean) / std for each channel
+
+        # Test normalization values
         expected_channel0 = ((0.502 - imagenet.IMAGENET_MEAN[0]) / 
                              imagenet.IMAGENET_STD[0])
+
         # Check that values are close to expected 
         self.assertAlmostEqual(
                                float(output[0, 0, 0]), 
