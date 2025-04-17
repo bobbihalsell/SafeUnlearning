@@ -92,12 +92,13 @@ class FinetuneUnlearner(BaseUnlearner):
                 self.optimizer.step()
             forward_pass_elapsed = time.time() - epoch_start_time
             if self.wandb_enabled:
-                self._log_forward_pass_time_in_wandb(epoch=e+1,
-                                                     time=forward_pass_elapsed)
+                self._log_forward_pass_time_in_wandb(
+                    epoch=e+1,
+                    time=forward_pass_elapsed
+                    )
             if verbose:
                 self._print_forward_pass_metrics(e, forward_pass_elapsed)
             if self.evaluate:
-                # Calculate average retain loss for this epoch
                 self._evaluate_all_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
