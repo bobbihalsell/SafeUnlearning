@@ -158,6 +158,8 @@ class UnlearnApp(InputValidator):
         # Log the time taken for the whole unlearning job
         job_run_time = (time.time() - start_time)/60
         print(f'Model unlearning complete. Time: {job_run_time:.1f} min')
+        if self.wandb_enabled:
+            wandb.log({'total_run_mins': job_run_time})
 
         # Step 4: Save the unlearned model
         save_model(unlearned_model,

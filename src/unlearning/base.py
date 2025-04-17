@@ -187,6 +187,7 @@ class BaseUnlearner:
             self.losses[f"{data_type}"].append(loader_loss)
             self.losses[f"{data_type}_acc"].append(loader_acc)
             elapsed = time.time() - start_eval_time
+            self.losses[f"{data_type}_time"].append(elapsed)
             if verbose:
                 print(f'{data_type.capitalize()} Loss: {loader_loss:.4f} '
                       f'Acc: {loader_acc:.2f}%. '
@@ -199,10 +200,14 @@ class BaseUnlearner:
                 epoch=epoch,
                 retain_loss=self.losses['retain'][-1],
                 retain_acc=self.losses['retain_acc'][-1],
+                retain_time=self.losses['retain_time'][-1],
                 forget_loss=self.losses['forget'][-1],
                 forget_acc=self.losses['forget_acc'][-1],
+                forget_time=self.losses['forget_time'][-1],
                 val_loss=self.losses['val'][-1],
-                val_acc=self.losses['val_acc'][-1])
+                val_acc=self.losses['val_acc'][-1],
+                val_time=self.losses['val_time'][-1],
+            )
 
         return self.losses
 
@@ -268,17 +273,23 @@ class BaseUnlearner:
                               epoch: int,
                               retain_loss: float,
                               retain_acc: float,
+                              retain_time: float,
                               forget_loss: float,
                               forget_acc: float,
+                              forget_time: float,
                               val_loss: float,
-                              val_acc: float):
+                              val_acc: float,
+                              val_time: float):
         """ Log evaluation metrics in WandB."""
         wandb.log({
             "Retain/Loss": retain_loss,
             "Retain/Accuracy": retain_acc,
+            "Retain/Time": retain_time,
             "Forget/Loss": forget_loss,
             "Forget/Accuracy": forget_acc,
+            "Forget/Time": forget_time,
             "Val/Loss": val_loss,
             "Val/Accuracy": val_acc,
+            "Val/Time": val_time,
             "Epoch": epoch
             })
