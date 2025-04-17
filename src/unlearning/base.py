@@ -271,6 +271,12 @@ class BaseUnlearner:
               f'LR: {current_lr:.5f}. '
               f'Time taken: {time_taken:.1f} s')
 
+    def _log_forward_pass_time_in_wandb(self, epoch, time):
+        wandb.log({
+            'Epoch': epoch+1,
+            'forward_pass_time': time
+        })
+
     def _log_metrics_in_wandb(self,
                               epoch: int,
                               retain_loss: float,

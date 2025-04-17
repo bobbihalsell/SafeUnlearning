@@ -237,10 +237,11 @@ class SCRUB(BaseUnlearner):
                     data_dict['retain'],
                 )
             forward_pass_elapsed = time.time() - epoch_start_time
-
+            if self.wandb_enabled:
+                self._log_forward_pass_time_in_wandb(epoch=e+1,
+                                                     time=forward_pass_elapsed)
             if verbose:
                 self._print_forward_pass_metrics(e, forward_pass_elapsed)
-
             if self.evaluate:
                 self._evaluate_all_splits(
                     model=unlearned_model,
