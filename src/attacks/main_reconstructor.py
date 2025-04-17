@@ -35,7 +35,6 @@ class ReconstructorApp(InputValidator):
         # Output directory
         self.output_dir = config.get('output_dir', './artifacts/')
         os.makedirs(self.output_dir, exist_ok=True)
-        print(f"wandb enabeld: {self.wandb_enabled}")
 
     def initialize_model(self):
         """Initialize the model based on model name from user configuration."""
@@ -257,11 +256,4 @@ if __name__ == '__main__':
     main()
 
     # Run pip install -e .
-    # Run python src/attacks/main_reconstructor.py data=cifar10 reconstructor=inversegrad unlearned_weights=vol/bitbucket/vb524/v2_safe/safe-unlearning/model/resnet18_2s_1e/unlearn/neggrad/resnet18_42_unlearned.pt original_weights=vol/bitbucket/vb524/v2_safe/safe-unlearning/model/resnet18_2s_1e/original/resnet18_42_original.pt
-
-
-# python src/attacks/main_reconstructor.py data=cifar10 reconstructor=inversegrad \
-# unlearned_weights=/vol/bitbucket/vb524/v2_safe/safe-unlearning/model/resnet18_2s_1e/unlearn/neggrad/resnet18_42_unlearned.pt \
-# original_weights=/vol/bitbucket/vb524/v2_safe/safe-unlearning/model/resnet18_2s_1e/unlearn/neggrad/resnet18_42_original.pt \
-# data.labels=[7] data.data_root=./data data.model_name=resnet18 \
-# +wand_cfg=degault
+    # Run python src/attacks/main_reconstructor.py data=cifar10 reconstructor=inversegrad
