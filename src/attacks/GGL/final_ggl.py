@@ -10,8 +10,7 @@ from torchvision import transforms
 import os
 import shutil
 from unlearning.scrub import SCRUB
-
-
+from torch.utils.data import DataLoader, TensorDataset
 
 
 class GGLReconstructor():
@@ -165,6 +164,15 @@ class GGLReconstructor():
 
         # Create forget dictionary
         forget_dict = {'forget': forget_loader}
+
+        empty_x = torch.empty((0, 3, 224, 224))
+        empty_labels = torch.empty((0,), dtype=torch.long)
+        empty_dataset = TensorDataset(empty_x, empty_labels)
+        
+        # Create forget dictionary
+        forget_dict['retain'] = DataLoader(
+            empty_dataset
+        )
 
         # Save values needed for scrub
         kwargs = {
