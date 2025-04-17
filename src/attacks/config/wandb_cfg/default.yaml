@@ -1,0 +1,4 @@
+project: MU reconstruction
+extra_config:  # optional extra configuration to be logged in wandb
+  unlearning_method: 
+  epochs: 
