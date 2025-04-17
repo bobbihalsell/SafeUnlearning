@@ -15,7 +15,7 @@ from datasets.cifar10 import CIFAR10_MEAN, CIFAR10_STD
 from datasets.cifar100 import CIFAR100_MEAN, CIFAR_100_STD
 from datasets.imagenet import IMAGENET_MEAN, IMAGENET_STD
 from attacks.config_validation import InputValidator  
-from attacks.GGL.final_ggl import GGLReconstructor
+from attacks.GGL.reconstructor import GGLReconstructor
 from attacks.InvertGrad.reconstructor import InvertGradReconstructor,InvertGradConfig
 
 DEFAULT_SEED = 42
@@ -91,7 +91,10 @@ class ReconstructorApp(InputValidator):
             model = self.initialize_model()
             # Load state dict
             checkpoint = torch.load(model_path, map_location=self.device)
-            checkpoint = checkpoint["model_state_dict"] if "model_state_dict" in checkpoint else checkpoint
+            if "model_state_dict" in checkpoint:
+                checkpoint = checkpoint["model_state_dict"] 
+            if "state_dict" in checkpoint:
+                checkpoint = checkpoint["state_dict"] 
             model.load_state_dict(checkpoint)
             model = model.to(self.device)
             print(f"Loaded model from {model_path}")
