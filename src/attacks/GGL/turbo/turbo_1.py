@@ -33,9 +33,11 @@ class Turbo1:
     n_init : Number of initial points (2*dim is recommended), int.
     max_evals : Total evaluation budget, int.
     batch_size : Number of points in each batch, int.
-    verbose : If you want to print information about the optimization progress, bool.
+    verbose : If you want to print information about the optimization progress,
+    bool.
     use_ard : If you want to use ARD for the GP kernel.
-    max_cholesky_size : Largest number of training points where we use Cholesky, int
+    max_cholesky_size : Largest number of training points where we use
+    Cholesky, int
     n_training_steps : Number of training steps for learning the GP hypers, int
     min_cuda : We use float64 on the CPU if we have this or fewer datapoints
     device : Device to use for GP fitting ("cpu" or "cuda")
@@ -81,7 +83,9 @@ class Turbo1:
         assert device == "cpu" or device == "cuda"
         assert dtype == "float32" or dtype == "float64"
         if device == "cuda":
-            assert torch.cuda.is_available(), "can't use cuda if it's not available"
+            assert torch.cuda.is_available(), (
+                "Can't use CUDA if it's not available"
+            )
 
         # Save function information
         self.f = f
@@ -102,11 +106,14 @@ class Turbo1:
         self.mean = np.zeros((0, 1))
         self.signal_var = np.zeros((0, 1))
         self.noise_var = np.zeros((0, 1))
-        self.lengthscales = np.zeros((0, self.dim)) if self.use_ard else np.zeros((0, 1))
+        self.lengthscales = (
+            np.zeros((0, self.dim)) if self.use_ard else np.zeros((0, 1))
+        )
 
         # Tolerances and counters
         self.n_cand = min(100 * self.dim, 5000)
-        self.failtol = np.ceil(np.max([4.0 / batch_size, self.dim / batch_size]))
+        max_value = np.max([4.0 / batch_size, self.dim / batch_size])
+        self.failtol = np.ceil(max_value)
         self.succtol = 3
         self.n_evals = 0
 
@@ -122,14 +129,16 @@ class Turbo1:
         # Device and dtype for GPyTorch
         self.min_cuda = min_cuda
         self.dtype = torch.float32 if dtype == "float32" else torch.float64
-        self.device = torch.device("cuda") if device == "cuda" else torch.device("cpu")
+        self.device = (
+            torch.device("cuda") if device == "cuda" else torch.device("cpu")
+        )
         if self.verbose:
-            print("Using dtype = %s \nUsing device = %s" % (self.dtype, self.device))
+            print("Using dtype = %s" % self.dtype)
+            print("Using device = %s" % self.device)
             sys.stdout.flush()
 
         # Initialize parameters
         self._restart()
-
 
         self.gp_optim = gp_optim
         self.use_scheduler = use_scheduler
@@ -143,7 +152,11 @@ class Turbo1:
         self.length = self.length_init
 
     def _adjust_length(self, fX_next):
-        if np.min(fX_next) < np.min(self._fX) - 1e-3 * math.fabs(np.min(self._fX)):
+        min_fX_next = np.min(fX_next)
+        min_fX = np.min(self._fX)
+        tolerance = 1e-3 * math.fabs(min_fX)
+
+        if min_fX_next < min_fX - tolerance:
             self.succcount += 1
             self.failcount = 0
         else:
@@ -160,7 +173,8 @@ class Turbo1:
     def _create_candidates(self, X, fX, length, n_training_steps, hypers):
         """Generate candidates assuming X has been scaled to [0,1]^d."""
         # Pick the center as the point with the smallest function values
-        # NOTE: This may not be robust to noise, in which case the posterior mean of the GP can be used instead
+        # NOTE: This may not be robust to noise, in which case the posterior
+        # mean of the GP can be used instead
         assert X.min() >= 0.0 and X.max() <= 1.0
 
         # Standardize function values.
@@ -179,25 +193,41 @@ class Turbo1:
             X_torch = torch.tensor(X).to(device=device, dtype=dtype)
             y_torch = torch.tensor(fX).to(device=device, dtype=dtype)
             gp = train_gp(
-                train_x=X_torch, train_y=y_torch, use_ard=self.use_ard, num_steps=n_training_steps, hypers=hypers,
-                 gp_optim=self.gp_optim, use_scheduler=self.use_scheduler, initial_lr=self.initial_lr
+                train_x=X_torch,
+                train_y=y_torch,
+                use_ard=self.use_ard,
+                num_steps=n_training_steps,
+                hypers=hypers,
+                gp_optim=self.gp_optim,
+                use_scheduler=self.use_scheduler,
+                initial_lr=self.initial_lr
             )
-
             # Save state dict
             hypers = gp.state_dict()
 
         # Create the trust region boundaries
         x_center = X[fX.argmin().item(), :][None, :]
-        weights = gp.covar_module.base_kernel.lengthscale.cpu().detach().numpy().ravel()
-        weights = weights / weights.mean()  # This will make the next line more stable
-        weights = weights / np.prod(np.power(weights, 1.0 / len(weights)))  # We now have weights.prod() = 1
+        weights = gp.covar_module.base_kernel.lengthscale \
+            .cpu() \
+            .detach() \
+            .numpy() \
+            .ravel()
+        # This will make the next line more stable
+        weights = weights / weights.mean()
+        # We now have weights.prod() = 1
+        weights = weights / np.prod(np.power(weights, 1.0 / len(weights))) 
         lb = np.clip(x_center - weights * length / 2.0, 0.0, 1.0)
         ub = np.clip(x_center + weights * length / 2.0, 0.0, 1.0)
 
         # Draw a Sobolev sequence in [lb, ub]
         seed = np.random.randint(int(1e6))
         sobol = SobolEngine(self.dim, scramble=True, seed=seed)
-        pert = sobol.draw(self.n_cand).to(dtype=dtype, device=device).cpu().detach().numpy()
+        pert = sobol.draw(self.n_cand) \
+            .to(dtype=dtype, device=device) \
+            .cpu() \
+            .detach() \
+            .numpy()
+
         pert = lb + (ub - lb) * pert
 
         # Create a perturbation mask
@@ -220,9 +250,16 @@ class Turbo1:
         gp = gp.to(dtype=dtype, device=device)
 
         # We use Lanczos for sampling if we have enough data
-        with torch.no_grad(), gpytorch.settings.max_cholesky_size(self.max_cholesky_size):
-            X_cand_torch = torch.tensor(X_cand).to(device=device, dtype=dtype)
-            y_cand = gp.likelihood(gp(X_cand_torch)).sample(torch.Size([self.batch_size])).t().cpu().detach().numpy()
+        with torch.no_grad(), \
+                gpytorch.settings.max_cholesky_size(self.max_cholesky_size):          
+            X_cand_torch = torch.tensor(X_cand).to(
+                device=device, dtype=dtype
+            )
+            y_cand = gp.likelihood(gp(X_cand_torch)).sample(
+                torch.Size([self.batch_size])
+            )
+
+            y_cand = y_cand.t().cpu().detach().numpy()
 
         # Remove the torch variables
         del X_torch, y_torch, X_cand_torch, gp
@@ -273,7 +310,8 @@ class Turbo1:
                 sys.stdout.flush()
 
             # Thompson sample to get next suggestions
-            while self.n_evals < self.max_evals and self.length >= self.length_min:
+            while (self.n_evals < self.max_evals) and \
+                    (self.length >= self.length_min):
                 # Warp inputs
                 X = to_unit_cube(deepcopy(self._X), self.lb, self.ub)
 
@@ -282,7 +320,11 @@ class Turbo1:
 
                 # Create th next batch
                 X_cand, y_cand, _ = self._create_candidates(
-                    X, fX, length=self.length, n_training_steps=self.n_training_steps, hypers={}
+                    X,
+                    fX,
+                    length=self.length,
+                    n_training_steps=self.n_training_steps, 
+                    hypers={}
                 )
                 X_next = self._select_candidates(X_cand, y_cand)
 
@@ -306,12 +348,24 @@ class Turbo1:
                     sys.stdout.flush()
 
                     # Save latent vector for checkpointing
-                    best_x = X_next[np.argmin(fX_next)] 
+                    best_x = X_next[np.argmin(fX_next)]
 
                     # Convert best z to tensor
-                    z_res = torch.from_numpy(best_x).unsqueeze(0).to(self.device)
-                    np.save(f"./././artifacts/run/best_latent_z_step{self.n_evals}.npy", z_res.detach().cpu().numpy())
-                    print(f"z_res saved at : best_latent_z_step{self.n_evals}.npy")
+                    z_res = torch.from_numpy(best_x).unsqueeze(0)
+                    z_res.to(self.device)
+
+                    # Save the latent vector
+                    np.save(
+                        f"./././artifacts/run/"
+                        f"best_latent_z_step{self.n_evals}.npy",
+                        z_res.detach().cpu().numpy()
+                    )
+
+                    # Print confirmation message
+                    print(
+                        f"z_res saved at : "
+                        f"best_latent_z_step{self.n_evals}.npy"
+                    )
 
                 # Append data to the global history
                 self.X = np.vstack((self.X, deepcopy(X_next)))
