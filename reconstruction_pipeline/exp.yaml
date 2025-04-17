@@ -5,4 +5,6 @@ samples: ??
 beta:
 seed: 42
 verbose: True
+init: randn
+retain: 0
 
