@@ -14,7 +14,8 @@ class InputValidator:
         self.seed = config['seed']
         self.verbose = config['verbose']
 
-        self.wandb = config['wandb']
+        self.wandb = config.get('wandb_cfg', None)
+        print("wandb config", self.wandb)
 
         data_config = config['data']
         self.model_name = data_config['model_name']
@@ -27,16 +28,17 @@ class InputValidator:
         self.reconstructor_lr = config['reconstructor']['lr']
         self.reconstructor_params = config['reconstructor']['cfg']
 
-
         if 'unlearner' in config['reconstructor']:
             self.unlearner_params = config['reconstructor']['unlearner']
         else:
             self.unlearner_params = {}
-
-        self.wandb_project = config['wandb']['project']
-        self.extra_config = self.wandb.get('extra_config', {})
-
-
+                   
+        if self.wandb is not None:
+            self.wandb_enabled = True
+            self.wandb_project = self.wandb['project']
+            self.extra_config = self.wandb.get('extra_config', {})
+        else:
+            self.wandb_enabled = False
         
         self._validate_experiment_params()
         self._validate_dataset_params()
@@ -120,7 +122,6 @@ class InputValidator:
         else:
             if not isinstance(self.reconstructor_params['num_images'], int):
                 raise ConfigError('Either labels or num_images must be provided.')
-
         
     def _validate_experiment_params(self):
         """ Check some of the model-related config params from the YAML file.
