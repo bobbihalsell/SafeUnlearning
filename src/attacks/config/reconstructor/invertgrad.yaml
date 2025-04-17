@@ -1,4 +1,4 @@
-type: inversegrad  # Options: ggl, inversegrad
+type: invertgrad  # Options: ggl, invertgrad
 lr: 0.05
 cfg:
   num_images:        # Optional: either pass in labels or num_images
