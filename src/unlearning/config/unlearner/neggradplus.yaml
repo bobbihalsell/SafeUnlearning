@@ -1,9 +1,12 @@
-name: neggradplus  # Options: neggrad, neggradplus, scrub, euk, cfk, finetune
+name: neggradplus
 evaluate: true
 cfg:
-  # Common parameters for all unlearners
-  lr: 0.0005
-  weight_decay: 0
+  optimizer: sgd
+  lr: 0.001
+  momentum: 
+  lr_decay_factor:
+  epochs_per_lr_decay:
+  weight_decay: 0.0005
   use_l2_penalty: false
-  epochs: 2 # Ignored for scrub
-  beta: 0.99  # For neggradplus  beta = 0: forget only, beta = 1: retain only
+  epochs: 5
+  beta: 0.99  # Weightage between retain/forget loss importance. Value between 0 to 1.

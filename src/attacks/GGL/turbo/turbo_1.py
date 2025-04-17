@@ -62,6 +62,9 @@ class Turbo1:
         min_cuda=1024,
         device="cpu",
         dtype="float64",
+        gp_optim="AdamW",
+        use_scheduler=False,
+        initial_lr=1
     ):
 
         # Very basic input checks
@@ -127,6 +130,11 @@ class Turbo1:
         # Initialize parameters
         self._restart()
 
+
+        self.gp_optim = gp_optim
+        self.use_scheduler = use_scheduler
+        self.initial_lr = initial_lr
+
     def _restart(self):
         self._X = []
         self._fX = []
@@ -171,7 +179,8 @@ class Turbo1:
             X_torch = torch.tensor(X).to(device=device, dtype=dtype)
             y_torch = torch.tensor(fX).to(device=device, dtype=dtype)
             gp = train_gp(
-                train_x=X_torch, train_y=y_torch, use_ard=self.use_ard, num_steps=n_training_steps, hypers=hypers
+                train_x=X_torch, train_y=y_torch, use_ard=self.use_ard, num_steps=n_training_steps, hypers=hypers,
+                 gp_optim=self.gp_optim, use_scheduler=self.use_scheduler, initial_lr=self.initial_lr
             )
 
             # Save state dict
@@ -295,6 +304,14 @@ class Turbo1:
                     n_evals, fbest = self.n_evals, fX_next.min()
                     print(f"{n_evals}) New best: {fbest:.4}")
                     sys.stdout.flush()
+
+                    # Save latent vector for checkpointing
+                    best_x = X_next[np.argmin(fX_next)] 
+
+                    # Convert best z to tensor
+                    z_res = torch.from_numpy(best_x).unsqueeze(0).to(self.device)
+                    np.save(f"./././artifacts/run/best_latent_z_step{self.n_evals}.npy", z_res.detach().cpu().numpy())
+                    print(f"z_res saved at : best_latent_z_step{self.n_evals}.npy")
 
                 # Append data to the global history
                 self.X = np.vstack((self.X, deepcopy(X_next)))

@@ -2,11 +2,12 @@ from datasets.load_datasets import load_train_val_test_datasets
 import numpy as np
 import os
 import shutil
-from torchvision.datasets import ImageFolder
+from train.image_loading import RobustImageFolder
 from unlearning.utils import ConfigError
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.errors import MissingMandatoryValue
+import json
 
 
 class DatasetInitializer:
@@ -28,6 +29,56 @@ class DatasetInitializer:
         seed = config.get('seed', 42)
         np.random.seed(seed)
 
+    def rename_imagenet_folders(self):
+        """Create a copy of the ImageNet subset with folder names
+        mapped to label indices, preserving the original dataset.
+        """
+        base_dir = os.path.dirname(__file__)
+        mapping_path = os.path.join(base_dir,
+                                    'imagenet',
+                                    'imagenet_1k_mappings.json')
+
+        with open(mapping_path, 'r') as f:
+            default_imagenet_mapping = json.load(f)
+
+        source_root = self.init_dir
+        target_root = self.init_dir.rstrip('/') + '_renamed'
+
+        os.makedirs(target_root, exist_ok=True)
+
+        split_names = ['train', 'val']
+        for split in split_names:
+            src_split = os.path.join(source_root, split)
+            tgt_split = os.path.join(target_root, split)
+
+            if not os.path.exists(src_split):
+                continue
+
+            os.makedirs(tgt_split, exist_ok=True)
+
+            folder_names = [i for i in
+                            sorted(os.listdir(src_split)) if
+                            not i.startswith('.')]
+            for folder in folder_names:
+                try:
+                    label_index = default_imagenet_mapping[folder]
+                except KeyError:
+                    raise KeyError(
+                        "Folder name not found in "
+                        f"ImageNet-1K Class IDs: {folder}"
+                    )
+
+                src_dir = os.path.join(src_split, folder)
+                tgt_dir = os.path.join(tgt_split, str(label_index))
+
+                if os.path.exists(tgt_dir):
+                    raise FileExistsError(
+                        f"Target directory already exists: {tgt_dir}")
+
+                shutil.copytree(src_dir, tgt_dir)
+
+        print(f"Renamed dataset created at: {target_root}")
+
     def load_datasets(self):
         """ Download and save benchmark datasets with name support.
 
@@ -41,11 +92,17 @@ class DatasetInitializer:
 
         os.makedirs(self.save_dir, exist_ok=True)
 
+        init_dir = self.init_dir
+        if self.dataset_name == 'imagenet':
+            # Rename the folders to match label indices
+            self.rename_imagenet_folders()
+            init_dir = self.init_dir.rstrip('/') + '_renamed'
+
         load_train_val_test_datasets(
             dataset_name=self.dataset_name,
             proportion=self.proportion,
             val_ratio=self.val_ratio,
-            dataset_load_dir=self.init_dir,
+            dataset_load_dir=init_dir,
             dataset_save_dir=self.save_dir,
         )
 
@@ -73,6 +130,12 @@ class DatasetInitializer:
             raise ConfigError('Unsupported forget_method, '
                               f'received {self.forget_method}.')
 
+        if self.dataset_name == 'imagenet':
+            # Remove the interim directory created to avoid mutating original
+            renamed_dir = self.init_dir.rstrip('/') + '_renamed'
+            if os.path.exists(renamed_dir):
+                shutil.rmtree(renamed_dir)
+
     def create_symlink_subsets_by_indices(self,
                                           train_dir: str,
                                           output_dir: str,
@@ -80,14 +143,19 @@ class DatasetInitializer:
                                           retain_size: int = None,
                                           ):
         """ Create symlink forget and retain subsets"""
-        train_dataset = ImageFolder(root=train_dir)
+        train_dataset = RobustImageFolder(root=train_dir)
 
         # If retain_size is None, use all indices except the forget_indices
         all_indices = set(range(len(train_dataset)))
         retain_indices = list(all_indices - set(forget_indices))
 
         if retain_size is not None:
-            retain_indices = list(np.random.choice(retain_indices, min(retain_size, len(retain_indices))))
+            retain_indices = list(
+                np.random.choice(
+                    retain_indices,
+                    min(retain_size, len(retain_indices))
+                    )
+                )
 
         def symlink_subset(subset_name, subset_indices):
             subset_dir = os.path.join(output_dir, subset_name)

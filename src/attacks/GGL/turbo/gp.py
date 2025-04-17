@@ -38,7 +38,7 @@ class GP(ExactGP):
         return MultivariateNormal(mean_x, covar_x)
 
 
-def train_gp(train_x, train_y, use_ard, num_steps, hypers={}):
+def train_gp(train_x, train_y, use_ard, num_steps, hypers={}, gp_optim ='AdamW', use_scheduler=False, initial_lr=1):
     """Fit a GP model where train_x is in [0, 1]^d and train_y is standardized."""
     assert train_x.ndim == 2
     assert train_y.ndim == 1
@@ -81,8 +81,13 @@ def train_gp(train_x, train_y, use_ard, num_steps, hypers={}):
         hypers["likelihood.noise"] = 0.005
         model.initialize(**hypers)
 
-    # Use the adam optimizer
-    optimizer = torch.optim.Adam([{"params": model.parameters()}], lr=0.1)
+    if gp_optim == 'Adam':
+        # Use the adam optimizer
+        optimizer = torch.optim.Adam([{"params": model.parameters()}], lr=initial_lr)
+    if gp_optim == 'AdamW':
+        optimizer = torch.optim.AdamW([{"params": model.parameters()}], lr=initial_lr)
+    if use_scheduler:
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=num_steps/5, gamma=0.5)  
 
     for _ in range(num_steps):
         optimizer.zero_grad()
@@ -90,6 +95,8 @@ def train_gp(train_x, train_y, use_ard, num_steps, hypers={}):
         loss = -mll(output, train_y)
         loss.backward()
         optimizer.step()
+        if use_scheduler:
+            scheduler.step()
 
     # Switch to eval mode
     model.eval()

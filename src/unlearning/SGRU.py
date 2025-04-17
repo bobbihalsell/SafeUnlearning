@@ -1,9 +1,7 @@
-import os
 import torch
 import torch.nn as nn
 import copy
-from unlearning.utils import (l2_penalty)
-from itertools import cycle
+from unlearning.utils import l2_penalty
 from unlearning.base import BaseUnlearner
 from typing import Dict
 from torch.utils.data import DataLoader
@@ -80,7 +78,8 @@ class SGRU(BaseUnlearner):
         unlearned_model = copy.deepcopy(model)
 
         # Validate and extract common hyperparameters
-        loss_fn, num_epochs, lr, weight_decay, use_l2_penalty = self.valid_args(**kwargs)
+        self.valid_args(**kwargs)
+        self.extract_hyperparameters(**kwargs)
 
         # Extract gradient deflection specific parameters
         recalc_freq = kwargs.get('recalc_freq', 1)  # Recalculate forget subspace every N epochs
@@ -93,15 +92,13 @@ class SGRU(BaseUnlearner):
             raise ValueError("'retain' and 'forget' data must be in data_dict.")
 
         # Initialize loss tracking
-        losses = {f"{data_type}_losses": [] for data_type in data_dict.keys()}
+        losses = {f"{data_type}": [] for data_type in data_dict.keys()}
 
         optimizer = torch.optim.SGD(params=unlearned_model.parameters(),
-                                    lr=lr,
-                                    weight_decay=weight_decay)
+                                    lr=self.lr,
+                                    weight_decay=self.weight_decay)
 
-        eval_only_data = [data for data in data_dict.keys() if 
-                        data != 'retain' and
-                        data_dict[data] is not None]
+        eval_only_data = [key for key in data_dict.keys() if key != 'retain']
 
         # Group parameters by layers/modules for efficiency
         param_groups = {}
@@ -112,11 +109,11 @@ class SGRU(BaseUnlearner):
                 if module_name not in param_groups:
                     param_groups[module_name] = []
                 param_groups[module_name].append((name, param))
-        
+
         forget_directions = {}
 
         # Main training loop
-        for e in range(num_epochs):
+        for e in range(self.epochs):
             # Recalculate forget subspace periodically
             if e % recalc_freq == 0:
                 unlearned_model.eval() 
@@ -130,7 +127,8 @@ class SGRU(BaseUnlearner):
                         
                         optimizer.zero_grad()
                         forget_output = unlearned_model(forget_inputs)
-                        forget_loss = loss_fn(forget_output, forget_labels)
+                        forget_loss = self.criterion(forget_output,
+                                                     forget_labels)
                         
                         # Check for NaN loss
                         if torch.isnan(forget_loss).any():
@@ -152,8 +150,9 @@ class SGRU(BaseUnlearner):
                         if batch_grads:
                             group_grads.append(torch.cat(batch_grads))
                     
-                    # Compute principal components if we have enough gradient data
-                    if len(group_grads) > 0:
+                    # Compute principal components 
+                    # if len(group_grads) > 0:
+                    #     grads_matrix = torch.stack(group_grads)
                         grads_matrix = torch.stack(group_grads)
                         
                         # Check for NaN in gradient matrix
@@ -185,7 +184,7 @@ class SGRU(BaseUnlearner):
                                                                     
                             except Exception as e:
                                 print(f"SVD failed for {group_name}: {e}")
-                                # Fallback - use random orthogonal directions for randomisation
+                                # Fallback - use random orthogonal directions for randomisation adding noise for fogetting
                                 random_dirs = torch.randn(grads_matrix.size(1), k, device=self.device)
                                 forget_directions[group_name], _ = torch.linalg.qr(random_dirs)
         
@@ -200,14 +199,14 @@ class SGRU(BaseUnlearner):
                 retain_labels = retain_labels.to(self.device)
 
                 retain_output = unlearned_model(retain_inputs)
-                retain_loss = loss_fn(retain_output, retain_labels)
+                retain_loss = self.criterion(retain_output, retain_labels)
                     
                 total_retain_loss += retain_loss.item()
 
-                if use_l2_penalty:
+                if self.use_l2_penalty:
                     l2_loss = l2_penalty(model=unlearned_model,
                                         model_init=model,
-                                        weight_decay=weight_decay)
+                                        weight_decay=self.weight_decay)
                     retain_loss += l2_loss
 
                 retain_loss.backward()
@@ -248,26 +247,29 @@ class SGRU(BaseUnlearner):
                                     # Reshape and assign
                                     param.grad = param_grad.view_as(param.grad)
                                     start_idx += num_params
-                    
+
                     # Apply gradient clipping to all parameters
                     torch.nn.utils.clip_grad_norm_(unlearned_model.parameters(), max_grad_norm)
-                    
+
                 optimizer.step()
-                
+
             if verbose:
                 print(f'Epoch {e}: Retain Loss: {total_retain_loss/len(data_dict["retain"])}')
 
             if self.evaluate:
                 # Calculate average retain loss for this epoch
-                losses['retain_losses'].append(total_retain_loss/len(data_dict["retain"]))
+                losses['retain'].append(total_retain_loss/len(data_dict["retain"]))
                 unlearned_model.eval()
                 # Evaluate model on other datasets
                 for data_type in eval_only_data:
-                    loader_loss = self._evaluate(unlearned_model, data_dict[data_type], loss_fn).mean()
-                    losses[f"{data_type}_losses"].append(loader_loss.item())
-                    
+                    loader_loss = self._evaluate(unlearned_model,
+                                                 data_dict[data_type],
+                                                 self.criterion).mean()
+                    losses[f"{data_type}"].append(loader_loss.item())
+
                     if verbose:
-                        print(f'{data_type.capitalize()} Loss: {loader_loss}', end='  ')
+                        print(f'{data_type.capitalize()} Loss: {loader_loss}',
+                              end='  ')
                 if verbose:
                     print()
 

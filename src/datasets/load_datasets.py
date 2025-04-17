@@ -1,24 +1,25 @@
 from torch.utils.data import Subset
 import torchvision.datasets as datasets
+from torchvision.transforms import ToPILImage
+from train.image_loading import RobustImageFolder
 import numpy as np
 import os
 import torch
 import torchvision
-from torchvision.transforms import ToPILImage
 
 
 def _get_stratified_split(dataset: torch.utils.data.Dataset,
                           proportion: float):
-    """ Get a stratified split of a dataset into 2 subsets. 
+    """ Get a stratified split of a dataset into 2 subsets.
 
     This will retain class distributions.
     """
     targets = np.array(dataset.targets)
-    num_classes = len(set(targets))
+    unique_classes = np.unique(targets)
     indices = []
     remainder_indices = []
 
-    for cls in range(num_classes):
+    for cls in unique_classes:
         cls_indices = np.where(targets == cls)[0]
         np.random.shuffle(cls_indices)
         num_samples = int(len(cls_indices) * proportion)
@@ -78,13 +79,13 @@ def load_train_val_test_datasets(dataset_name: str,
 
     elif dataset_name == 'imagenet':
         # Load in the dataset for filtering by proportion
-        raw_train = datasets.ImageFolder(
+        raw_train = RobustImageFolder(
             root=os.path.join(dataset_load_dir, "train"),
             transform=transform
         )
         # If val path does not exist, then do not save a test set
         if os.path.exists(os.path.join(dataset_load_dir, "val")):
-            raw_test = datasets.ImageFolder(
+            raw_test = RobustImageFolder(
                 root=os.path.join(dataset_load_dir, "val"),
                 transform=transform
             )
@@ -102,7 +103,7 @@ def load_train_val_test_datasets(dataset_name: str,
     # Perform train/val split
     raw_train_subset, raw_val_subset = _get_stratified_split(raw_train,
                                                              1 - val_ratio)
-
+    print('save dir', dataset_save_dir)
     # Save datasets to ImageFolder format
     if dataset_save_dir:
         _save_as_imagefolder(raw_train_subset,

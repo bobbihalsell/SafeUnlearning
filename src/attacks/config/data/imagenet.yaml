@@ -1,0 +1,5 @@
+model_name: ???
+dataset_name: imagenet
+labels: ???
+num_classes: 1000
+data_root: ???

@@ -28,14 +28,14 @@ def save_model(model: nn.Module,
     Returns:
         str: The filepath where the model was saved.
     """
-    directory = f'{output_dir}/unlearn/{unlearning_algorithm}'
+    directory = os.path.join(output_dir, 'unlearn', unlearning_algorithm)
     os.makedirs(directory, exist_ok=True)  # Ensure the directory exists
 
     filepath = os.path.join(directory, f'{model_name}_{seed}_{model_type}.pt')
 
     # Save only the state_dict
     save_data = {
-        'state_dict': model.state_dict(),
+        'model_state_dict': model.state_dict(),
         'model_name': model_name,
         'unlearning_algorithm': unlearning_algorithm
     }
