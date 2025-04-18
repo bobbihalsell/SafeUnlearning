@@ -6,7 +6,7 @@ import torch
 from typing import Optional
 import os
 from dataclasses import fields
-from attacks.metrics import psnr, mse_image_space, lpips_batch, MSE_R
+from attacks.metrics import psnr, mse_image_space
 from torchvision import transforms
 from PIL import Image
 import glob
@@ -181,7 +181,7 @@ def set_seed(seed: int = 42):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False  # Ensure deterministic behavior
 
-def calculate_metrics(img_batch, ref_batch, dataset_size, images = 1, verbose = True):
+def calculate_metrics(img_batch, ref_batch, dataset_size, verbose=True):
     # Compute metrics
     ref_batch = ref_batch.to('cuda') 
     img_batch = img_batch.to('cuda')
@@ -191,19 +191,16 @@ def calculate_metrics(img_batch, ref_batch, dataset_size, images = 1, verbose = 
     ref_batch = torch.clamp(ref_batch, 0.0, 1.0)
 
     psnr_value = psnr(img_batch, ref_batch, dataset_size, factor=1)
-    if images == 1:
-        mse_value = mse_image_space(img_batch, ref_batch, dataset_size)
-    else:
-        mse_value = 0
-    
+    mse_value = mse_image_space(img_batch, ref_batch, dataset_size)
+
     if verbose:
         print("\n*** Evaluation Metrics ***")
 
-        for i, (mse, idx) in enumerate(psnr_value):
+        for i, (val, idx) in enumerate(psnr_value):
+            print(f"Recon image {i}: Best match is ref {idx} with MSE {val:.6f}")
+        for i, (mse, idx) in enumerate(mse_value):
             print(f"Recon image {i}: Best match is ref {idx} with MSE {mse:.6f}")
-        if images == 1:
-            print(f"MSE (Image Space): {mse_value:.6f}")
-            
+
     return psnr_value, mse_value
 
 def load_from_directory(dir_path):

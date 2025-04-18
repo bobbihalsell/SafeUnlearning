@@ -216,25 +216,30 @@ class ReconstructorApp(InputValidator):
         
         # # Step 6: Calculate metrics
         ref_batch = load_from_directory(self.data_root)
-        num_images = reconstruction.shape[0]
-        psnr_value, mse_value = calculate_metrics(reconstruction, ref_batch, self.image_size, num_images, self.verbose)
+        psnr_value, mse_value = calculate_metrics(reconstruction, ref_batch, self.image_size, self.verbose)
 
 
         # # Step 7: Save metrics
         if self.wandb_enabled:
-            table = wandb.Table(columns=["img_id", "psnr", "best_ref_index"])
+            table_psnr = wandb.Table(columns=["img_id", "psnr", "best_ref_index"])
             for i, (p, idx) in enumerate(psnr_value):
-                table.add_data(i, p, idx)
+                table_psnr.add_data(i, p, idx)
+
+            table_mse = wandb.Table(columns=["img_id", "mse", "best_ref_index"])
+            for i, (mse, idx) in enumerate(mse_value):
+                table_mse.add_data(i, mse, idx)
 
             psnr_max = max([p for p, _ in psnr_value])
+            mse_max = max([mse for mse, _ in mse_value])
 
             wandb.log({
                 'reconstruction_time': total_time,
                 'losses': losses,
                 'reconstruction': wandb.Image(reconstruction),
-                'psnr_table': table,
+                'psnr_table': table_psnr,
+                'mse_table': table_mse,
                 'max_psnr': psnr_max,
-                'mse_image_space': mse_value
+                'mse_image_space': mse_max
             })
             wandb.finish()
         
