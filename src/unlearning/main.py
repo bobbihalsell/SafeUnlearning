@@ -183,7 +183,8 @@ class UnlearnApp(InputValidator):
                    unlearning_algorithm=self.unlearner_name,
                    model_name=self.model_name,
                    seed=self.seed,
-                   model_type='original')
+                   model_type='original',
+                   id=self.id)
 
         # Step 3: Perform unlearning
         unlearner = self.initialize_unlearner()

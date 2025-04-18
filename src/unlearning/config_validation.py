@@ -7,6 +7,8 @@ class InputValidator:
         assert isinstance(config, dict)
 
         self.output_dir = config['output_dir']
+        self.id = config.get('id', None)
+        print(f'self.id   {self.id}')
 
         self.unlearner_name = config['unlearner']['name']
         self.unlearn_params = config['unlearner']['cfg']
