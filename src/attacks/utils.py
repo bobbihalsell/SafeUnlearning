@@ -17,8 +17,8 @@ class SaveImage:
                  attack_name: str,
                  seed: str,
                  experiment_name: str,
-                 image_mean: Optional[list] = None, 
-                 image_std: Optional[list] = None, 
+                 image_mean: list = None, 
+                 image_std: list = None, 
                  output_dir: str = "artifacts/reconstructed",
                  ):
         """Class to save images and tensors.
@@ -53,19 +53,19 @@ class SaveImage:
 
     def save_png(self, 
                  images: list, 
-                 filename: Optional[str] = None, 
-                 fig_size: Optional[tuple] = None,
-                 n_cols: Optional[int] = None,
-                 normalize: Optional[bool] = True
+                 filename: str = None, 
+                 fig_size: tuple = None,
+                 n_cols: int = None,
+                 normalize: bool = True
                  ): 
         """
         Save images as PNG files with a specified layout.
         Args:
             images (list): List of images to save.
-            filename (str, optional): Name of the file to save. Defaults to None.
-            fig_size (tuple, optional): Figure size. Defaults to None.
-            n_cols (int, optional): Number of columns. Defaults to None.
-            normalize (bool, optional): Whether to normalize the images. Defaults to True.
+            filename (str): Name of the file to save. Defaults to None.
+            fig_size (tuple): Figure size. Defaults to None.
+            n_cols (int): Number of columns. Defaults to None.
+            normalize (bool): Whether to normalize the images. Defaults to True.
         
         Returns:
             None
