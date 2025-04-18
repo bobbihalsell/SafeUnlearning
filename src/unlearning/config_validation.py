@@ -78,15 +78,34 @@ class InputValidator:
         elif self.unlearner_name in {'euk', 'cfk'}:
             # Check for k parameter
             try:
-                self.unlearn_params['k']
+                self.k = self.unlearn_params['k']
             except KeyError:
                 raise ConfigError(f'Missing required parameter k for '
                                   f'{self.unlearner_name.upper()} unlearner')
             if self.unlearner_name == 'euk':
                 # Check for EUk-specific parameters
-                if 'reinit_method' not in self.unlearn_params:
+                try:
+                    self.reinit_method = self.unlearn_params['reinit_method']
+                except KeyError:
                     raise ConfigError('Missing required parameter '
                                       'reinit_method for EUk unlearner')
+                
+            elif self.unlearner_name == 'gradproj':
+                # Check for gradient projection-specific parameters
+                required_gradproj_params = ['recalc_freq', 
+                                            'num_components', 
+                                            'redirection_strength', 
+                                            'max_grad_norm']
+                missing_gradproj_params = []
+                for param in required_gradproj_params:
+                    if param not in self.unlearn_params:
+                        missing_gradproj_params.append(param)
+                if missing_gradproj_params:
+                    raise ConfigError(
+                        'Missing required params for gradient projection '
+                        'unlearner:'
+                        f' {', '.join(missing_gradproj_params)}'
+                                )
 
     def _validate_dataset_params(self):
         valid_dataset_names = {'cifar5',
