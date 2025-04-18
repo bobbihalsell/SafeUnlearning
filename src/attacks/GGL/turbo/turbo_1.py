@@ -11,6 +11,7 @@
 
 import math
 import sys
+import os
 from copy import deepcopy
 
 import gpytorch
@@ -355,9 +356,12 @@ class Turbo1:
                     z_res.to(self.device)
 
                     # Save the latent vector
+                    save_dir = "./././artifacts/run/"
+                    os.makedirs(save_dir, exist_ok=True)
+
+                    # Save the numpy array
                     np.save(
-                        f"./././artifacts/run/"
-                        f"best_latent_z_step{self.n_evals}.npy",
+                        os.path.join(save_dir, f"best_latent_z_step{self.n_evals}.npy"),
                         z_res.detach().cpu().numpy()
                     )
 
