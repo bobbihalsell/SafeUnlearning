@@ -1,0 +1,4 @@
+name: lira
+cfg:
+  num_splits: 10
+  num_forgets: 5

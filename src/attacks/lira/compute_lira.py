@@ -147,7 +147,7 @@ def run(config: DictConfig, root: Path) -> None:
     save_dir = config.dataset.save_path
 
     train, val, test = load_train_val_test_datasets(
-        config.dataset.name, 1, config.dataset.val_ratio, save_dir, save_dir
+        config.dataset.name, 1, config.dataset.val_ratio, save_dir, ""
     )
     dataset = ConcatDataset([train, val, test])
     targets = np.array([label for (image, label) in dataset])

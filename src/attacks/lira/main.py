@@ -1,4 +1,5 @@
 import os
+from copy import deepcopy
 from pathlib import Path
 
 import hydra
@@ -15,10 +16,10 @@ from unlearning.utils import set_seed, setup_device
 
 class LiRAApp:
     def __init__(self, config: DictConfig):
-        self.config = OmegaConf.to_container(config, resolve=True)
+        self.config = config
 
         # Perform input validation
-        LiRAValidator(self.config)
+        LiRAValidator(OmegaConf.to_container(config, resolve=True))
 
         self.device = setup_device()
         print(f"Using device: {self.device}")
@@ -28,13 +29,23 @@ class LiRAApp:
         self.root = Path(f"artifacts/attacks/lira/{self.config['exp_name']}")
         os.makedirs(self.root, exist_ok=True)
 
+        # TODO: Fix temp hack
+        self.config2 = deepcopy(config)
+        self.config2["unlearner"] = OmegaConf.load("src/attacks/lira/config/unlearner/finetune.yaml")
+
     def train_base_models(self):
-        tl_main(self.config, "finetune", self.root, "original")
-        generate_predictions(self.config, self.root, "original")
+        if not os.listdir(f"{self.root}/original/models"):
+            tl_main(self.config2, "finetune", self.root, "original")
+            generate_predictions(self.config2, self.root, "original")
+        else:
+            print("Original models are already generated. Skipping.")
 
     def train_test_models(self):
-        tl_main(self.config, "finetune", self.root, "naive")
-        generate_predictions(self.config, self.root, "naive")
+        if not os.listdir(f"{self.root}/naive/models"):
+            tl_main(self.config2, "finetune", self.root, "naive")
+            generate_predictions(self.config2, self.root, "naive")
+        else:
+            print("Naive unlearnt models are already generated. Skipping.")
 
     def unlearn_models(self):
         tl_main(

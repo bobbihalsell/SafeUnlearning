@@ -40,7 +40,7 @@ def get_loaders_from_indices(
     transform = get_cifar10_test_transform()
 
     train, val, test = load_train_val_test_datasets(
-        dataset, 1, config.dataset.val_ratio, save_dir, save_dir, transform
+        dataset, 1, config.dataset.val_ratio, save_dir, "", transform
     )
     dataset = ConcatDataset([train, val, test])
 
@@ -52,9 +52,9 @@ def get_loaders_from_indices(
         data_set = Subset(dataset, indices)
         loader = DataLoader(
             data_set,
-            batch_size=config.batch_size,
+            batch_size=config.dataset.cfg.batch_sizes[split_name],
             shuffle=False,
-            num_workers=config.num_workers,
+            num_workers=config.dataset.cfg.num_workers,
             pin_memory=False,
         )
         loaders[split_name] = loader

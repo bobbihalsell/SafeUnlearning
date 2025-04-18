@@ -13,15 +13,10 @@ class UnlearnAppForLiRA(UnlearnApp):
         super().__init__(config)
         self.unlearner_name = unlearner_name
 
-    def run(self, dataloaders, model_ckpt_path):
+    def run(self, dataloaders):
         print("running...")
         # Step 1: Initialize the model
-        original_model = self.initialize_model()
-        if model_ckpt_path:
-            # Load state dict
-            checkpoint = torch.load(model_ckpt_path, map_location=self.device)
-            original_model.load_state_dict(checkpoint["model_state_dict"])
-        original_model.to(self.device)
+        original_model = self.load_model()
 
         # Step 2: Unlearning
         unlearner = self.initialize_unlearner()
@@ -61,15 +56,14 @@ def run(config, unlearner, root, save_path):
                 indices=[retain, forget, val],
             )
 
-            model_ckpt_path = ""
             if save_path not in ["original", "naive"]:
-                model_ckpt_path = (
+                app.model_ckpt_path = (
                     root
                     / "original"
                     / "models"
                     / f"{config.model.name}_{split_ndx}_{forget_ndx}.pth"
                 )
-            unlearned_model = app.run(loaders, model_ckpt_path)
+            unlearned_model = app.run(loaders)
             torch.save(
                 {"model_state_dict": unlearned_model.state_dict()},
                 root

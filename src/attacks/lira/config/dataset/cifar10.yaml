@@ -1,4 +1,5 @@
 name: cifar10
+num_classes: 10
 save_path: ./data
 val_ratio: 0.2
 forget_ratio: 0.2
@@ -7,4 +8,4 @@ cfg:
     retain: 32
     forget: 32
     val: 32
-num_workers: 4
+  num_workers: 4

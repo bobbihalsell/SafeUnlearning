@@ -1,7 +1,8 @@
 name: neggrad
+evaluate: true
 cfg:
   lr: 0.0005
   weight_decay: 0
   use_l2_penalty: false
   epochs: 10
-  beta: 0.99  # For neggradplus  beta = 0: forget only, beta = 1: retain only
+  beta: 0.99
