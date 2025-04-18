@@ -218,7 +218,10 @@ class SCRUB(BaseUnlearner):
             raise ValueError("Alpha and gamma must be non-negative.")
 
         # Calculate total number of epochs and initialize counters
-        total_epochs = self.max_epochs + self.min_epochs
+        if self.sep_epochs:
+            total_epochs = max(self.max_epochs, self.min_epochs)
+        else:
+            total_epochs = self.max_epochs + self.min_epochs
         for e in range(total_epochs):
             epoch_start_time = time.time()
             model.eval()
@@ -226,7 +229,6 @@ class SCRUB(BaseUnlearner):
 
             # Maximize divergence on forget data
             if e < self.max_epochs:
-                print('max epoch')
                 self.max_epoch(
                     model,
                     unlearned_model,
@@ -234,7 +236,6 @@ class SCRUB(BaseUnlearner):
                 )
             # Minimize divergence on retain data
             if not self.sep_epochs or e < self.min_epochs:
-                print('min epoch')
                 self.min_epoch(
                         model,
                         unlearned_model,
