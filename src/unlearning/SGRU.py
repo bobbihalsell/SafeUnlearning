@@ -88,8 +88,10 @@ class SGRU(BaseUnlearner):
             data_dict,
             **kwargs)
         
-        if self.recalc_freq < 0 or self.recalc_freq > 1:
-            raise ValueError("recalc_freq must be between 0 and 1.")
+        if self.recalc_freq < 0:
+            raise ValueError("recalc_freq must be non-negative.")
+        if not isinstance(self.recalc_freq, int):
+            raise TypeError("recalc_freq must an integer.")
         if self.num_components < 0:
             raise ValueError("num_components must be non-negative.")
         if not isinstance(self.num_components, int):

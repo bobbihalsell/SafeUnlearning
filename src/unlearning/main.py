@@ -207,6 +207,7 @@ class UnlearnApp(InputValidator):
                    model_name=self.model_name,
                    seed=self.seed,
                    model_type='unlearned',
+                   id=self.id,
                    payload=losses)
 
 
