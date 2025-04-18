@@ -49,7 +49,7 @@ python src/unlearning/maintest.py dataset=cifar10 model=torchvision unlearner=ne
 
 
 run
-python src/datasets/main.py forget=classnum dataset=cifar10 forget.forget_idx="{5:500}" dataset.init_dir=./raw dataset.save_dir=./data
+python src/datasets/main.py forget=classnum dataset=cifar10 forget.forget_idx="{1:500}" dataset.init_dir=./raw dataset.save_dir=./data
 
 python src/import_model/main.py load_method=torch init_path=chenyaofo/pytorch-cifar-models model_name=cifar10_resnet20 pretrained=true dataset=cifar10 save_dir=./artifacts/models
 
