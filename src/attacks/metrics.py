@@ -10,7 +10,8 @@ from PIL import Image
 
 import torch.nn.functional as F  
 from torchvision.transforms.functional import resize
-
+import torch
+from torchvision import transforms
 
 
 def apply_resizing(img_batch, ref_batch, dataset_size):
@@ -27,9 +28,6 @@ def apply_resizing(img_batch, ref_batch, dataset_size):
     # Return the resized batches
     return torch.stack(resized_img_batch), torch.stack(resized_ref_batch)
 
-
-import torch
-from torchvision import transforms
 
 def apply_normalization(img_batch, ref_batch, dataset_mean, dataset_std):
     """
@@ -85,75 +83,23 @@ def psnr(img_batch, ref_batch, dataset_size, factor=1.0):
 
 def mse_image_space(img_batch, ref_batch, dataset_size):
     """
-    Compute Mean Squared Error in image space for batched input.
-    
-    Inputs:
-        img_batch: Tensor of shape [B, 3, H, W] (normalized)
-        ref_batch: Tensor of shape [B, 3, H, W] (normalized)
-    
-    Returns:
-        mse: Scalar float (mean MSE across batch)
+    For each image in img_batch, find the reference image in ref_batch with the lowest MSE.
+    Returns: list of (best_mse, best_index) tuples, one per image in img_batch.
     """
     img_batch, ref_batch = apply_resizing(img_batch, ref_batch, dataset_size)
 
-    # Compute mean squared error per image, then average over batch
-    mse = F.mse_loss(img_batch, ref_batch, reduction='mean')
+    img_batch = img_batch.detach()
+    ref_batch = ref_batch.detach()
+    results = []
 
-    return mse.item()
+    for i, img in enumerate(img_batch):
+        best_mse = float('inf')
+        best_idx = -1
+        for j, ref_img in enumerate(ref_batch):
+            mse_val = ((img - ref_img) ** 2).mean().item()
+            if mse_val < best_mse:
+                best_mse = mse_val
+                best_idx = j
+        results.append((best_mse, best_idx))
 
-
-def lpips_batch(img_batch, ref_batch, dataset_name='cifar10'):
-    """
-    Compute LPIPS distance between batches of images.
-
-    Inputs:
-        gen_imgs: Tensor [B, 3, H, W], normalized with ImageNet stats
-        ref_imgs: Tensor [B, 3, H, W], normalized with ImageNet stats
-
-    Returns:
-        lpips_value: float, average LPIPS over batch
-    """
-    img_batch, ref_batch = apply_resizing(img_batch, ref_batch, dataset_name)
-
-    # Load LPIPS model 
-    lpips_fn = lpips.LPIPS(net='alex')  
-    lpips_fn = lpips_fn.cuda() if torch.cuda.is_available() else lpips_fn
-
-    # Compute LPIPS per image in batch
-    with torch.no_grad():
-        distances = lpips_fn(img_batch, ref_batch)
-
-    return distances.mean().item()
-
-
-def MSE_R(img_batch, ref_batch, dataset_name='imagenet'):
-    """
-    Compute MSE in Representation Space (MSE-R) between batches of images.
-
-    Inputs:
-        gen_imgs: Tensor [B, 3, H, W], normalized with ImageNet stats
-        ref_imgs: Tensor [B, 3, H, W], normalized with ImageNet stats
-
-    Returns:
-        MSE-R: float
-    """
-    img_batch, ref_batch = apply_resizing(img_batch, ref_batch, dataset_name)
-    #img_batch, ref_batch = apply_normalization(img_batch, ref_batch, dataset_name)
-    # Load pretrained model
-    resnet = models.resnet18(pretrained=True)
-    resnet.eval()
-
-    # Get feature extractor (before final classification layer)
-    feature_extractor = nn.Sequential(*list(resnet.children())[:-1])  # Remove last FC layer
-    feature_extractor = feature_extractor.to('cuda')
-
-    # Extract feature vectors
-    with torch.no_grad():
-        target_feat = feature_extractor(ref_batch).squeeze()        
-        recon_feat = feature_extractor(img_batch).squeeze()
-
-    # Compute MSE in representation space
-    mse_loss = nn.MSELoss()
-    mse_r = mse_loss(target_feat, recon_feat)
-
-    return mse_r.item()
+    return results
