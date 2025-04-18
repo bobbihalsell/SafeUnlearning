@@ -150,7 +150,7 @@ class TestDatasetUtils(unittest.TestCase):
         # Use self to store the datasets
         self.saved_datasets = {}
         
-        def side_effect(dataset, name):
+        def side_effect(dataset, name, root_path=None):
             self.saved_datasets[name] = dataset
             print(f"Mock _save_as_imagefolder called with {name}")
         
@@ -196,7 +196,7 @@ class TestDatasetUtils(unittest.TestCase):
         """Test loading CIFAR100 dataset."""
         self.saved_datasets = {}
         
-        def side_effect(dataset, root_path, name):
+        def side_effect(dataset, name, root_path=None):
             self.saved_datasets[name] = dataset
             print(f"Mock _save_as_imagefolder called with {name}")
         
@@ -292,7 +292,7 @@ class TestImageNetLoading(unittest.TestCase):
     def test_load_imagenet(self):
         """Test loading ImageNet dataset."""
         # Create side effect function to capture saved datasets
-        def save_side_effect(dataset, root_path, name):
+        def save_side_effect(dataset, name, root_path=None):
             self.saved_datasets[name] = dataset
         
         # Setup the mock with side effect

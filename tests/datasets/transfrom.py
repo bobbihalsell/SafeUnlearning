@@ -75,25 +75,21 @@ class TestTransformations(unittest.TestCase):
         self.assertIsInstance(transform, transforms.Compose)
         
         # Check that it has exactly 4 transforms
-        self.assertEqual(len(transform.transforms), 4)
+        self.assertEqual(len(transform.transforms), 3)
         
         # Check each transform type and parameters
         resize_transform = transform.transforms[0]
         self.assertIsInstance(resize_transform, transforms.Resize)
-        self.assertEqual(resize_transform.size, 256)
+        self.assertEqual(resize_transform.size, (224, 224))
         
-        crop_transform = transform.transforms[1]
-        self.assertIsInstance(crop_transform, transforms.CenterCrop)
-        self.assertEqual(crop_transform.size, (224, 224))
+        self.assertIsInstance(transform.transforms[1], transforms.ToTensor)
         
-        self.assertIsInstance(transform.transforms[2], transforms.ToTensor)
-        
-        normalize_transform = transform.transforms[3]
+        normalize_transform = transform.transforms[2]
         self.assertIsInstance(normalize_transform, transforms.Normalize)
     
     def test_cifar10_transform_output(self):
         """Test that CIFAR-10 transform produces the expected output format."""
-        transform =  cifar10.get_cifar10_test_transform()
+        transform = cifar10.get_cifar10_test_transform()
         output = transform(self.test_image)
         
         # Check output is a tensor with the right shape and type
