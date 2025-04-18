@@ -11,8 +11,6 @@ class InputValidator:
         self.unlearner_name = config['unlearner']['name']
         self.unlearn_params = config['unlearner']['cfg']
         self.evaluate = config['unlearner']['evaluate']
-        print(f'eval: {config['unlearner']['evaluate']}')
-        print(f'self eval: {self.evaluate}')
 
         self.dataset_name = config['dataset']['name']
         self.dataset_save_dir = config['dataset']['save_path']

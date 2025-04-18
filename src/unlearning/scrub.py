@@ -226,17 +226,20 @@ class SCRUB(BaseUnlearner):
 
             # Maximize divergence on forget data
             if e < self.max_epochs:
+                print('max epoch')
                 self.max_epoch(
                     model,
                     unlearned_model,
                     data_dict['forget']
                 )
             # Minimize divergence on retain data
-            self.min_epoch(
-                    model,
-                    unlearned_model,
-                    data_dict['retain'],
-                )
+            if not self.sep_epochs or e < self.min_epochs:
+                print('min epoch')
+                self.min_epoch(
+                        model,
+                        unlearned_model,
+                        data_dict['retain'],
+                    )
             forward_pass_elapsed = time.time() - epoch_start_time
             if self.wandb_enabled:
                 self._log_forward_pass_time_in_wandb(
