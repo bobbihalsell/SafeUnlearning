@@ -3,9 +3,9 @@ from train.image_loading import RobustImageFolder
 import torch
 from torch.utils.data import DataLoader
 import timm
-from datasets.cifar10 import get_cifar10_test_transform
-from datasets.cifar100 import get_cifar100_test_transform
-from datasets.imagenet import get_imagenet_test_transform
+from src.datasets.cifar10 import get_cifar10_test_transform
+from src.datasets.cifar100 import get_cifar100_test_transform
+from src.datasets.imagenet import get_imagenet_test_transform
 from unlearning.utils import ConfigError
 from train.utils import setup_device, set_seed
 import wandb

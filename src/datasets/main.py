@@ -163,7 +163,8 @@ class DatasetInitializer:
 
             for idx in subset_indices:
                 img_path, label = train_dataset.samples[idx]
-                class_name = train_dataset.classes[label]
+                # class_name = train_dataset.classes[label]
+                class_name = str(label)
                 target_dir = os.path.join(subset_dir, class_name)
                 os.makedirs(target_dir, exist_ok=True)
 
