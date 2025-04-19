@@ -1,13 +1,14 @@
 import random
 import json
 import os
+from settings import TOTAL_FORGET_SAMPLES, SEED
 
 if __name__ == "__main__":
     dir = os.path.dirname(os.path.abspath(__file__))
 
-    random.seed(42)
+    random.seed(SEED)
 
-    idx = random.sample(range(36000), 32)
+    idx = random.sample(range(36000), TOTAL_FORGET_SAMPLES)
     print(idx)
 
     file_path = os.path.join(dir, "forget_indices.json")

@@ -2,11 +2,10 @@
 
 import os
 import shutil
-
+from settings import DIR
 if __name__ == "__main__":
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    if not os.path.exists(f"{current_dir}/labels"):
-        os.makedirs(f"{current_dir}/labels")
+    if not os.path.exists(f"{DIR}/labels"):
+        os.makedirs(f"{DIR}/labels")
 
     if not os.path.exists("./forget_pool"):
         os.rename("./data/forget", "./data/forget_pool")

@@ -5,13 +5,7 @@ import argparse
 import matplotlib.pyplot as plt
 from PIL import Image
 import numpy as np
-
-FORGET_ROOT = "./data/forget"
-FORGET_POOL = "./forget_pool"  # where all possible forget samples are
-
-RETAIN_ROOT = "./data/retain"
-RETAIN_POOL = "./retain_pool"
-SEED = 42
+from settings import FORGET_ROOT, FORGET_POOL, RETAIN_ROOT, RETAIN_POOL, SEED
 
 
 # Redo symlinks based on number of unlearning samples

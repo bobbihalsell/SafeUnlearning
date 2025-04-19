@@ -3,6 +3,7 @@ import hydra
 import subprocess
 import os
 import sys
+from settings import LR, MOMENTUM, DATASET_SAVE_PATH, MODEL_NAME, MODEL, DATASET, MODEL_SAVE_PATH
 
 
 @dataclass
@@ -37,17 +38,20 @@ def run_exp(cfg: Config):
     if cfg.method == "neggrad":
         exp_params = f"{cfg.samples}s_{cfg.epochs}e"
         experiment_name = f"{cfg.method}_{exp_params}"
-        model_dir = f"model/resnet18_{exp_params}/"
+        model_dir = f"model/{experiment_name}"
 
     elif cfg.method == "neggradplus":
         exp_params = f"{cfg.samples}s_{cfg.epochs}e_{cfg.beta}b_{cfg.retain}r"
         experiment_name = f"{cfg.method}_{exp_params}"
-        model_dir = f"model/resnet18_{exp_params}/"
+        model_dir = f"model/{experiment_name}"
 
     elif cfg.method == "scrub":
         exp_params = f"{cfg.samples}s_{cfg.epochs}e_{cfg.min_epochs}m_{cfg.retain}r_{cfg.alpha}a_{cfg.gamma}g"
         experiment_name = f"{cfg.method}_{exp_params}"
-        model_dir = f"model/resnet18_{exp_params}/"
+        model_dir = f"model/{experiment_name}"
+
+    # Trained model is saved here:
+    model_save_path = f"{MODEL_SAVE_PATH}/{MODEL_NAME}_42_original.pt"
 
     # After unlearning, the model will be saved in the following paths
     original_weights = f"{model_dir}/unlearn/{cfg.method}/resnet18_42_original.pt"
@@ -71,31 +75,33 @@ def run_exp(cfg: Config):
         if cfg.method == "neggrad":
             subprocess.run(
                 ["python", "src/unlearning/main.py",
-                 "dataset=cifar10",
-                 "model=torchvision",
+                 f"dataset={DATASET}",
+                 f"model={MODEL}",
                  "unlearner=neggrad",
                  f"verbose={cfg.verbose}",
                  f"output_dir={model_dir}",
-                 "dataset.save_path=./data",
-                 "model.model_name=resnet18",
+                 f"dataset.save_path={DATASET_SAVE_PATH}",
+                 f"model.model_name={MODEL_NAME}",
+                 f"model.model_ckpt_path={model_save_path}",
                  f"unlearner.cfg.epochs={cfg.epochs}",
-                 "unlearner.cfg.lr=0.01",
+                 f"unlearner.cfg.lr={LR}",
                  "unlearner.cfg.lr_decay_factor=null"],
                 check=True
             )
         elif cfg.method == "neggradplus":
             subprocess.run(
                 ["python", "src/unlearning/main.py",
-                 "dataset=cifar10",
-                 "model=torchvision",
+                 f"dataset={DATASET}",
+                 f"model={MODEL}",
                  "unlearner=neggradplus",
                  f"verbose={cfg.verbose}",
                  f"output_dir={model_dir}",
-                 "dataset.save_path=./data",
-                 "model.model_name=resnet18",
+                 f"dataset.save_path={DATASET_SAVE_PATH}",
+                 f"model.model_name={MODEL_NAME}",
+                 f"model.model_ckpt_path={model_save_path}",
                  f"unlearner.cfg.epochs={cfg.epochs}",
                  f"unlearner.cfg.beta={cfg.beta}",
-                 "unlearner.cfg.lr=0.01",
+                 f"unlearner.cfg.lr={LR}",
                  "unlearner.cfg.lr_decay_factor=null",
                  ],
                 check=True
@@ -103,21 +109,22 @@ def run_exp(cfg: Config):
         elif cfg.method == "scrub":
             subprocess.run(
                 ["python", "src/unlearning/main.py",
-                 "dataset=cifar10",
-                 "model=torchvision",
+                 f"dataset={DATASET}",
+                 f"model={MODEL}",
                  "unlearner=scrub",
                  f"verbose={cfg.verbose}",
                  f"output_dir={model_dir}",
-                 "dataset.save_path=./data",
-                 "model.model_name=resnet18",
+                 f"dataset.save_path={DATASET_SAVE_PATH}",
+                 f"model.model_name={MODEL_NAME}",
+                 f"model.model_ckpt_path={model_save_path}",
                  f"unlearner.cfg.max_epochs={cfg.epochs}",
                  f"unlearner.cfg.min_epochs={cfg.min_epochs}",
-                 "unlearner.cfg.lr=0.01",
+                 f"unlearner.cfg.lr={LR}",
                  "unlearner.cfg.weight_decay=0",
-                 "unlearner.cfg.momentum=0",
+                 f"unlearner.cfg.momentum={MOMENTUM}",
                  "unlearner.cfg.lr_decay_factor=null",
-                 "unlearner.cfg.alpha=0.1",
-                 "unlearner.cfg.gamma=0.1",
+                 f"unlearner.cfg.alpha={cfg.alpha}",
+                 f"unlearner.cfg.gamma={cfg.gamma}",
                  ],
                 check=True
             )
@@ -127,7 +134,7 @@ def run_exp(cfg: Config):
 
     # Step 3: run reconstruction
     if cfg.samples == 1:
-        num_runs = 3
+        num_runs = 2
         scoring_choice = "pixelmean"
         iterations = 5000
     else:

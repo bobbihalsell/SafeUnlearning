@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source settings.sh
+
 # Get current working directory
 DIR=$(dirname "$(realpath "$0")")
 
@@ -10,7 +12,7 @@ INDICES=$(cat "${DIR}/forget_indices.json" | tr -d ' \n')
 python src/datasets/main.py \
     dataset=cifar10 forget=instance \
     dataset.init_dir=./raw \
-    dataset.save_dir=./data \
+    dataset.save_dir=$DATASET_SAVE_PATH \
     forget.forget_idx="${INDICES}" \
     forget.retain_size=50
 
