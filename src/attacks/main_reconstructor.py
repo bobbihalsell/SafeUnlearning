@@ -178,7 +178,6 @@ class ReconstructorApp(InputValidator):
         print('reconstructor initialized')
 
         start_time = time.time()
-        print(self.reconstructor_name)
         if self.reconstructor_name == 'ggl':
             z_res, reconstruction, losses = reconstructor.reconstruct(**self.unlearner_params)
         elif self.reconstructor_name == 'invertgrad':
