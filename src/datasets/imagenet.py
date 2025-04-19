@@ -4,14 +4,14 @@ IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 
 
-# def get_imagenet_train_transform():
-#     transform = transforms.Compose([
-#         transforms.RandomResizedCrop(224),  # Random crop to 224x224
-#         transforms.RandomHorizontalFlip(p=0.5),  # 50% chance of flipping
-#         transforms.ToTensor(),
-#         transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-#     ])
-#     return transform
+def get_imagenet_train_transform():
+    transform = transforms.Compose([
+        transforms.RandomResizedCrop(224),  # Random crop to 224x224
+        transforms.RandomHorizontalFlip(p=0.5),  # 50% chance of flipping
+        transforms.ToTensor(),
+        transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+    ])
+    return transform
 
 
 def get_imagenet_test_transform():

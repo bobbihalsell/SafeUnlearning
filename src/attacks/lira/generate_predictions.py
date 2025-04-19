@@ -19,15 +19,15 @@ def run(config: DictConfig, root: Path, unlearner: str) -> None:
     save_dir = config.dataset.save_path
     transform = get_cifar10_test_transform()
 
-    train, val, test = load_train_val_test_datasets(
-        dataset, 1, config.dataset.val_ratio, save_dir, "", transform
+    train, _, test = load_train_val_test_datasets(
+        dataset, 1, 0, save_dir, "", transform
     )
-    dataset = ConcatDataset([train, val, test])
+    dataset = ConcatDataset([train, test])
     loader = DataLoader(
         dataset,
-        batch_size=config.batch_size,
+        batch_size=config.dataset.cfg.batch_sizes["val"],
         shuffle=False,
-        num_workers=config.num_workers,
+        num_workers=config.dataset.cfg.num_workers,
     )
 
     for split_ndx in range(num_splits):

@@ -1,11 +1,11 @@
 name: cifar10
 num_classes: 10
 save_path: ./data
-val_ratio: 0.2
-forget_ratio: 0.2
+val_ratio: 0.05
+forget_ratio: 0.1
 cfg:
   batch_sizes:
-    retain: 32
-    forget: 32
-    val: 32
+    retain: 256
+    forget: 256
+    val: 256
   num_workers: 4

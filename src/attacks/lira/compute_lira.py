@@ -146,10 +146,10 @@ def run(config: DictConfig, root: Path) -> None:
     test_indices = np.load(root / "splits" / "test_matrices.npy")
     save_dir = config.dataset.save_path
 
-    train, val, test = load_train_val_test_datasets(
-        config.dataset.name, 1, config.dataset.val_ratio, save_dir, ""
+    train, _, test = load_train_val_test_datasets(
+        config.dataset.name, 1, 0, save_dir, ""
     )
-    dataset = ConcatDataset([train, val, test])
+    dataset = ConcatDataset([train, test])
     targets = np.array([label for (image, label) in dataset])
 
     forgets_splits_and_forget_indices = reconstruct_split_and_forget(root, num_splits)

@@ -11,7 +11,7 @@ import torchvision
 import timm
 
 from datasets.load_datasets import load_train_val_test_datasets
-from datasets.cifar10 import get_cifar10_test_transform
+from datasets.cifar10 import get_cifar10_train_transform, get_cifar10_test_transform
 
 
 def get_retain_forget_val_indices(
@@ -35,25 +35,38 @@ def get_loaders_from_indices(
     config: DictConfig,
     indices: List[Array],
 ) -> Dict[str, DataLoader]:
-    dataset = config.dataset.name
+    dataset_name = config.dataset.name
     save_dir = config.dataset.save_path
-    transform = get_cifar10_test_transform()
+    train_transform = get_cifar10_train_transform()
+    test_transform = get_cifar10_test_transform()
 
-    train, val, test = load_train_val_test_datasets(
-        dataset, 1, config.dataset.val_ratio, save_dir, "", transform
+    train, _, test = load_train_val_test_datasets(
+        dataset_name, 1, 0, save_dir, "", train_transform
     )
-    dataset = ConcatDataset([train, val, test])
+    dataset_aug = ConcatDataset([train, test])
+
+    train, _, test = load_train_val_test_datasets(
+        dataset_name, 1, 0, save_dir, "", test_transform
+    )
+    dataset_non_aug = ConcatDataset([train, test])
 
     retain_indices, forget_indices, val_indices = indices
     loaders = {}
     for split_name, indices in zip(
         ["retain", "forget", "val"], [retain_indices, forget_indices, val_indices]
     ):
+        if split_name == "val":
+            dataset = dataset_non_aug
+            shuffle = False
+        else:
+            dataset = dataset_aug
+            shuffle = True
+
         data_set = Subset(dataset, indices)
         loader = DataLoader(
             data_set,
             batch_size=config.dataset.cfg.batch_sizes[split_name],
-            shuffle=False,
+            shuffle=shuffle,
             num_workers=config.dataset.cfg.num_workers,
             pin_memory=False,
         )

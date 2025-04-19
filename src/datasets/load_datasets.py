@@ -103,7 +103,7 @@ def load_train_val_test_datasets(dataset_name: str,
     # Perform train/val split
     raw_train_subset, raw_val_subset = _get_stratified_split(raw_train,
                                                              1 - val_ratio)
-    print('save dir', dataset_save_dir)
+
     # Save datasets to ImageFolder format
     if dataset_save_dir:
         _save_as_imagefolder(raw_train_subset,

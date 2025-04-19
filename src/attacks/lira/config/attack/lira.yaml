@@ -1,4 +1,4 @@
 name: lira
 cfg:
-  num_splits: 10
-  num_forgets: 5
+  num_splits: 32
+  num_forgets: 10
