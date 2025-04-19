@@ -3,6 +3,7 @@
 import os
 import shutil
 from settings import DIR
+
 if __name__ == "__main__":
     if not os.path.exists(f"{DIR}/labels"):
         os.makedirs(f"{DIR}/labels")

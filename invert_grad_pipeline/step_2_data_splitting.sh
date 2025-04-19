@@ -1,9 +1,10 @@
 #!/bin/bash
 
-source settings.sh
+DIR=$(dirname "$(realpath "$0")")
+
+source $DIR/settings.sh
 
 # Get current working directory
-DIR=$(dirname "$(realpath "$0")")
 
 # Read forget indices from file
 INDICES=$(cat "${DIR}/forget_indices.json" | tr -d ' \n')
