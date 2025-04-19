@@ -10,10 +10,9 @@ from omegaconf import OmegaConf, DictConfig
 from omegaconf.errors import MissingMandatoryValue
 import wandb
 
-from attacks.utils import set_seed, setup_device, safe_dataclass_load, SaveImage, calculate_metrics, load_from_directory
-from datasets.cifar10 import CIFAR10_MEAN, CIFAR10_STD
-from datasets.cifar100 import CIFAR100_MEAN, CIFAR_100_STD
-from datasets.imagenet import IMAGENET_MEAN, IMAGENET_STD
+from utils import set_seed, setup_device
+from attacks.utils import safe_dataclass_load, SaveImage, calculate_metrics, load_from_directory
+from datasets import DATASETS_TO_PARAMS
 from attacks.config_validation import InputValidator  
 from attacks.GGL.reconstructor import GGLReconstructor
 from attacks.InvertGrad.reconstructor import InvertGradReconstructor,InvertGradConfig
@@ -104,21 +103,8 @@ class ReconstructorApp(InputValidator):
             raise Exception(f'Error loading model: {e}')
 
     def initalise_image_params(self):
-        if self.dataset_name == 'cifar10':
-            self.image_mean = CIFAR10_MEAN
-            self.image_std = CIFAR10_STD
-            self.image_size = [3, 32, 32] 
-        elif self.dataset_name == 'cifar100':
-            self.image_mean = CIFAR100_MEAN
-            self.image_std = CIFAR_100_STD
-            self.image_size = [3, 32, 32]
-        elif self.dataset_name == 'imagenet':
-            self.image_mean = IMAGENET_MEAN
-            self.image_std = IMAGENET_STD
-            self.image_size = [3, 224, 224]
-        else:
-            raise ValueError(f"Dataset {self.dataset_name} not supported.")
-        
+        self.image_mean, self.image_std, self.image_size = DATASETS_TO_PARAMS[self.dataset_name]
+        self.image_size = [3, self.image_size, self.image_size]
 
     def initialize_reconstructor(self, unlearned_model, original_model):
         """ Initialize the correct unlearner from user specification."""

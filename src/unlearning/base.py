@@ -2,7 +2,7 @@ from torch.utils.data import DataLoader
 from abc import abstractmethod
 import torch
 import torch.nn as nn
-from unlearning.utils import setup_device
+from utils import setup_device
 from typing import Dict
 import copy
 import time

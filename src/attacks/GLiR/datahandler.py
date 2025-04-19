@@ -3,9 +3,7 @@ import os
 import torch
 import random
 from train.image_loading import RobustImageFolder
-from datasets.cifar10 import get_cifar10_test_transform
-from datasets.cifar100 import get_cifar100_test_transform
-from datasets.imagenet import get_imagenet_test_transform
+from datasets import DATASETS_TO_TRANSFORM
 from unlearning.utils import ConfigError
 
 
@@ -23,28 +21,13 @@ class DataHandler:
         # self.num_workers = cfg.dataset.cfg.num_workers
         self.background_ratio = background_ratio
         self.test_size = test_size
-        
-    def get_transform(self):
-        """
-        Get the appropriate transform based on the dataset name.
-        """
-        if self.dataset_name == 'cifar10':
-            return get_cifar10_test_transform()
-        elif self.dataset_name == 'cifar100':
-            return get_cifar100_test_transform()
-        elif self.dataset_name == 'imagenet':
-            return get_imagenet_test_transform()
-        else:
-            raise ConfigError(
-                f'dataset_name {self.dataset_name} not supported.'
-                )
 
     def initialize_datasets(self):
         """ 
         Initialize dataloaders from the dataset folder in ImageFolder format.
         Returns a dictionary of dataloaders for retain, forget, and val splits.
         """
-        transform = self.get_transform()
+        transform = DATASETS_TO_TRANSFORM[self.dataset_name]()
 
         # Load datasets for each split
         splits = ['forget', 'test']

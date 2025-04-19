@@ -66,20 +66,6 @@ class ConfigError(Exception):
         super().__init__(message)
 
 
-def setup_device():
-    """ Setup a torch device.
-
-    Returns:
-        str
-    """
-    if torch.cuda.is_available():
-        return 'cuda'
-    elif torch.mps.is_available():
-        return 'mps'
-    else:
-        return 'cpu'
-
-
 def l2_penalty(model, model_init, weight_decay):
     l2_loss = 0
     for (k, p), (k_init, p_init) in zip(
@@ -89,13 +75,3 @@ def l2_penalty(model, model_init, weight_decay):
             l2_loss += (p - p_init).pow(2).sum()
     l2_loss *= weight_decay / 2.0
     return l2_loss
-
-
-def set_seed(seed: int = 42):
-    """Set the random seed for reproducibility."""
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)  # For multi-GPU setups
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False  # Ensure deterministic behavior
