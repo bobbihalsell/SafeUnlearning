@@ -230,7 +230,7 @@ class ReconstructorApp(InputValidator):
                 table_mse.add_data(i, mse, idx)
 
             psnr_max = max([p for p, _ in psnr_value])
-            mse_max = max([mse for mse, _ in mse_value])
+            mse_min = min([mse for mse, _ in mse_value])
 
             wandb.log({
                 'reconstruction_time': total_time,
@@ -239,7 +239,7 @@ class ReconstructorApp(InputValidator):
                 'psnr_table': table_psnr,
                 'mse_table': table_mse,
                 'max_psnr': psnr_max,
-                'mse_image_space': mse_max
+                'min_mse': mse_min
             })
             wandb.finish()
         

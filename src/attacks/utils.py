@@ -17,8 +17,8 @@ class SaveImage:
                  attack_name: str,
                  seed: str,
                  experiment_name: str,
-                 image_mean: Optional[list] = None, 
-                 image_std: Optional[list] = None, 
+                 image_mean: list = None, 
+                 image_std: list = None, 
                  output_dir: str = "artifacts/reconstructed",
                  ):
         """Class to save images and tensors.
@@ -53,23 +53,26 @@ class SaveImage:
 
     def save_png(self, 
                  images: list, 
-                 filename: Optional[str] = None, 
-                 fig_size: Optional[tuple] = None,
-                 n_cols: Optional[int] = None,
-                 normalize: Optional[bool] = True
+                 filename: str = None, 
+                 fig_size: tuple = None,
+                 n_cols: int = None,
+                 normalize: bool = True
                  ): 
         """
         Save images as PNG files with a specified layout.
         Args:
             images (list): List of images to save.
-            filename (str, optional): Name of the file to save. Defaults to None.
-            fig_size (tuple, optional): Figure size. Defaults to None.
-            n_cols (int, optional): Number of columns. Defaults to None.
-            normalize (bool, optional): Whether to normalize the images. Defaults to True.
+            filename (str): Name of the file to save. Defaults to None.
+            fig_size (tuple): Figure size. Defaults to None.
+            n_cols (int): Number of columns. Defaults to None.
+            normalize (bool): Whether to normalize the images. Defaults to True.
         
         Returns:
             None
         """
+        if not isinstance(images, torch.Tensor):
+            raise TypeError("Images should be a tensor.")
+        
         self.num_images = len(images)
 
         images = images.clone().detach().to(self.device)
@@ -77,8 +80,10 @@ class SaveImage:
 
 
         if normalize:
-            clipped_images.mul_(self.image_std).add_(self.image_mean).clamp_(0, 1) 
-
+            clipped_images = [
+                img.mul_(self.image_std).add_(self.image_mean).clamp_(0, 1)
+                for img in clipped_images
+            ]
 
         if self.num_images == 1:
             plt.imshow(clipped_images[0].permute(1, 2, 0).cpu())
@@ -116,10 +121,9 @@ class SaveImage:
         print(f"Image saved at {filepath}")
         plt.show()
 
-
-
-    def save_tensor(self, images: list, 
-                    filepath: str):
+    def save_tensor(self, 
+                    images: list, 
+                    filepath: str = None):
         """Save images as a tensor.
         Args:
             images (list): List of images to save.
@@ -136,7 +140,6 @@ class SaveImage:
 
         print(f"Image saved as a tensor at {filepath}")
 
-
     def load_tensor(self, 
                     filepath: str):
         """Load images from a tensor file.
@@ -146,6 +149,10 @@ class SaveImage:
             list: Loaded images.
         """
         
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"File {filepath} does not exist.")
+        if not filepath.endswith('.pt'):
+            raise ValueError(f"File {filepath} is not a .pt file.")
         return torch.load(filepath)
     
 class ConfigError(Exception):
