@@ -19,5 +19,3 @@ def get_imagenet_test_transform():
         transforms.ToTensor(),
         transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
     ])
-
-
