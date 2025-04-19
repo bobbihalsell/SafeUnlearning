@@ -195,8 +195,6 @@ class GGLReconstructor:
             weight = (i + 1) / total_layers  # Gradually increases 
             diff += weight * torch.sum((p1 - p2) ** 2)  # Weighted L2 norm
 
-            diff += weight * torch.sum((p1 - p2) ** 2)  # Weighted L2 norm
-
         return diff.item()
 
     def compute_model_difference_l2(self, model1, model2):
@@ -216,6 +214,7 @@ class GGLReconstructor:
         for p1, p2 in zip(model1.parameters(), model2.parameters()):
             diff += torch.sum(abs(p1 - p2))  # L1 norm of the difference
         return diff.item()
+    
    
     def perform_scrub_updates(
         self, generated_image, labels, original_model, verbose=True,
