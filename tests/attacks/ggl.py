@@ -5,11 +5,9 @@ import os
 import tempfile
 from unittest.mock import MagicMock, patch
 
-# Make sure the src directory is in the Python path
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 
-# Now import from src
 from attacks.GGL.reconstructor import GGLReconstructor
 
 class TestGGLReconstructor(unittest.TestCase):
@@ -113,12 +111,12 @@ class TestGGLReconstructor(unittest.TestCase):
     def test_compute_model_difference_weighted(self):
         """Test weighted difference calculation between models"""
         # First param gets weight 1/2, second gets weight 2/2
-        # Total should be 0.5*100 + 1.0*100 = 150, but due to duplicate line, it's 300
+        # Total should be 0.5*100 + 1.0*100 = 150
         diff = self.reconstructor.compute_model_difference_weighted(
             self.original_model, self.target_model
         )
         # Update expected value to match current implementation
-        self.assertEqual(diff, 300.0)
+        self.assertEqual(diff, 150.0)
     
     def test_interpolate_models(self):
         """Test model interpolation with different alpha values"""
@@ -133,8 +131,8 @@ class TestGGLReconstructor(unittest.TestCase):
         model2.named_parameters = MagicMock(return_value=[("layer1", param2)])
         model2.parameters = MagicMock(return_value=[param2])
         
-        # Create a copy function for the interpolated model - FIX: add parameter
-        def copy_side_effect(original_model):  # Accept the model parameter
+        # Create a copy function for the interpolated model 
+        def copy_side_effect(original_model):  
             model_copy = MagicMock()
             param_copy = torch.zeros(5, 5)
             model_copy.named_parameters = MagicMock(return_value=[("layer1", param_copy)])
@@ -151,6 +149,89 @@ class TestGGLReconstructor(unittest.TestCase):
             # Expected: 0.3 * 0 + 0.7 * 10 = 7
             expected = torch.ones(5, 5) * 7
             torch.testing.assert_close(param_result, expected)
+
+
+    @patch("attacks.GGL.reconstructor.SCRUB")
+    def test_label_conversion_int_to_tensor(self, mock_scrub_class):
+        mock_scrub = MagicMock()
+        mock_scrub.unlearn.return_value = (MagicMock(), None)
+        mock_scrub_class.return_value = mock_scrub
+
+        image = torch.randn(1, 3, 224, 224)
+        label = 2  # integer input
+        model = MagicMock()
+
+        self.reconstructor.perform_scrub_updates(image, label, model)
+
+        args, kwargs = mock_scrub.unlearn.call_args
+        forget_loader = kwargs['data_dict']['forget']
+        forget_batch = next(iter(forget_loader))
+        _, forget_labels = forget_batch
+
+        self.assertTrue(torch.is_tensor(forget_labels))
+        self.assertEqual(forget_labels.dtype, torch.long)
+        self.assertEqual(str(forget_labels.device), 'cuda:0')
+
+    @patch("attacks.GGL.reconstructor.SCRUB")
+    def test_forget_and_retain_dataloaders_scrub(self, mock_scrub_class):
+        mock_scrub = MagicMock()
+        mock_scrub.unlearn.return_value = (MagicMock(), None)
+        mock_scrub_class.return_value = mock_scrub
+
+        image = torch.randn(4, 3, 224, 224)
+        labels = torch.tensor([0, 1, 2, 3])
+        model = MagicMock()
+
+        self.reconstructor.perform_scrub_updates(image, labels, model)
+
+        args, kwargs = mock_scrub.unlearn.call_args
+        data_dict = kwargs['data_dict']
+        self.assertIn('forget', data_dict)
+        self.assertIn('retain', data_dict)
+
+        # forget should have 1 batch of size 4
+        forget_loader = data_dict['forget']
+        self.assertEqual(len(forget_loader), 1)
+
+        # retain should be empty
+        retain_loader = data_dict['retain']
+        self.assertEqual(len(retain_loader), 0)
+
+    @patch("attacks.GGL.reconstructor.SCRUB")
+    def test_perform_scrub_updates(self, mock_scrub_class):
+        mock_scrub = MagicMock()
+        mock_scrub.unlearn.return_value = (MagicMock(), None)
+        mock_scrub_class.return_value = mock_scrub
+
+        image = torch.randn(1, 3, 224, 224)
+        labels = torch.tensor([1])
+        model = MagicMock()
+        kwargs = {
+           'momentum': 0.9,
+           'weight_decay': 0.1,
+           'alpha': 0.5,
+           'gamma': 0.5,
+           'epochs_per_lr_decay': 2,
+           'lr_decay_factor': 0.1,
+           'min_epochs': 0,
+           'max_epochs': 2,
+           'use_l2_penalty': False,
+           'sep_epochs': True,
+           'optimizer': "sgd"
+
+        }
+
+        self.reconstructor.perform_scrub_updates(image, labels, model, **kwargs)
+
+        mock_scrub_class.assert_called_once_with(device=torch.device('cuda'))
+        mock_scrub.unlearn.assert_called_once()
+
+        _, unlearn_kwargs = mock_scrub.unlearn.call_args
+        self.assertEqual(unlearn_kwargs['model'], model)
+        self.assertIn('data_dict', unlearn_kwargs)
+        self.assertEqual(unlearn_kwargs['lr'], self.reconstructor.lr)
+        self.assertEqual(unlearn_kwargs['momentum'], 0.9)
+        self.assertEqual(unlearn_kwargs['gamma'], 0.5)
     
     @patch('torch.optim.SGD')
     def test_perform_sgd_updates(self, mock_sgd):
@@ -177,81 +258,50 @@ class TestGGLReconstructor(unittest.TestCase):
             self.assertEqual(mock_optimizer.zero_grad.call_count, 3)
             self.assertEqual(mock_optimizer.step.call_count, 3)
             self.assertEqual(result, mock_model)
-    
-    @patch('unlearning.scrub.SCRUB')  # Fixed import path
-    @patch('torch.utils.data.DataLoader')
-    @patch('torch.utils.data.TensorDataset')
-    def test_perform_scrub_updates(self, mock_dataset, mock_dataloader, mock_scrub_class):
-        """Test SCRUB unlearning method"""
-        # Mock SCRUB instance and unlearn method
-        mock_scrub_instance = MagicMock()
-        mock_scrub_class.return_value = mock_scrub_instance
-        mock_unlearned_model = MagicMock()
-        mock_scrub_instance.unlearn.return_value = (mock_unlearned_model, None)
-        
-        # Mock generated image and labels
-        generated_image = torch.randn(1, 3, 224, 224)
-        labels = torch.tensor([1])
-        
-        # Call the method
-        result = self.reconstructor.perform_scrub_updates(
-            generated_image, labels, self.original_model
-        )
-        
-        # Verify SCRUB instance was created and unlearn was called
-        mock_scrub_class.assert_called_once()
-        mock_scrub_instance.unlearn.assert_called_once()
-        self.assertEqual(result, mock_unlearned_model)
-    
-    @patch('os.makedirs')
-    @patch('numpy.save')
-    @patch('torchvision.transforms.ToPILImage')
-    @patch('os.path.dirname')
-    @patch('os.path.abspath')
-    @patch('os.path.join')
-    @patch('shutil.rmtree')
-    @patch('os.listdir')
-    def test_save_results(self, mock_listdir, mock_rmtree, mock_join, 
-                          mock_abspath, mock_dirname, mock_transform, 
-                          mock_np_save, mock_makedirs):
+
+
+    def test_save_results(self):
         """Test result saving functionality"""
-        # Set up path mocking
-        mock_dirname.return_value = "/mock/dir"
-        mock_abspath.return_value = "/mock/abspath"
-        mock_join.return_value = "/mock/path"
-        mock_listdir.return_value = []  # No previous NPY files
+        # Create mock objects
+        mock_z = MagicMock(spec=torch.Tensor)
+        mock_z.detach.return_value = mock_z
+        mock_z.cpu.return_value = mock_z
+        mock_z.numpy.return_value = np.array([1, 2, 3])
         
-        # Mock PIL image and its save method
-        #mock_pil_image = MagicMock()
-        #mock_transform.return_value = mock_pil_image
+        mock_x = MagicMock(spec=torch.Tensor)
+        mock_x.detach.return_value = mock_x
+        mock_x.cpu.return_value = mock_x
+        mock_x.squeeze.return_value = mock_x
+        mock_x.clamp.return_value = mock_x
+        
+        # Mock the necessary modules
+        with patch('PIL.Image'), \
+            patch('torchvision.transforms.ToPILImage') as mock_transform, \
+            patch('numpy.save') as mock_np_save, \
+            patch('os.makedirs'), \
+            patch('os.path.dirname', return_value='/mock'), \
+            patch('os.path.abspath', return_value='/mock'), \
+            patch('os.path.join', return_value='/mock/path'), \
+            patch('os.listdir', return_value=[]), \
+            patch('shutil.rmtree'):
+            
+            # Set up the transform mock
+            mock_pil_image = MagicMock()
+            mock_transform_instance = MagicMock()
+            mock_transform.return_value = mock_transform_instance
+            mock_transform_instance.return_value = mock_pil_image
+            
+            # Call the method under test with the correct signature
+            z_path = "/mock/path"
+            x_path = "/mock/path.jpg"
+            self.reconstructor.save_results(mock_z, mock_x, z_path, x_path)
+            
+            # Assertions
+            mock_transform_instance.assert_called_once()
+            mock_pil_image.save.assert_called_once_with(x_path)
+            mock_np_save.assert_called_once()
 
-        # Mock PIL image and its save method
-        mock_pil_image = MagicMock()
-        mock_pil_image.save = MagicMock()  # explicitly mock save
-        mock_transform.return_value = mock_pil_image
-
-        
-        # Setup test data
-        z = torch.randn(1, 128)
-        x = torch.randn(1, 3, 224, 224)
-        z_path = os.path.join(self.temp_dir.name, "test_z")
-        x_path = os.path.join(self.temp_dir.name, "test_x.png")
-        
-        # Call save_results
-        self.reconstructor.save_results(z, x, z_path, x_path)
-        
-        # Verify directories were created
-        mock_makedirs.assert_called()
-        
-        # Verify transforms were applied and image was saved
-        mock_transform.assert_called()
-        mock_pil_image.save.assert_called()
-        
-        # Verify numpy save was called
-        mock_np_save.assert_called_once()
-        
-        # Verify rmtree was called
-        mock_rmtree.assert_called_once()
-
+   
+    
 if __name__ == '__main__':
     unittest.main()
