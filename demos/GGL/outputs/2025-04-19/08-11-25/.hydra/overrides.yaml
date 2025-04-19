@@ -1,0 +1,8 @@
+- dataset=imagenet
+- model=resnet18
+- wandb_cfg=default
+- train_cfg=pretrained
+- dataset.load_dir=imagenet_example_split
+- model.pretrained=True
+- model.num_classes=1000
+- model.save_dir=artifacts/models

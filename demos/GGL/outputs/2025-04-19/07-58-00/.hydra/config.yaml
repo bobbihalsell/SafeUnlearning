@@ -1,0 +1,12 @@
+seed: 42
+dataset:
+  name: imagenet
+  init_dir: demo/safe-unlearning/demos/GGL/imagenet_example_data
+  save_dir: demo/safe-unlearning/demos/GGL/imagenet_example_split
+  proportion: 1
+  val_ratio: 0.1
+forget:
+  method: instance
+  forget_idx:
+  - 0
+  retain_size: null

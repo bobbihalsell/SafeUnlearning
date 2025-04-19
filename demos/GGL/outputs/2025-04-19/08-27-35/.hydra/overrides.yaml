@@ -1,0 +1,13 @@
+- data=imagenet
+- reconstructor=ggl
+- original_weights=artifacts/models/unlearn/neggrad/resnet18_42_original_004.pt
+- unlearned_weights=artifacts/models/unlearn/neggrad/resnet18_42_unlearned_004.pt
+- data.model_name=resnet18
+- data.labels=[12]
+- data.data_root=imagenet_example_split/forget
+- reconstructor.cfg.budget=1000
+- reconstructor.lr=0.001
+- +wandb_cfg=default
+- +wandb_cfg.extra_config.unlearning_method=neggrad
+- reconstructor.cfg.initial_lr=0.5
+- +wandb_cfg.extra_config.epochs=1

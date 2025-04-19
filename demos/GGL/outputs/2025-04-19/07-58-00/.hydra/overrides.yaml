@@ -1,0 +1,6 @@
+- dataset=imagenet
+- forget=instance
+- dataset.init_dir=demo/safe-unlearning/demos/GGL/imagenet_example_data
+- dataset.save_dir=demo/safe-unlearning/demos/GGL/imagenet_example_split
+- dataset.val_ratio=0.1
+- forget.forget_idx=[0]

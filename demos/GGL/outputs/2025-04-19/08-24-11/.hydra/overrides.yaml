@@ -1,0 +1,17 @@
+- dataset=imagenet
+- model=resnet18
+- model=torchvision
+- unlearner=scrub
+- dataset.save_path=imagenet_example_split
+- model.model_name=resnet18
+- model.model_ckpt_path=artifacts/models/resnet18_42_original.pt
+- unlearner.cfg.lr=0.001
+- unlearner.cfg.lr_decay_factor=0
+- unlearner.cfg.min_epochs=0
+- unlearner.cfg.momentum=0
+- unlearner.cfg.weight_decay=0
+- unlearner.cfg.max_epochs=1
+- unlearner.cfg.alpha=1
+- unlearner.cfg.gamma=0.5
+- +wandb_cfg=default
+- ++wandb_cfg.run_id=scrub_job_005

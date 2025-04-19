@@ -21,6 +21,7 @@ unlearner:
   use_l2_penalty: False
   optimizer: sgd
   momentum: 0
+  sep_epochs: True
   lr_decay_factor: 
   epochs_per_lr_decay: 
 
