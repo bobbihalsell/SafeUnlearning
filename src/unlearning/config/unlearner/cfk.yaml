@@ -1,7 +1,7 @@
 name: cfk
-evaluate: true
+evaluate: false
 cfg:
-  k: 6  # Number of layers to freeze
+  k: 4  # Number of layers to freeze
   optimizer: sgd
   lr: 0.001
   lr_decay_factor: 0.1  # Multiplicative learning rate decay factor. Leave empty if not using LR scheduling
@@ -9,4 +9,4 @@ cfg:
   momentum: 0.9
   weight_decay: 0.1
   use_l2_penalty: false
-  epochs: 4
+  epochs: 1

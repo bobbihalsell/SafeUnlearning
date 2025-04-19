@@ -1,10 +1,10 @@
 import torch
+import torch.nn as nn
 from unlearning.utils import ConfigError
 from utils import setup_device
 import os
 import sys
 import importlib
-import wandb
 import torchvision
 import timm
 
@@ -13,27 +13,21 @@ class ImportModel:
     """ Perform pretraining, or model loading and saving, for a model."""
     def __init__(
                     self,
-                    model_loading,
-                    model_name,
+                    load_method: str,
+                    model_name: str,
+                    num_classes: int,
                     init_path=None,
                     model_ckpt_path=None,
                     model_kwargs=None,
-                    num_classes=10,
-                    device=None
                 ):
-        if device is None:
-            self.device = setup_device()
-        else:
-            self.device = device
-
-        self.model_loading = model_loading
+        self.device = setup_device()
+        self.load_method = load_method
         self.init_path = init_path
         self.model_name = model_name
         self.model_ckpt_path = model_ckpt_path
         self.model_kwargs = model_kwargs or {}  # Handle None
         self.num_classes = num_classes
-
-        self.load_model()
+        self.model = self.load_model()
 
     def load_model(self):
         """
@@ -47,21 +41,21 @@ class ImportModel:
         """
         try:
             # Load the model based on the specified method
-            if self.model_loading == 'class':
+            if self.load_method == 'class':
                 self._init_from_class(**self.model_kwargs)
-            elif self.model_loading == 'torchhub':
+            elif self.load_method == 'torchhub':
                 self._init_from_torch_hub()
-            elif self.model_loading == 'torchvision':
+            elif self.load_method == 'torchvision':
                 self._init_from_torchvision()
-            elif self.model_loading == 'timm':
+            elif self.load_method == 'timm':
                 self._init_from_timm()
             else:
                 raise ConfigError(
                     "Unknown initialisation method: "
-                    f"{self.model_loading}"
+                    f"{self.load_method}"
                 )
             # Load weights if specified
-            if hasattr(self, 'model_ckpt_path') and self.model_ckpt_path:
+            if self.model_ckpt_path is not None:
                 self._load_weights()
 
             # Finalize model setup
@@ -128,8 +122,8 @@ class ImportModel:
             try:
                 weights_param = 'DEFAULT' if pretrained else None
                 self.model = torch.hub.load(
-                    self.init_path, 
-                    self.model_name, 
+                    self.init_path,
+                    self.model_name,
                     weights=weights_param,
                     trust_repo="check"
                 )
@@ -152,34 +146,36 @@ class ImportModel:
 
     def _init_from_torchvision(self):
         try:
-            weights = (self.model_ckpt_path is None)
+            weights = "DEFAULT" if (self.model_ckpt_path is None) else None
             self.model = torchvision.models.get_model(
                         self.model_name,
                         weights=weights,
                     )
-            # Adjust the last layer based on model type
-            if hasattr(self.model, "fc"):  # ResNet-style
-                self.model.fc = torch.nn.Linear(
-                    self.model.fc.in_features, self.num_classes
-                )
-            elif hasattr(self.model, "classifier"):
-                # e.g MobileNet, EfficientNet, VGG, DenseNet
-                if isinstance(self.model.classifier, torch.nn.Sequential):
-                    # Handle cases like MobileNet where
-                    # classifier is Sequential
-                    last_layer_idx = len(self.model.classifier) - 1
-                    self.model.classifier[last_layer_idx] = torch.nn.Linear(
-                        self.model.classifier[last_layer_idx].in_features,
-                        self.num_classes
+            if self.num_classes != 1000:  # Not using ImageNet
+                print('Replacing default ImageNet classification head.')
+                # Adjust the last layer based on model type
+                if hasattr(self.model, "fc"):  # ResNet-style
+                    self.model.fc = nn.Linear(
+                        self.model.fc.in_features, self.num_classes
                     )
+                elif hasattr(self.model, "classifier"):
+                    # e.g MobileNet, EfficientNet, VGG, DenseNet
+                    if isinstance(self.model.classifier, nn.Sequential):
+                        # Handle cases like MobileNet where
+                        # classifier is Sequential
+                        last_layer_idx = len(self.model.classifier) - 1
+                        self.model.classifier[last_layer_idx] = nn.Linear(
+                            self.model.classifier[last_layer_idx].in_features,
+                            self.num_classes
+                        )
+                    else:
+                        self.model.classifier = nn.Linear(
+                            self.model.classifier.in_features, self.num_classes
+                        )
                 else:
-                    self.model.classifier = torch.nn.Linear(
-                        self.model.classifier.in_features, self.num_classes
+                    raise AttributeError(
+                        f"Unknown classification layer for {self.model_name}"
                     )
-            else:
-                raise AttributeError(
-                    f"Unknown classification layer for {self.model_name}"
-                )
         except Exception as e:
             raise ConfigError(f"Failed to load torchvision model: {str(e)}")
 
@@ -193,7 +189,6 @@ class ImportModel:
         except Exception as e:
             raise ConfigError(f"Failed to load timm model: {str(e)}")
 
-    # 
     def _load_weights(self):
         """Load weights from a checkpoint file."""
         try:
@@ -204,7 +199,10 @@ class ImportModel:
                 )
 
             # Load checkpoint
-            checkpoint = torch.load(self.model_ckpt_path, map_location=self.device)
+            checkpoint = torch.load(
+                self.model_ckpt_path, 
+                map_location=self.device
+                )
 
             # Extract state dict smartly
             if isinstance(checkpoint, dict):
@@ -228,46 +226,6 @@ class ImportModel:
         except Exception as e:
             raise ConfigError(f"Failed to load weights: {str(e)}")
 
-    def save_model(self, save_name=None, output_dir=None):
-        """
-        Save the model to the specified path and optionally to wandb artifacts.
-        """
-        if self.model is None:
-            raise ConfigError("Model must be loaded before saving.")
+        
+        
 
-        if output_dir is None:
-            if save_name is None:
-                if self.model_name:
-                    save_name = self.model_name.split('.')[-1]
-                else:
-                    save_name = "model"
-            output_dir = os.path.join(output_dir, f"{save_name}.pt") 
-
-        os.makedirs(os.path.dirname(output_dir), exist_ok=True)
-        torch.save(self.model.state_dict(), output_dir)
-        print(f"Model saved to {output_dir}")
-
-        # Save to wandb if configured
-        if (
-            'wandb' in self.config
-            and self.config['wandb'].get('enabled', False)
-        ):
-            if wandb.run is None:
-                wandb.init(
-                    project=self.config['wandb'].get('project', 'model-eval'),
-                    name=self.config['wandb'].get('name', f"{save_name}"),
-                    config=self.config
-                )
-
-            # Log model as artifact
-            artifact = wandb.Artifact(
-                name=f"model-{save_name}",
-                type="model",
-                description=f"Trained {self.model_name} model"
-            )
-            artifact.add_file(output_dir)
-            wandb.log_artifact(artifact)
-
-            print(f"Model saved to wandb artifact: {artifact.name}")
-
-        return output_dir

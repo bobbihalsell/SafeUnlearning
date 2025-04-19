@@ -1,4 +1,4 @@
-model_loading: class  
+load_method: class  
 class_path: ./modelloadtest
 class_name:  CIFAR10
 Modeloriginal_model_ckpt_path: ???  # You must specify a path to the original model.

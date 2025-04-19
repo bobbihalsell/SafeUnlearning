@@ -27,6 +27,7 @@ class ImportModel:
         self.model_ckpt_path = model_ckpt_path
         self.model_kwargs = model_kwargs or {}  # Handle None
         self.num_classes = num_classes
+        self.model = self.load_model()
 
     def load_model(self):
         """

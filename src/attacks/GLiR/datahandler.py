@@ -1,10 +1,9 @@
-from attacks.GLiR.utils import create_subset, create_matched_subset
 import os
 import torch
 import random
+from attacks.GLiR.glir_utils import create_subset, create_matched_subset
 from train.image_loading import RobustImageFolder
 from datasets import DATASETS_TO_TRANSFORM
-from unlearning.utils import ConfigError
 
 
 class DataHandler:

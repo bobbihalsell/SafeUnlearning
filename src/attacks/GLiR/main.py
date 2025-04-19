@@ -1,15 +1,14 @@
-from attacks.GLiR.utils import calculate_metrics
-from utils import set_seed, setup_device
-from attacks.GLiR.gradient_attack import GLiR
-from attacks.GLiR.datahandler import DataHandler
 import os
 import json 
 import hydra
 from omegaconf import OmegaConf, DictConfig
 from omegaconf.errors import MissingMandatoryValue
-# from unlearning.config_validation import InputValidator
+from attacks.GLiR.glir_utils import calculate_metrics
+from attacks.GLiR.gradient_attack import GLiR
+from attacks.GLiR.datahandler import DataHandler
 from attacks.GLiR.config_validation import GLiRValidator
 from attacks.GLiR.importmodel import ImportModel
+from utils import set_seed, setup_device
 
 
 class GLiRApp(GLiRValidator):
@@ -43,22 +42,20 @@ class GLiRApp(GLiRValidator):
         return
 
     def initialise_attack(self):
-        original_import = ImportModel(self.model_loading,
+        original_import = ImportModel(self.load_method,
                                       self.model_name, 
+                                      self.num_classes,
                                       self.init_path, 
                                       self.original_model_ckpt_path,
                                       self.model_kwargs, 
-                                      self.num_classes,
-                                      self.device
                                       )
         self.original_model = original_import.model
-        unlearned_import = ImportModel(self.model_loading,
+        unlearned_import = ImportModel(self.load_method,
                                        self.model_name, 
-                                       self.init_path, 
-                                       self.unlearned_model_ckpt_path,
-                                       self.model_kwargs, 
                                        self.num_classes,
-                                       self.device
+                                       self.init_path, 
+                                       self.original_model_ckpt_path,
+                                       self.model_kwargs, 
                                        )
         self.unlearned_model = unlearned_import.model
 

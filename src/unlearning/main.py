@@ -7,7 +7,7 @@ import hydra
 from omegaconf import OmegaConf, DictConfig
 from omegaconf.errors import MissingMandatoryValue
 from datasets import DATASETS_TO_TRANSFORM
-from unlearning.config_validation import InputValidator
+from unlearning.config_validation import UnlearningValidator
 from unlearning.finetune import FinetuneUnlearner
 from unlearning.scrub import SCRUB
 from unlearning.neggrad import NegGrad, NegGradPlus
@@ -20,7 +20,7 @@ import time
 import wandb
 
 
-class UnlearnApp(InputValidator):
+class UnlearnApp(UnlearningValidator):
     def __init__(self, config: DictConfig):
         # Perform input validation first
         config = OmegaConf.to_container(config, resolve=True)
