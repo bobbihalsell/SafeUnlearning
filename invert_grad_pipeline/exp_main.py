@@ -3,7 +3,7 @@ import hydra
 import subprocess
 import os
 import sys
-from settings import LR, MOMENTUM, DATASET_SAVE_PATH, MODEL_NAME, MODEL, DATASET, MODEL_SAVE_PATH
+from settings import LR, MOMENTUM, DATASET_SAVE_PATH, MODEL_NAME, MODEL, DATASET, MODEL_SAVE_PATH, SEED
 
 
 @dataclass
@@ -51,11 +51,11 @@ def run_exp(cfg: Config):
         model_dir = f"model/{experiment_name}"
 
     # Trained model is saved here:
-    model_save_path = f"{MODEL_SAVE_PATH}/{MODEL_NAME}_42_original.pt"
+    model_save_path = f"{MODEL_SAVE_PATH}/{MODEL_NAME}_{SEED}_original.pt"
 
     # After unlearning, the model will be saved in the following paths
-    original_weights = f"{model_dir}/unlearn/{cfg.method}/resnet18_42_original.pt"
-    unlearned_weights = f"{model_dir}/unlearn/{cfg.method}/resnet18_42_unlearned.pt"
+    original_weights = f"{model_dir}/unlearn/{cfg.method}/{MODEL_NAME}_{SEED}_original.pt"
+    unlearned_weights = f"{model_dir}/unlearn/{cfg.method}/{MODEL_NAME}_{SEED}_unlearned.pt"
 
     # Step 1: move forget and retain samples from pool to data folder
     try:
@@ -77,6 +77,7 @@ def run_exp(cfg: Config):
                 ["python", "src/unlearning/main.py",
                  f"dataset={DATASET}",
                  f"model={MODEL}",
+                 f"seed={SEED}",
                  "unlearner=neggrad",
                  f"verbose={cfg.verbose}",
                  f"output_dir={model_dir}",
@@ -93,6 +94,7 @@ def run_exp(cfg: Config):
                 ["python", "src/unlearning/main.py",
                  f"dataset={DATASET}",
                  f"model={MODEL}",
+                 f"seed={SEED}",
                  "unlearner=neggradplus",
                  f"verbose={cfg.verbose}",
                  f"output_dir={model_dir}",
@@ -111,6 +113,7 @@ def run_exp(cfg: Config):
                 ["python", "src/unlearning/main.py",
                  f"dataset={DATASET}",
                  f"model={MODEL}",
+                 f"seed={SEED}",
                  "unlearner=scrub",
                  f"verbose={cfg.verbose}",
                  f"output_dir={model_dir}",
@@ -134,9 +137,9 @@ def run_exp(cfg: Config):
 
     # Step 3: run reconstruction
     if cfg.samples == 1:
-        num_runs = 2
+        num_runs = 3
         scoring_choice = "pixelmean"
-        iterations = 5000
+        iterations = 7_500
     else:
         num_runs = 1
         scoring_choice = "loss"

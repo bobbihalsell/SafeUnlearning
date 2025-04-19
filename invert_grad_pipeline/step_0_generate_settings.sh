@@ -7,6 +7,7 @@ source "${SCRIPT_DIR}/settings.sh"
 cat <<EOF > $SCRIPT_DIR/settings.py
 import os
 
+SEED = $SEED
 TOTAL_FORGET_SAMPLES = $TOTAL_FORGET_SAMPLES
 DIR = os.path.dirname(os.path.abspath(__file__))
 
