@@ -139,7 +139,7 @@ def run_exp(cfg: Config):
     if cfg.samples == 1:
         num_runs = 3
         scoring_choice = "pixelmean"
-        iterations = 5000
+        iterations = 7_500
     else:
         num_runs = 1
         scoring_choice = "loss"
