@@ -1,4 +1,5 @@
-from attacks.GLiR.utils import calculate_metrics, set_seed, setup_device
+from attacks.GLiR.utils import calculate_metrics
+from utils import set_seed, setup_device
 from attacks.GLiR.gradient_attack import GLiR
 from attacks.GLiR.datahandler import DataHandler
 import os

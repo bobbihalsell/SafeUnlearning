@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 
 from attacks.InvertGrad.medianfilt import MedianPool2d
-from ..utils import set_seed
+from utils import set_seed
 
 
 @dataclass

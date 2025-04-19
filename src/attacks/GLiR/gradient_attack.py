@@ -6,7 +6,7 @@ from tqdm import tqdm
 from sklearn.metrics import roc_curve, auc
 from scipy.stats import chi2
 import os
-from attacks.GLiR.utils import setup_device
+from utils import setup_device
 
 
 class GLiR:
