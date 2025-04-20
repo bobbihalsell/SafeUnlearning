@@ -4,7 +4,6 @@ import torch
 from torch.utils.data import DataLoader
 import timm
 from datasets import DATASETS_TO_TRANSFORM
-from unlearning.utils import ConfigError
 from utils import setup_device, set_seed
 import wandb
 import os
@@ -42,7 +41,7 @@ class TrainApp:
         self.project_name = wandb_cfg['project_name']
 
         self.checkpoint_path = model_cfg.get('checkpoint_path', None)
-        self.from_checkpoint = False  # Flag to determine whether to train from checkpoint
+        self.from_checkpoint = False  # Flag: whether to train from checkpoint
         if self.checkpoint_path is not None:
             self.from_checkpoint = True
 
@@ -136,7 +135,7 @@ class TrainApp:
             checkpoint = torch.load(self.checkpoint_path)
             model.load_state_dict(checkpoint['model_state_dict'])
 
-            # Optionally, load optimizer state_dict if you want to resume training
+            # Load optimizer state_dict to resume training
             if 'optimizer_state_dict' in checkpoint:
                 optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
@@ -175,7 +174,8 @@ class TrainApp:
 
         # Create the save directory
         os.makedirs(self.model_save_dir, exist_ok=True)
-        save_path = self.model_save_dir + f'/{self.model_name}_{self.seed}_original.pt'
+        save_path = (self.model_save_dir +
+                     f'/{self.model_name}_{self.seed}_original.pt')
 
         if num_epochs == 0:
             # Handle case where user just wants to download pretrained weights
@@ -253,7 +253,8 @@ class TrainApp:
             })
 
             print(f"Epoch {start_epoch+epoch+1}/{start_epoch+num_epochs} - "
-                  f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}% - "
+                  f"Train Loss: {train_loss:.4f}, "
+                  f"Train Acc: {train_acc:.2f}% - "
                   f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%")
 
             # Save the best model based on validation loss

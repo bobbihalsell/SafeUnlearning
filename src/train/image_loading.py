@@ -1,6 +1,6 @@
 from torchvision.datasets import ImageFolder
 from PIL import Image, UnidentifiedImageError
-from typing import Union, Tuple, List, Dict
+from typing import Union
 from pathlib import Path
 import os
 
@@ -26,7 +26,7 @@ class RobustImageFolder(ImageFolder):
             return self.__getitem__((index + 1) % len(self.samples))
         return sample, target
 
-    def find_classes(self, directory: Union[str, Path]) -> Tuple[List[str], Dict[str, int]]:
+    def find_classes(self, directory: Union[str, Path]):
         """Finds the class folders in a dataset.
 
         Override of the default ImageFolder find_classes method to literally
