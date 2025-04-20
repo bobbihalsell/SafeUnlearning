@@ -17,15 +17,15 @@ from unlearning.utils import set_seed, setup_device
 class LiRAApp(LiRAValidator):
     def __init__(self, config: DictConfig):
         # Perform input validation first
-        self.config = OmegaConf.to_container(config, resolve=True)
-        super().__init__(self.config)
+        self.config = config
+        super().__init__(OmegaConf.to_container(config, resolve=True))
 
         self.device = setup_device()
         print(f"Using device: {self.device}")
-        self.seed = config["seed"]
+        self.seed = self.config["seed"]
         set_seed(self.seed)
 
-        self.output_dir = Path(config["output_dir"])
+        self.output_dir = Path(self.config["output_dir"])
         os.makedirs(self.output_dir, exist_ok=True)
 
     def train_original_models(self):
@@ -35,7 +35,7 @@ class LiRAApp(LiRAValidator):
         train_models(
             original_config,
             self.model_name,
-            original_config["unlearner"]["name"],
+            "original",
             self.num_splits,
             self.num_forgets,
             self.output_dir,
@@ -45,7 +45,7 @@ class LiRAApp(LiRAValidator):
             self.dataset_cfg,
             self.model_name,
             self.num_classes,
-            original_config["unlearner"]["name"],
+            "original",
             self.num_splits,
             self.num_forgets,
             self.dataset_save_dir,
