@@ -79,7 +79,7 @@ class SCRUB(BaseUnlearner):
             unl_out: Output logits from the unlearned model
 
         Returns:
-            Tuple of normalized KL divergence, unnormalized KL divergence
+            Tuple of (normalized KL divergence, unnormalized KL divergence)
         """
         # Get batch size for normalization
         Nf = len(original_out)
@@ -206,7 +206,7 @@ class SCRUB(BaseUnlearner):
             **kwargs: Additional hyperparameters for SCRUB
 
         Returns:
-            Tuple of (unlearned_model, logs)
+            Tuple of (unlearned_model, self.logs)
         """
         model.to(self.device)
         unlearned_model, scheduler = self._setup_unlearning(

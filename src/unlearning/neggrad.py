@@ -60,7 +60,7 @@ class NegGrad(BaseUnlearner):
                     (default: False).
 
         Returns:
-            Tuple of (unlearned_model, logs)
+            Tuple of (unlearned_model, self.logs)
 
         Raises:
             ValueError: If 'forget' data is not in data_dict.
@@ -212,7 +212,7 @@ class NegGradPlus(BaseUnlearner):
                   FinetuneUnlearner FOR BETA = 1.
 
         Returns:
-            Tuple of (unlearned_model, logs)
+            Tuple of (unlearned_model, self.logs)
 
 
         Raises:

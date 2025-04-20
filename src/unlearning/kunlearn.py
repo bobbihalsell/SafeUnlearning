@@ -142,8 +142,7 @@ class KUnlearn(FinetuneUnlearner):
                     - use_l2_penalty: Whether to add L2 regularization
 
         Returns:
-            Tuple of (unlearned_model, losses_dict) where losses_dict contains
-            tracked losses for each dataset type
+            Tuple of (unlearned_model, self.logs)
         """
         # Create a copy of the model to avoid modifying the original
         modified_model = copy.deepcopy(model)

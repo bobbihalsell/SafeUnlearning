@@ -55,7 +55,7 @@ class FinetuneUnlearner(BaseUnlearner):
                     (default: False).
 
         Returns:
-            Tuple of (unlearned_model, logs)
+            Tuple of (unlearned_model, self.logs)
         """
         if 'retain' not in data_dict.keys():
             raise ValueError("'retain' data must be in data_dict.")
