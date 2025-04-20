@@ -90,12 +90,12 @@ class InputValidator:
                 except KeyError:
                     raise ConfigError('Missing required parameter '
                                       'reinit_method for EUk unlearner')
-                
+
             elif self.unlearner_name == 'gradproj':
                 # Check for gradient projection-specific parameters
-                required_gradproj_params = ['recalc_freq', 
-                                            'num_components', 
-                                            'redirection_strength', 
+                required_gradproj_params = ['recalc_freq',
+                                            'num_components',
+                                            'redirection_strength',
                                             'max_grad_norm']
                 missing_gradproj_params = []
                 for param in required_gradproj_params:

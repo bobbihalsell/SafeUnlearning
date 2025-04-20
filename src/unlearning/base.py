@@ -32,12 +32,12 @@ class BaseUnlearner:
     def unlearn(
         self,
         model: nn.Module,
-        retain_loader: DataLoader,
-        forget_loader: DataLoader,
-        val_loader: DataLoader,
-    ) -> nn.Module:
+        data_dict: Dict[str, DataLoader],
+        verbose: bool = False,
+        **kwargs
+    ):
         """
-        Unlearns specific data from a model while retaining performance on 
+        Unlearns specific data from a model while retaining performance on
         other data.
 
         This is an abstract method that must be implemented by all subclasses
@@ -45,15 +45,11 @@ class BaseUnlearner:
 
         Args:
             model: The model to perform unlearning on.
-            retain_loader: DataLoader containing data the model should 
-                continue to perform well on.
-            forget_loader: DataLoader containing data the model should 
-                "forget".
-            val_loader: DataLoader containing validation data to evaluate 
-                performance.
-
+            data_dict: A dictionary of dataloaders with the data type as keys
+            verbose: Whether to print the training logs to the terminal.
+            **kwargs: Algorithm-specific hyperparameters
         Returns:
-            The unlearned model.
+            Tuple of the unlearned model, and a logs dictionary.
         """
         # This method must be implemented by subclasses
         pass

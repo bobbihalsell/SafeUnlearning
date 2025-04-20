@@ -129,8 +129,8 @@ class ImportModel:
             except (TypeError, ValueError):
                 # Fall back to 'pretrained' parameter
                 self.model = torch.hub.load(
-                    self.init_path, 
-                    self.model_name, 
+                    self.init_path,
+                    self.model_name,
                     pretrained=pretrained,
                     trust_repo="check"
                 )
@@ -199,7 +199,7 @@ class ImportModel:
 
             # Load checkpoint
             checkpoint = torch.load(
-                self.model_ckpt_path, 
+                self.model_ckpt_path,
                 map_location=self.device
                 )
 
@@ -224,7 +224,3 @@ class ImportModel:
 
         except Exception as e:
             raise ConfigError(f"Failed to load weights: {str(e)}")
-
-        
-        
-
