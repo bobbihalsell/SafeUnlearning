@@ -12,7 +12,7 @@ def _get_stratified_split(dataset: torch.utils.data.Dataset,
     """ Get a stratified split of a dataset into 2 subsets.
 
     This will retain class distributions.
-    
+
     Works with both regular Datasets with 'targets' attribute
     and Subset objects.
     """
@@ -20,7 +20,7 @@ def _get_stratified_split(dataset: torch.utils.data.Dataset,
         raise ValueError(
             f"Proportion must be between 0 and 1, got {proportion}"
         )
-    
+
     if hasattr(dataset, 'targets'):
         # Standard dataset with targets attribute
         targets = np.array(dataset.targets)
@@ -33,7 +33,7 @@ def _get_stratified_split(dataset: torch.utils.data.Dataset,
                 targets = np.array(dataset.dataset.targets[dataset.indices])
             else:
                 # For list targets, we need to extract manually
-                targets = np.array([dataset.dataset.targets[i] 
+                targets = np.array([dataset.dataset.targets[i]
                                     for i in dataset.indices])
         else:
             # Method 2: Extract targets by iterating through the subset
@@ -46,7 +46,7 @@ def _get_stratified_split(dataset: torch.utils.data.Dataset,
         raise TypeError(
             "Input must be a Dataset with 'targets' attribute or a Subset"
         )
-    
+
     unique_classes = np.unique(targets)
     indices = []
     remainder_indices = []
@@ -64,9 +64,9 @@ def _get_stratified_split(dataset: torch.utils.data.Dataset,
         # Map the indices through the subset's indices
         mapped_indices = [dataset.indices[i] for i in indices]
         mapped_remainder = [dataset.indices[i] for i in remainder_indices]
-        
+
         # Create new Subsets from the original dataset, not the subset
-        return (Subset(dataset.dataset, mapped_indices), 
+        return (Subset(dataset.dataset, mapped_indices),
                 Subset(dataset.dataset, mapped_remainder))
     else:
         # For regular datasets, proceed as before
