@@ -81,45 +81,71 @@ class TestImageComparisonFunctions(unittest.TestCase):
         expected_norm = manual_norm(resized_img[0])
         self.assertTrue(torch.allclose(norm_img[0], expected_norm))
 
-    def test_psnr(self):
-        """Test PSNR calculation."""
-        # Create identical images (should give infinite PSNR)
-        identical_img = torch.ones(self.channels, self.height, self.width)
-        identical_batch = [identical_img, identical_img]
+    def test_psnr_comprehensive(self):
+        """Test PSNR calculation for both identical and different images."""
         
-        results = psnr(identical_batch, identical_batch, self.dataset_size)
+        # PART 1: Test with identical images
+        # Create a test image
+        test_img = torch.ones(self.channels, self.height, self.width) * 0.5  # Gray image
         
-        # Check correct number of results
-        self.assertEqual(len(results), len(identical_batch))
+        # Create identical reference images
+        identical_ref = test_img.clone()  
         
-        # For identical images, PSNR might be very high but not necessarily infinity
-        # due to numerical precision issues
-        for psnr_val, idx in results:
-            self.assertTrue(psnr_val > 100.0 or np.isnan(psnr_val) or np.isinf(psnr_val))
+        # Calculate PSNR between identical images
+        identical_psnr = self._calculate_psnr(test_img, identical_ref)
+        print(f"PSNR for identical images: {identical_psnr}")
         
-        # Test with different images - create clearly different images
-        diff_img1 = torch.zeros(self.channels, self.height, self.width)
-        diff_img2 = torch.ones(self.channels, self.height, self.width)
+        # Verify PSNR is very high or infinite for identical images
+        self.assertTrue(identical_psnr > 100.0 or np.isinf(identical_psnr), 
+                    f"PSNR for identical images should be very high, got {identical_psnr}")
         
-        # Use a copy of the images for the reference batch
-        ref_diff_img1 = diff_img1.clone()
-        ref_diff_img2 = diff_img2.clone()
+        # Test the psnr function with identical images
+        identical_results = psnr([test_img], [identical_ref], self.dataset_size)
         
-        results = psnr([diff_img1, diff_img2], [ref_diff_img2, ref_diff_img1], self.dataset_size)
+        # Verify the returned PSNR value is very high or infinite
+        self.assertTrue(identical_results[0][0] > 100.0 or np.isinf(identical_results[0][0]),
+                    f"PSNR for identical images should be very high, got {identical_results[0][0]}")
         
-        # Test if best index is correctly identified 
-        psnr_0_to_0 = self._calculate_psnr(diff_img1, ref_diff_img1)
-        psnr_0_to_1 = self._calculate_psnr(diff_img1, ref_diff_img2)
-        psnr_1_to_0 = self._calculate_psnr(diff_img2, ref_diff_img1)
-        psnr_1_to_1 = self._calculate_psnr(diff_img2, ref_diff_img2)
+        # Verify the correct reference image index (should be 0 since there's only one reference)
+        self.assertEqual(identical_results[0][1], 0)
         
-        # Determine which index should have max psnr
-        expected_idx_0 = 0 if psnr_0_to_1 > psnr_0_to_0 else 1
-        expected_idx_1 = 0 if psnr_1_to_1 > psnr_1_to_0 else 1
+        # PART 2: Test with different images
+        # Create test image - a black image (all zeros)
+        black_img = torch.zeros(self.channels, self.height, self.width)
         
-        # Compare with actual results
-        self.assertEqual(results[0][1], expected_idx_0)
-        self.assertEqual(results[1][1], expected_idx_1)
+        # Create two reference images with different levels of similarity to the test image
+        slightly_diff_ref = torch.ones(self.channels, self.height, self.width) * 0.01  # Almost black
+        very_diff_ref = torch.ones(self.channels, self.height, self.width) * 0.5      # Gray
+        
+        # Put them in batches
+        test_batch = [black_img]
+        ref_batch = [slightly_diff_ref, very_diff_ref]
+        
+        # Calculate PSNR
+        results = psnr(test_batch, ref_batch, self.dataset_size)
+        
+        # Manually calculate expected PSNR values
+        psnr_to_slightly_diff = self._calculate_psnr(black_img, slightly_diff_ref)  # Higher
+        psnr_to_very_diff = self._calculate_psnr(black_img, very_diff_ref)         # Lower
+        
+        print(f"PSNR with slightly different image: {psnr_to_slightly_diff}")
+        print(f"PSNR with very different image: {psnr_to_very_diff}")
+        
+        # Verify the slightly different reference has higher PSNR
+        self.assertTrue(psnr_to_slightly_diff > psnr_to_very_diff,
+                    f"PSNR for slightly different image ({psnr_to_slightly_diff}) should be higher than very different image ({psnr_to_very_diff})")
+        
+        # Determine expected best match (should be index 0, the slightly different image)
+        expected_best_idx = 0 if psnr_to_slightly_diff > psnr_to_very_diff else 1
+        
+        # Verify the function returns the reference index with higher PSNR
+        self.assertEqual(results[0][1], expected_best_idx,
+                        f"Expected best match index {expected_best_idx}, got {results[0][1]}")
+        
+        # Also verify the actual PSNR value matches our calculation
+        best_psnr_value = max(psnr_to_slightly_diff, psnr_to_very_diff)
+        self.assertAlmostEqual(results[0][0], best_psnr_value, places=5,
+                            msg=f"Expected PSNR value {best_psnr_value}, got {results[0][0]}")
 
     def _calculate_psnr(self, img1, img2):
         """Helper method to calculate PSNR between two images."""
