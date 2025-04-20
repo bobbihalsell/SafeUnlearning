@@ -6,14 +6,15 @@ import os
 import hydra
 from omegaconf import OmegaConf, DictConfig
 from omegaconf.errors import MissingMandatoryValue
-from datasets.cifar10 import get_cifar10_test_transform
-from datasets.cifar100 import get_cifar100_test_transform
-from datasets.imagenet import get_imagenet_test_transform
+from datasets import DATASETS_TO_TRANSFORM
 from unlearning.config_validation import InputValidator
 from unlearning.finetune import FinetuneUnlearner
 from unlearning.scrub import SCRUB
 from unlearning.neggrad import NegGrad, NegGradPlus
-from unlearning.utils import save_model, set_seed, setup_device, ConfigError
+from unlearning.SGRU import SGRU
+from unlearning.kunlearn import KUnlearn
+from utils import set_seed, setup_device
+from unlearning.utils import save_model, ConfigError
 from unlearning.importmodel import ImportModel
 import time
 import wandb
@@ -77,26 +78,39 @@ class UnlearnApp(InputValidator):
                 self.evaluate,
                 self.wandb_enabled
             )
+        elif self.unlearner_name == 'sgru':
+            unlearner = SGRU(
+                self.device,
+                self.evaluate,
+                self.wandb_enabled
+            )
+        elif self.unlearner_name == 'euk':
+            unlearner = KUnlearn(
+                self.k,
+                self.device,
+                self.unlearner_name,
+                self.reinit_method,
+                self.evaluate,
+                self.wandb_enabled
+            )
+        elif self.unlearner_name == 'cfk':
+            unlearner = KUnlearn(
+                self.k,
+                self.device,
+                self.unlearner_name,
+                None,
+                self.evaluate,
+                self.wandb_enabled
+            )
         else:
             raise ValueError(f'unlearner_name {self.unlearner_name}'
                              ' not supported.')
         self.unlearner = unlearner
         return unlearner
 
-    def get_transform(self):
-        if self.dataset_name == 'cifar10':
-            return get_cifar10_test_transform()
-        elif self.dataset_name == 'cifar100':
-            return get_cifar100_test_transform()
-        elif self.dataset_name == 'imagenet':
-            return get_imagenet_test_transform()
-        else:
-            raise ConfigError(f'dataset_name {self.dataset_name} '
-                              ' not supported.')
-
     def initialize_dataloaders(self):
         """ Initialize dataloaders from the ImageNet dataset folder."""
-        transform = self.get_transform()
+        transform = DATASETS_TO_TRANSFORM[self.dataset_name]()
 
         # Load datasets for each split, exclude train and test data
         if not os.path.exists(self.dataset_save_dir):
@@ -157,7 +171,8 @@ class UnlearnApp(InputValidator):
                    unlearning_algorithm=self.unlearner_name,
                    model_name=self.model_name,
                    seed=self.seed,
-                   model_type='original')
+                   model_type='original',
+                   id=self.id)
 
         # Step 3: Perform unlearning
         unlearner = self.initialize_unlearner()
@@ -180,6 +195,7 @@ class UnlearnApp(InputValidator):
                    model_name=self.model_name,
                    seed=self.seed,
                    model_type='unlearned',
+                   id=self.id,
                    payload=losses)
 
 

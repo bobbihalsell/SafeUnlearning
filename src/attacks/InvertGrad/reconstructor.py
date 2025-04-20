@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 
 from attacks.InvertGrad.medianfilt import MedianPool2d
-from ..utils import set_seed
+from utils import set_seed
 
 
 @dataclass
@@ -49,7 +49,7 @@ class InvertGradConfig:
     lr_decay: bool = True
     scoring_choice: str = 'loss'
     eval: bool = True
-    filter: bool = False
+    filter: str = None
 
     def __post_init__(self):
         # Force conversion to float if the value is passed as a string
@@ -137,7 +137,7 @@ class InvertGradReconstructor():
         self.lr = lr
         self.verbose = verbose
 
-        if labels:
+        if labels is not None:
             labels = torch.as_tensor(labels, device=self.device)
             self.num_images = labels.shape[0]
         else:

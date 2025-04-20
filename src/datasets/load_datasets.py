@@ -13,8 +13,41 @@ def _get_stratified_split(dataset: torch.utils.data.Dataset,
     """ Get a stratified split of a dataset into 2 subsets.
 
     This will retain class distributions.
+
+    Works with both regular Datasets with 'targets' attribute
+    and Subset objects.
     """
-    targets = np.array(dataset.targets)
+    if not 0 <= proportion <= 1:
+        raise ValueError(
+            f"Proportion must be between 0 and 1, got {proportion}"
+        )
+
+    if hasattr(dataset, 'targets'):
+        # Standard dataset with targets attribute
+        targets = np.array(dataset.targets)
+    elif isinstance(dataset, torch.utils.data.Subset):
+        # Handle Subset objects
+        # Method 1: Extract from the original dataset if indices match
+        if hasattr(dataset.dataset, 'targets'):
+            if isinstance(dataset.dataset.targets, torch.Tensor):
+                # For tensor targets, we can use indexing
+                targets = np.array(dataset.dataset.targets[dataset.indices])
+            else:
+                # For list targets, we need to extract manually
+                targets = np.array([dataset.dataset.targets[i]
+                                    for i in dataset.indices])
+        else:
+            # Method 2: Extract targets by iterating through the subset
+            targets = []
+            for i in range(len(dataset)):
+                _, label = dataset[i]
+                targets.append(label)
+            targets = np.array(targets)
+    else:
+        raise TypeError(
+            "Input must be a Dataset with 'targets' attribute or a Subset"
+        )
+
     unique_classes = np.unique(targets)
     indices = []
     remainder_indices = []
@@ -27,7 +60,18 @@ def _get_stratified_split(dataset: torch.utils.data.Dataset,
         indices.extend(cls_indices[:num_samples])
         remainder_indices.extend(cls_indices[num_samples:])
 
-    return Subset(dataset, indices), Subset(dataset, remainder_indices)
+    # For Subset, we need to map through the original indices
+    if isinstance(dataset, torch.utils.data.Subset):
+        # Map the indices through the subset's indices
+        mapped_indices = [dataset.indices[i] for i in indices]
+        mapped_remainder = [dataset.indices[i] for i in remainder_indices]
+
+        # Create new Subsets from the original dataset, not the subset
+        return (Subset(dataset.dataset, mapped_indices),
+                Subset(dataset.dataset, mapped_remainder))
+    else:
+        # For regular datasets, proceed as before
+        return Subset(dataset, indices), Subset(dataset, remainder_indices)
 
 
 def load_train_val_test_datasets(dataset_name: str,

@@ -10,12 +10,11 @@ from omegaconf import OmegaConf, DictConfig
 from omegaconf.errors import MissingMandatoryValue
 import wandb
 
-from attacks.utils import set_seed, setup_device, safe_dataclass_load, SaveImage, calculate_metrics, load_from_directory
-from datasets.cifar10 import CIFAR10_MEAN, CIFAR10_STD
-from datasets.cifar100 import CIFAR100_MEAN, CIFAR_100_STD
-from datasets.imagenet import IMAGENET_MEAN, IMAGENET_STD
+from utils import set_seed, setup_device
+from attacks.utils import safe_dataclass_load, SaveImage, calculate_metrics, load_from_directory
+from datasets import DATASETS_TO_PARAMS
 from attacks.config_validation import InputValidator  
-from attacks.GGL.final_ggl import GGLReconstructor
+from attacks.GGL.reconstructor import GGLReconstructor
 from attacks.InvertGrad.reconstructor import InvertGradReconstructor,InvertGradConfig
 
 DEFAULT_SEED = 42
@@ -91,7 +90,10 @@ class ReconstructorApp(InputValidator):
             model = self.initialize_model()
             # Load state dict
             checkpoint = torch.load(model_path, map_location=self.device)
-            checkpoint = checkpoint["model_state_dict"] if "model_state_dict" in checkpoint else checkpoint
+            if "model_state_dict" in checkpoint:
+                checkpoint = checkpoint["model_state_dict"] 
+            if "state_dict" in checkpoint:
+                checkpoint = checkpoint["state_dict"] 
             model.load_state_dict(checkpoint)
             model = model.to(self.device)
             print(f"Loaded model from {model_path}")
@@ -101,21 +103,8 @@ class ReconstructorApp(InputValidator):
             raise Exception(f'Error loading model: {e}')
 
     def initalise_image_params(self):
-        if self.dataset_name == 'cifar10':
-            self.image_mean = CIFAR10_MEAN
-            self.image_std = CIFAR10_STD
-            self.image_size = [3, 32, 32] 
-        elif self.dataset_name == 'cifar100':
-            self.image_mean = CIFAR100_MEAN
-            self.image_std = CIFAR_100_STD
-            self.image_size = [3, 32, 32]
-        elif self.dataset_name == 'imagenet':
-            self.image_mean = IMAGENET_MEAN
-            self.image_std = IMAGENET_STD
-            self.image_size = [3, 224, 224]
-        else:
-            raise ValueError(f"Dataset {self.dataset_name} not supported.")
-        
+        self.image_mean, self.image_std, self.image_size = DATASETS_TO_PARAMS[self.dataset_name]
+        self.image_size = [3, self.image_size, self.image_size]
 
     def initialize_reconstructor(self, unlearned_model, original_model):
         """ Initialize the correct unlearner from user specification."""
@@ -189,7 +178,6 @@ class ReconstructorApp(InputValidator):
         print('reconstructor initialized')
 
         start_time = time.time()
-        print(self.reconstructor_name)
         if self.reconstructor_name == 'ggl':
             z_res, reconstruction, losses = reconstructor.reconstruct(**self.unlearner_params)
         elif self.reconstructor_name == 'invertgrad':
@@ -213,25 +201,30 @@ class ReconstructorApp(InputValidator):
         
         # # Step 6: Calculate metrics
         ref_batch = load_from_directory(self.data_root)
-        num_images = reconstruction.shape[0]
-        psnr_value, mse_value = calculate_metrics(reconstruction, ref_batch, self.image_size, num_images, self.verbose)
+        psnr_value, mse_value = calculate_metrics(reconstruction, ref_batch, self.image_size, self.verbose)
 
 
         # # Step 7: Save metrics
         if self.wandb_enabled:
-            table = wandb.Table(columns=["img_id", "psnr", "best_ref_index"])
+            table_psnr = wandb.Table(columns=["img_id", "psnr", "best_ref_index"])
             for i, (p, idx) in enumerate(psnr_value):
-                table.add_data(i, p, idx)
+                table_psnr.add_data(i, p, idx)
+
+            table_mse = wandb.Table(columns=["img_id", "mse", "best_ref_index"])
+            for i, (mse, idx) in enumerate(mse_value):
+                table_mse.add_data(i, mse, idx)
 
             psnr_max = max([p for p, _ in psnr_value])
+            mse_min = min([mse for mse, _ in mse_value])
 
             wandb.log({
                 'reconstruction_time': total_time,
                 'losses': losses,
                 'reconstruction': wandb.Image(reconstruction),
-                'psnr_table': table,
+                'psnr_table': table_psnr,
+                'mse_table': table_mse,
                 'max_psnr': psnr_max,
-                'mse_image_space': mse_value
+                'min_mse': mse_min
             })
             wandb.finish()
         

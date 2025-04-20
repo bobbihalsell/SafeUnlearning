@@ -1,4 +1,4 @@
-""" Returns standard benchmark torchvision transformation pipeline for CIFAR10. """
+""" Standard benchmark torchvision transformation pipeline for CIFAR10."""
 from torchvision import transforms
 
 CIFAR10_IMAGE_SIZE = 32

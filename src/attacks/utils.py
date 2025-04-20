@@ -6,7 +6,7 @@ import torch
 from typing import Optional
 import os
 from dataclasses import fields
-from attacks.metrics import psnr, mse_image_space, lpips_batch, MSE_R
+from attacks.metrics import psnr, mse_image_space
 from torchvision import transforms
 from PIL import Image
 import glob
@@ -17,8 +17,8 @@ class SaveImage:
                  attack_name: str,
                  seed: str,
                  experiment_name: str,
-                 image_mean: Optional[list] = None, 
-                 image_std: Optional[list] = None, 
+                 image_mean: list = None, 
+                 image_std: list = None, 
                  output_dir: str = "artifacts/reconstructed",
                  ):
         """Class to save images and tensors.
@@ -53,23 +53,26 @@ class SaveImage:
 
     def save_png(self, 
                  images: list, 
-                 filename: Optional[str] = None, 
-                 fig_size: Optional[tuple] = None,
-                 n_cols: Optional[int] = None,
-                 normalize: Optional[bool] = True
+                 filename: str = None, 
+                 fig_size: tuple = None,
+                 n_cols: int = None,
+                 normalize: bool = True
                  ): 
         """
         Save images as PNG files with a specified layout.
         Args:
             images (list): List of images to save.
-            filename (str, optional): Name of the file to save. Defaults to None.
-            fig_size (tuple, optional): Figure size. Defaults to None.
-            n_cols (int, optional): Number of columns. Defaults to None.
-            normalize (bool, optional): Whether to normalize the images. Defaults to True.
+            filename (str): Name of the file to save. Defaults to None.
+            fig_size (tuple): Figure size. Defaults to None.
+            n_cols (int): Number of columns. Defaults to None.
+            normalize (bool): Whether to normalize the images. Defaults to True.
         
         Returns:
             None
         """
+        if not isinstance(images, torch.Tensor):
+            raise TypeError("Images should be a tensor.")
+        
         self.num_images = len(images)
 
         images = images.clone().detach().to(self.device)
@@ -77,8 +80,10 @@ class SaveImage:
 
 
         if normalize:
-            clipped_images.mul_(self.image_std).add_(self.image_mean).clamp_(0, 1) 
-
+            clipped_images = [
+                img.mul_(self.image_std).add_(self.image_mean).clamp_(0, 1)
+                for img in clipped_images
+            ]
 
         if self.num_images == 1:
             plt.imshow(clipped_images[0].permute(1, 2, 0).cpu())
@@ -116,10 +121,9 @@ class SaveImage:
         print(f"Image saved at {filepath}")
         plt.show()
 
-
-
-    def save_tensor(self, images: list, 
-                    filepath: str):
+    def save_tensor(self, 
+                    images: list, 
+                    filepath: str = None):
         """Save images as a tensor.
         Args:
             images (list): List of images to save.
@@ -136,7 +140,6 @@ class SaveImage:
 
         print(f"Image saved as a tensor at {filepath}")
 
-
     def load_tensor(self, 
                     filepath: str):
         """Load images from a tensor file.
@@ -146,6 +149,10 @@ class SaveImage:
             list: Loaded images.
         """
         
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"File {filepath} does not exist.")
+        if not filepath.endswith('.pt'):
+            raise ValueError(f"File {filepath} is not a .pt file.")
         return torch.load(filepath)
     
 class ConfigError(Exception):
@@ -158,30 +165,7 @@ def safe_dataclass_load(dataclass_type, config_dict):
     return dataclass_type(**filtered_dict)
 
 
-
-def setup_device():
-    """ Setup a torch device.
-
-    Returns:
-        str
-    """
-    if torch.cuda.is_available():
-        return 'cuda'
-    elif torch.mps.is_available():
-        return 'mps'
-    else:
-        return 'cpu'
-    
-def set_seed(seed: int = 42):
-    """Set the random seed for reproducibility."""
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)  # For multi-GPU setups
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False  # Ensure deterministic behavior
-
-def calculate_metrics(img_batch, ref_batch, dataset_size, images = 1, verbose = True):
+def calculate_metrics(img_batch, ref_batch, dataset_size, verbose=True):
     # Compute metrics
     ref_batch = ref_batch.to('cuda') 
     img_batch = img_batch.to('cuda')
@@ -191,19 +175,16 @@ def calculate_metrics(img_batch, ref_batch, dataset_size, images = 1, verbose = 
     ref_batch = torch.clamp(ref_batch, 0.0, 1.0)
 
     psnr_value = psnr(img_batch, ref_batch, dataset_size, factor=1)
-    if images == 1:
-        mse_value = mse_image_space(img_batch, ref_batch, dataset_size)
-    else:
-        mse_value = 0
-    
+    mse_value = mse_image_space(img_batch, ref_batch, dataset_size)
+
     if verbose:
         print("\n*** Evaluation Metrics ***")
 
-        for i, (mse, idx) in enumerate(psnr_value):
+        for i, (val, idx) in enumerate(psnr_value):
+            print(f"Recon image {i}: Best match is ref {idx} with MSE {val:.6f}")
+        for i, (mse, idx) in enumerate(mse_value):
             print(f"Recon image {i}: Best match is ref {idx} with MSE {mse:.6f}")
-        if images == 1:
-            print(f"MSE (Image Space): {mse_value:.6f}")
-            
+
     return psnr_value, mse_value
 
 def load_from_directory(dir_path):
@@ -229,6 +210,29 @@ def load_from_directory(dir_path):
     image_batch = torch.stack(images)
     return image_batch
 
+
+def setup_device():
+    """ Setup a torch device.
+
+    Returns:
+        str
+    """
+    if torch.cuda.is_available():
+        return 'cuda'
+    elif torch.mps.is_available():
+        return 'mps'
+    else:
+        return 'cpu'
+
+
+def set_seed(seed: int = 42):
+    """Set the random seed for reproducibility."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # For multi-GPU setups
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False  # Ensure deterministic behavior
 
 
 if __name__ == "__main__":

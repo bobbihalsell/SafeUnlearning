@@ -10,12 +10,13 @@ import time
 
 class NegGrad(BaseUnlearner):
     """
-    Implements NegGrad unlearning as introduced in https://openreview.net/pdf?id=OveBaTtUAT
+    Implements NegGrad unlearning as introduced in
+    https://openreview.net/pdf?id=OveBaTtUAT
 
-    NegGrad performs gradient ascent on the forget set to make the model "forget" 
-    specific samples. This approach maximizes the loss on data that should be 
-    forgotten, effectively reducing the model's ability to make accurate predictions
-    on that data.
+    NegGrad performs gradient ascent on the forget set to make the model
+    "forget" specific samples. This approach maximizes the loss on data that
+    should be forgotten, effectively reducing the model's ability to make
+    accurate predictions on that data.
     """
 
     def __init__(
@@ -30,7 +31,8 @@ class NegGrad(BaseUnlearner):
         Args:
             device: Computing device (CPU/GPU) to use for computations.
                    If None, will be automatically determined.
-            evaluate: Whether to track and return evaluation metrics during unlearning.
+            evaluate: Whether to track and return evaluation metrics during
+                unlearning.
         """
         super(NegGrad, self).__init__(device, evaluate, wandb_enabled)
 
@@ -46,16 +48,19 @@ class NegGrad(BaseUnlearner):
 
         Args:
             model: The original model to perform unlearning on.
-            data_dict: Dictionary containing dataloaders for different datasets.
-                       Must include a 'forget' key with corresponding DataLoader.
+            data_dict: Dictionary containing dataloaders for different
+                       datasets.
+                       Must include a 'forget' key with corresponding
+                       DataLoader.
             **kwargs: Additional arguments including:
                 - num_epochs: Number of training epochs (default: 1).
                 - lr: Learning rate (default: 1e-2).
                 - weight_decay: Weight decay parameter (default: 0).
-                - use_l2_penalty: Whether to add L2 regularization penalty (default: False).
+                - use_l2_penalty: Whether to add L2 regularization penalty
+                    (default: False).
 
         Returns:
-            Tuple of (unlearned_model, logs)
+            Tuple of (unlearned_model, self.logs)
 
         Raises:
             ValueError: If 'forget' data is not in data_dict.
@@ -95,12 +100,13 @@ class NegGrad(BaseUnlearner):
                 self.optimizer.step()
             forward_pass_elapsed = time.time() - epoch_start_time
             if self.wandb_enabled:
-                self._log_forward_pass_time_in_wandb(epoch=e+1,
-                                                     time=forward_pass_elapsed)
+                self._log_forward_pass_time_in_wandb(
+                    epoch=e+1,
+                    time=forward_pass_elapsed
+                    )
             if verbose:
                 self._print_forward_pass_metrics(e, forward_pass_elapsed)
             if self.evaluate:
-                # Calculate average retain loss for this epoch
                 self._evaluate_all_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
@@ -116,11 +122,13 @@ class NegGrad(BaseUnlearner):
 
 class NegGradPlus(BaseUnlearner):
     """
-    Implements NegGrad+ unlearning as introduced in https://openreview.net/pdf?id=OveBaTtUAT
+    Implements NegGrad+ unlearning as introduced in
+    https://openreview.net/pdf?id=OveBaTtUAT
 
-    NegGrad+ extends NegGrad by incorporating a trade-off between retaining performance
-    on keep data while forgetting the forget data. It balances gradient descent on retain
-    data with gradient ascent on forget data, controlled by a beta parameter.
+    NegGrad+ extends NegGrad by incorporating a trade-off between retaining
+    performance on keep data while forgetting the forget data. It balances
+    gradient descent on retain data with gradient ascent on forget data,
+    controlled by a beta parameter.
     """
 
     def __init__(
@@ -135,7 +143,8 @@ class NegGradPlus(BaseUnlearner):
         Args:
             device: Computing device (CPU/GPU) to use for computations.
                    If None, will be automatically determined.
-            evaluate: Whether to track and return evaluation metrics during unlearning.
+            evaluate: Whether to track and return evaluation metrics during
+                unlearning.
         """
         super(NegGradPlus, self).__init__(device, evaluate, wandb_enabled)
 
@@ -186,25 +195,30 @@ class NegGradPlus(BaseUnlearner):
 
         Args:
             model: The original model to perform unlearning on.
-            data_dict: Dictionary containing dataloaders for different datasets.
+            data_dict: Dictionary containing dataloaders for different
+                datasets.
                        Must include both 'forget' and 'retain' keys.
             **kwargs: Additional arguments including:
                 - loss_fn: Loss function to use for training.
                 - num_epochs: Number of training epochs (default: 1).
                 - lr: Learning rate (default: 1e-2).
                 - weight_decay: Weight decay parameter (default: 0).
-                - use_l2_penalty: Whether to add L2 regularization penalty (default: False).
-                - beta: Tradeoff parameter between retain and forget objectives (0-1).
+                - use_l2_penalty: Whether to add L2 regularization penalty
+                    (default: False).
+                - beta: Tradeoff parameter between retain and forget
+                    objectives (0-1).
                   beta=0 is pure forgetting, beta=1 is pure retention.
-                  PLEASE USE NegGrad FOR BETA = 0, FinetuneUnlearner FOR BETA = 1.
+                  PLEASE USE NegGrad FOR BETA = 0,
+                  FinetuneUnlearner FOR BETA = 1.
 
         Returns:
-            Tuple of (unlearned_model, logs)
+            Tuple of (unlearned_model, self.logs)
 
 
         Raises:
-            ValueError: If either 'forget' or 'retain' data is missing from data_dict,
-                       or if beta is 0 or 1 (which would make this equivalent to simpler methods).
+            ValueError: If either 'forget' or 'retain' data is missing from
+              data_dict, or if beta is 0 or 1 (which would make this
+              equivalent to simpler methods).
         """
         model.to(self.device)
         unlearned_model, scheduler = self._setup_unlearning(
@@ -212,8 +226,11 @@ class NegGradPlus(BaseUnlearner):
             data_dict,
             **kwargs)
         # Ensure required data is available
-        if 'forget' not in data_dict.keys() or 'retain' not in data_dict.keys():
-            raise ValueError("'forget' and 'retain' data must be in data_dict.")
+        if ('forget' not in data_dict.keys()
+           or 'retain' not in data_dict.keys()):
+            raise ValueError(
+                "'forget' and 'retain' data must be in data_dict."
+                )
         if self.beta == 0:
             raise ValueError("Please use NegGrad if you wish to perform "
                              "gradient ascent on only the forget set.")
@@ -264,8 +281,10 @@ class NegGradPlus(BaseUnlearner):
 
             forward_pass_elapsed = time.time() - epoch_start_time
             if self.wandb_enabled:
-                self._log_forward_pass_time_in_wandb(epoch=e+1,
-                                                     time=forward_pass_elapsed)
+                self._log_forward_pass_time_in_wandb(
+                    epoch=e+1,
+                    time=forward_pass_elapsed
+                    )
             if verbose:
                 self._print_forward_pass_metrics(e, forward_pass_elapsed)
             if self.evaluate:

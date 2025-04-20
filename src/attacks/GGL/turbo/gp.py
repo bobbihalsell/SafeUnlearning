@@ -10,10 +10,8 @@
 ###############################################################################
 
 import math
-
-import gpytorch
-import numpy as np
 import torch
+
 from gpytorch.constraints.constraints import Interval
 from gpytorch.distributions import MultivariateNormal
 from gpytorch.kernels import MaternKernel, ScaleKernel
@@ -25,12 +23,27 @@ from gpytorch.models import ExactGP
 
 # GP Model
 class GP(ExactGP):
-    def __init__(self, train_x, train_y, likelihood, lengthscale_constraint, outputscale_constraint, ard_dims):
+    def __init__(
+        self,
+        train_x,
+        train_y,
+        likelihood,
+        lengthscale_constraint,
+        outputscale_constraint,
+        ard_dims
+    ):
         super(GP, self).__init__(train_x, train_y, likelihood)
         self.ard_dims = ard_dims
         self.mean_module = ConstantMean()
-        base_kernel = MaternKernel(lengthscale_constraint=lengthscale_constraint, ard_num_dims=ard_dims, nu=2.5)
-        self.covar_module = ScaleKernel(base_kernel, outputscale_constraint=outputscale_constraint)
+        base_kernel = MaternKernel(
+            lengthscale_constraint=lengthscale_constraint,
+            ard_num_dims=ard_dims,
+            nu=2.5
+        )
+        self.covar_module = ScaleKernel(
+            base_kernel,
+            outputscale_constraint=outputscale_constraint
+        )
 
     def forward(self, x):
         mean_x = self.mean_module(x)
@@ -38,8 +51,18 @@ class GP(ExactGP):
         return MultivariateNormal(mean_x, covar_x)
 
 
-def train_gp(train_x, train_y, use_ard, num_steps, hypers={}, gp_optim ='AdamW', use_scheduler=False, initial_lr=1):
-    """Fit a GP model where train_x is in [0, 1]^d and train_y is standardized."""
+def train_gp(
+    train_x,
+    train_y,
+    use_ard,
+    num_steps,
+    hypers={},
+    gp_optim='AdamW',
+    use_scheduler=False,
+    initial_lr=1
+):
+    """Fit a GP model where train_x is in [0, 1]^d and train_y is
+    standardized."""
     assert train_x.ndim == 2
     assert train_y.ndim == 1
     assert train_x.shape[0] == train_y.shape[0]
@@ -49,11 +72,18 @@ def train_gp(train_x, train_y, use_ard, num_steps, hypers={}, gp_optim ='AdamW',
     if use_ard:
         lengthscale_constraint = Interval(0.005, 2.0)
     else:
-        lengthscale_constraint = Interval(0.005, math.sqrt(train_x.shape[1]))  # [0.005, sqrt(dim)]
+        # [0.005, sqrt(dim)]
+        lengthscale_constraint = Interval(0.005, math.sqrt(train_x.shape[1]))
     outputscale_constraint = Interval(0.05, 20.0)
 
     # Create models
-    likelihood = GaussianLikelihood(noise_constraint=noise_constraint).to(device=train_x.device, dtype=train_y.dtype)
+    likelihood = GaussianLikelihood(
+        noise_constraint=noise_constraint
+    ).to(
+        device=train_x.device,
+        dtype=train_y.dtype
+    )
+
     ard_dims = train_x.shape[1] if use_ard else None
     model = GP(
         train_x=train_x,
@@ -82,12 +112,22 @@ def train_gp(train_x, train_y, use_ard, num_steps, hypers={}, gp_optim ='AdamW',
         model.initialize(**hypers)
 
     if gp_optim == 'Adam':
-        # Use the adam optimizer
-        optimizer = torch.optim.Adam([{"params": model.parameters()}], lr=initial_lr)
-    if gp_optim == 'AdamW':
-        optimizer = torch.optim.AdamW([{"params": model.parameters()}], lr=initial_lr)
+        optimizer = torch.optim.Adam(
+            [{"params": model.parameters()}],
+            lr=initial_lr
+        )
+    elif gp_optim == 'AdamW':
+        optimizer = torch.optim.AdamW(
+            [{"params": model.parameters()}],
+            lr=initial_lr
+        )
+
     if use_scheduler:
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=num_steps/5, gamma=0.5)  
+        scheduler = torch.optim.lr_scheduler.StepLR(
+            optimizer,
+            step_size=num_steps // 5,
+            gamma=0.5
+        )
 
     for _ in range(num_steps):
         optimizer.zero_grad()

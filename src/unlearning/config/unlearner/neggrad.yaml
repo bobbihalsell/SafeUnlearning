@@ -2,7 +2,7 @@ name: neggrad
 evaluate: true
 cfg:
   optimizer: sgd
-  lr: 0.0005
+  lr: 0.0008
   momentum:
   lr_decay_factor: 0.1
   epochs_per_lr_decay: 2
