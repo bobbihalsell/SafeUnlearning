@@ -3,6 +3,8 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from omegaconf import DictConfig
+
 from attacks.lira.utils import get_loaders_from_indices, get_retain_forget_val_indices
 
 from unlearning.main import UnlearnApp
@@ -31,24 +33,32 @@ class UnlearnAppForLiRA(UnlearnApp):
         return unlearned_model
 
 
-def run(config, unlearner, root, save_path):
-    num_splits = config.attack.cfg.num_splits
-    num_forgets = config.attack.cfg.num_forgets
+def run(
+    config: DictConfig,
+    model_name: str,
+    unlearner: str,
+    num_splits: int,
+    num_forgets: int,
+    output_dir: Path,
+) -> None:
+    models_path = output_dir / unlearner / "models"
+    models_path.mkdir(parents=True, exist_ok=True)
 
-    name_save_path = root / save_path / "models"
-    if not Path(name_save_path).exists():
-        Path(name_save_path).mkdir(parents=True, exist_ok=True)
+    if os.listdir(models_path):
+        print(f"{unlearner} models are already generated. Skipping.")
+        return
 
-    app = UnlearnAppForLiRA(config, unlearner)
+    unlearner_name = "finetune" if unlearner in ["original", "naive"] else unlearner
+    app = UnlearnAppForLiRA(config, unlearner_name)
 
     for split_ndx in range(num_splits):
         for forget_ndx in range(num_forgets):
             retain, forget, val = get_retain_forget_val_indices(
-                lira_path=root / "splits",
+                lira_path=output_dir / "splits",
                 split_ndx=split_ndx,
                 forget_ndx=forget_ndx,
             )
-            if save_path == "original":
+            if unlearner == "original":
                 retain = np.concatenate([retain, forget])
 
             loaders = get_loaders_from_indices(
@@ -56,18 +66,18 @@ def run(config, unlearner, root, save_path):
                 indices=[retain, forget, val],
             )
 
-            if save_path not in ["original", "naive"]:
+            if unlearner not in ["original", "naive"]:
                 app.model_ckpt_path = (
-                    root
+                    output_dir
                     / "original"
                     / "models"
-                    / f"{config.model.name}_{split_ndx}_{forget_ndx}.pth"
+                    / f"{model_name}_{split_ndx}_{forget_ndx}.pth"
                 )
             unlearned_model = app.run(loaders)
             torch.save(
                 {"model_state_dict": unlearned_model.state_dict()},
-                root
-                / save_path
+                output_dir
+                / unlearner
                 / "models"
                 / f"{config.model.name}_{split_ndx}_{forget_ndx}.pth",
             )

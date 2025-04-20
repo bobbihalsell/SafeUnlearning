@@ -1,3 +1,4 @@
+import random
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -11,7 +12,7 @@ import torchvision
 import timm
 
 from datasets.load_datasets import load_train_val_test_datasets
-from datasets.cifar10 import get_cifar10_train_transform, get_cifar10_test_transform
+from datasets import DATASETS_TO_TRAIN_TRANSFORM, DATASETS_TO_TRANSFORM
 
 
 def get_retain_forget_val_indices(
@@ -37,8 +38,8 @@ def get_loaders_from_indices(
 ) -> Dict[str, DataLoader]:
     dataset_name = config.dataset.name
     save_dir = config.dataset.save_path
-    train_transform = get_cifar10_train_transform()
-    test_transform = get_cifar10_test_transform()
+    train_transform = DATASETS_TO_TRAIN_TRANSFORM[dataset_name]()
+    test_transform = DATASETS_TO_TRANSFORM[dataset_name]()
 
     train, _, test = load_train_val_test_datasets(
         dataset_name, 1, 0, save_dir, "", train_transform
@@ -106,6 +107,30 @@ def load_model(model_name: str, num_classes: int, checkpoint_path: Path) -> nn.M
         except Exception:
             raise AttributeError(f"{model_name} not found.")
 
-    checkpoint = torch.load(checkpoint_path)
+    checkpoint = torch.load(checkpoint_path)["model_state_dict"]
     model.load_state_dict(checkpoint)
     return model
+
+
+def setup_device():
+    """ Setup a torch device.
+
+    Returns:
+        str
+    """
+    if torch.cuda.is_available():
+        return 'cuda'
+    elif torch.mps.is_available():
+        return 'mps'
+    else:
+        return 'cpu'
+
+
+def set_seed(seed: int = 42):
+    """Set the random seed for reproducibility."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # For multi-GPU setups
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False  # Ensure deterministic behavior

@@ -1,61 +1,67 @@
-import numpy as np
+import os
+from typing import Dict
 from pathlib import Path
-from omegaconf import DictConfig
+
+import numpy as np
 import torch
-import torch.nn as nn
 from torch.nn.functional import softmax
 from torch.utils.data import ConcatDataset, DataLoader
 
 from attacks.lira.utils import load_model
 from datasets.load_datasets import load_train_val_test_datasets
-from datasets.cifar10 import get_cifar10_test_transform
+from datasets import DATASETS_TO_TRANSFORM
 
 
-def run(config: DictConfig, root: Path, unlearner: str) -> None:
-    dataset = config.dataset.name
-    model_name = config.model.name
-    num_splits = config.attack.cfg.num_splits
-    num_forgets = config.attack.cfg.num_forgets
-    save_dir = config.dataset.save_path
-    transform = get_cifar10_test_transform()
+def run(
+    dataset_name: str,
+    dataset_cfg: Dict,
+    model_name: str,
+    num_classes: int,
+    unlearner: str,
+    num_splits: int,
+    num_forgets: int,
+    save_path: str,
+    output_dir: Path,
+    device: str,
+) -> None:
+    models_path = output_dir / unlearner / "models"
+    predictions_path = output_dir / unlearner / "predictions"
+    predictions_path.mkdir(parents=True, exist_ok=True)
+
+    if os.listdir(predictions_path):
+        print("Probabilities are already computed. Skipping.")
+        return
+
+    transform = DATASETS_TO_TRANSFORM[dataset_name]()
 
     train, _, test = load_train_val_test_datasets(
-        dataset, 1, 0, save_dir, "", transform
+        dataset_name, 1, 0, save_path, "", transform
     )
     dataset = ConcatDataset([train, test])
     loader = DataLoader(
         dataset,
-        batch_size=config.dataset.cfg.batch_sizes["val"],
+        batch_size=dataset_cfg["batch_sizes"]["val"],
         shuffle=False,
-        num_workers=config.dataset.cfg.num_workers,
+        num_workers=dataset_cfg["num_workers"],
     )
 
     for split_ndx in range(num_splits):
         for forget_ndx in range(num_forgets):
             model = load_model(
                 model_name,
-                config.model.num_classes,
-                root
-                / unlearner
-                / "models"
-                / f"{model_name}_{split_ndx}_{forget_ndx}.pth",
+                num_classes,
+                models_path / f"{model_name}_{split_ndx}_{forget_ndx}.pth",
             )
-            model.to(config.device)
+            model.to(device)
             model.eval()
             predictions = []
 
             for images, targets in loader:
-                images = images.to(config.device)
+                images = images.to(device)
                 with torch.no_grad():
                     logits = model(images)
                     probas = softmax(logits, dim=1).cpu().numpy()
                 predictions.append(probas)
 
-            output_path = (
-                root
-                / unlearner
-                / "predictions"
-                / f"{model_name}_{split_ndx}_{forget_ndx}.npy"
-            )
-            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path = predictions_path / f"{model_name}_{split_ndx}_{forget_ndx}.npy"
             np.save(output_path, np.concatenate(predictions))

@@ -10,61 +10,93 @@ from attacks.lira.compute_lira import run as lira_score
 from attacks.lira.config_validation import LiRAValidator
 from attacks.lira.generate_predictions import run as generate_predictions
 from attacks.lira.generate_splits import run as generate_splits
-from attacks.lira.train_lira import run as tl_main
+from attacks.lira.train_lira import run as train_models
 from unlearning.utils import set_seed, setup_device
 
 
-class LiRAApp:
+class LiRAApp(LiRAValidator):
     def __init__(self, config: DictConfig):
-        self.config = config
-
-        # Perform input validation
-        LiRAValidator(OmegaConf.to_container(config, resolve=True))
+        # Perform input validation first
+        self.config = OmegaConf.to_container(config, resolve=True)
+        super().__init__(self.config)
 
         self.device = setup_device()
         print(f"Using device: {self.device}")
-        self.seed = self.config["seed"]
+        self.seed = config["seed"]
         set_seed(self.seed)
 
-        self.root = Path(f"artifacts/attacks/lira/{self.config['exp_name']}")
-        os.makedirs(self.root, exist_ok=True)
+        self.output_dir = Path(config["output_dir"])
+        os.makedirs(self.output_dir, exist_ok=True)
 
-        # TODO: Fix temp hack
-        self.config2 = deepcopy(config)
-        self.config2["unlearner"] = OmegaConf.load("src/attacks/lira/config/unlearner/finetune.yaml")
+    def train_original_models(self):
+        original_config = deepcopy(self.config)
+        original_config["unlearner"] = original_config["original"]
 
-    def train_base_models(self):
-        if not os.listdir(f"{self.root}/original/models"):
-            tl_main(self.config2, "finetune", self.root, "original")
-            generate_predictions(self.config2, self.root, "original")
-        else:
-            print("Original models are already generated. Skipping.")
-
-    def train_test_models(self):
-        if not os.listdir(f"{self.root}/naive/models"):
-            tl_main(self.config2, "finetune", self.root, "naive")
-            generate_predictions(self.config2, self.root, "naive")
-        else:
-            print("Naive unlearnt models are already generated. Skipping.")
+        train_models(
+            original_config,
+            self.model_name,
+            original_config["unlearner"]["name"],
+            self.num_splits,
+            self.num_forgets,
+            self.output_dir,
+        )
+        generate_predictions(
+            self.dataset_name,
+            self.dataset_cfg,
+            self.model_name,
+            self.num_classes,
+            original_config["unlearner"]["name"],
+            self.num_splits,
+            self.num_forgets,
+            self.dataset_save_dir,
+            self.output_dir,
+            self.device,
+        )
 
     def unlearn_models(self):
-        tl_main(
+        train_models(
             self.config,
-            self.config.unlearner.name,
-            self.root,
-            self.config.unlearner.name,
+            self.model_name,
+            self.unlearner_name,
+            self.num_splits,
+            self.num_forgets,
+            self.output_dir,
         )
-        generate_predictions(self.config, self.root, self.config.unlearner.name)
-
-    def get_scores(self):
-        lira_score(self.config, self.root)
+        generate_predictions(
+            self.dataset_name,
+            self.dataset_cfg,
+            self.model_name,
+            self.num_classes,
+            self.unlearner_name,
+            self.num_splits,
+            self.num_forgets,
+            self.dataset_save_dir,
+            self.output_dir,
+            self.device,
+        )
 
     def run(self):
-        generate_splits(self.config, self.root)
-        self.train_base_models()
-        self.train_test_models()
+        generate_splits(
+            self.dataset_name,
+            self.forget_ratio,
+            self.val_ratio,
+            self.num_splits,
+            self.num_forgets,
+            self.dataset_save_dir,
+            self.output_dir,
+            self.seed
+        )
+        self.train_original_models()
         self.unlearn_models()
-        self.get_scores()
+        lira_score(
+            self.dataset_name,
+            self.model_name,
+            self.unlearner_name,
+            self.num_splits,
+            self.num_forgets,
+            self.dataset_save_dir,
+            self.output_dir,
+        )
 
 
 @hydra.main(version_base=None,

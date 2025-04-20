@@ -1,4 +1,4 @@
-name: finetune
+name: original
 evaluate: true
 cfg:
   optimizer: sgd

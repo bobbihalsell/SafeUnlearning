@@ -5,7 +5,6 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray as Array
-from omegaconf import DictConfig
 from scipy.stats import norm
 from torch.utils.data import ConcatDataset
 
@@ -131,28 +130,32 @@ def get_preds(
     for split_ndx in range(num_splits):
         forgets = []
         for forget_ndx in range(num_forgets):
-            model = f"{model}_{split_ndx}_{forget_ndx}.npy"
-            preds = np.load(root / unlearner / "predictions" / model, allow_pickle=True)
+            fname = f"{model}_{split_ndx}_{forget_ndx}.npy"
+            preds = np.load(root / unlearner / "predictions" / fname, allow_pickle=True)
             forgets.append(preds)
         storage.append(np.stack(forgets))
     res = np.transpose(np.stack(storage), (2, 0, 1, 3))
     return res
 
 
-def run(config: DictConfig, root: Path) -> None:
-    unlearner = config.unlearner.name
-    num_splits = config.attack.cfg.num_splits
-    num_forgets = config.attack.cfg.num_forgets
-    test_indices = np.load(root / "splits" / "test_matrices.npy")
-    save_dir = config.dataset.save_path
+def run(
+    dataset_name: str,
+    model_name: str,
+    unlearner: str,
+    num_splits: int,
+    num_forgets: int,
+    save_path: str,
+    output_dir: Path,
+) -> None:
+    test_indices = np.load(output_dir / "splits" / "test_matrices.npy")
 
-    train, _, test = load_train_val_test_datasets(
-        config.dataset.name, 1, 0, save_dir, ""
-    )
+    train, _, test = load_train_val_test_datasets(dataset_name, 1, 0, save_path, "")
     dataset = ConcatDataset([train, test])
     targets = np.array([label for (image, label) in dataset])
 
-    forgets_splits_and_forget_indices = reconstruct_split_and_forget(root, num_splits)
+    forgets_splits_and_forget_indices = reconstruct_split_and_forget(
+        output_dir, num_splits
+    )
 
     id_to_forgotten_never_seen = {}
     for split_ndx, row in enumerate(test_indices):
@@ -169,10 +172,10 @@ def run(config: DictConfig, root: Path) -> None:
                     (split_ndx, forget_ndx)
                 )
 
-    storage = get_preds(root, config.model.name, unlearner, num_splits, num_forgets)
+    storage = get_preds(output_dir, model_name, unlearner, num_splits, num_forgets)
     id_to_correct_probas = extract_correct_probabilities(
         storage, targets, id_to_forgotten_never_seen
     )
     ndx_to_membership = compute_membership_probabilities(id_to_correct_probas)
-    with open(root / f"{unlearner}_membership.npy", "wb") as out_fo:
-        pickle.dump(obj=ndx_to_membership, file=out_fo)
+    with open(output_dir / f"{unlearner}_membership.npy", "wb") as f:
+        pickle.dump(obj=ndx_to_membership, file=f)

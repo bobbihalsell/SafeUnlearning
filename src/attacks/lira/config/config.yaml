@@ -2,9 +2,9 @@ defaults:
   - _self_
   - model: ???
   - dataset: ???
+  - unlearner@original: original
   - unlearner: ???
   - attack: ???
-seed: 42
+seed: 10
 verbose: true
-exp_name: test_hydra
-output_dir: artifacts/attacks/lira/test_hydra
+output_dir: artifacts/attacks/lira/test_hydra_v2
