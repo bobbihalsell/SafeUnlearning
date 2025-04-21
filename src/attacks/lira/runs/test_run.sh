@@ -1,0 +1,1 @@
+python src/attacks/lira/main.py dataset=cifar10 model=resnet18 unlearner=neggrad attack=lira

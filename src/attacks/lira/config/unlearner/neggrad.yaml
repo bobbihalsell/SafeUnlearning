@@ -1,0 +1,11 @@
+name: neggrad
+evaluate: true
+cfg:
+  optimizer: sgd
+  lr: 0.0001
+  lr_decay_factor: 0.1
+  epochs_per_lr_decay: 10
+  momentum: 0.9
+  weight_decay: 0
+  use_l2_penalty: false
+  epochs: 5

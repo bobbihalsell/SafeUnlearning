@@ -3,6 +3,14 @@ from .cifar100 import *
 from .imagenet import *
 
 
+DATASETS_TO_TRAIN_TRANSFORM = {
+    "cifar5": get_cifar10_train_transform,
+    "cifar10": get_cifar10_train_transform,
+    "cifar100": get_cifar100_train_transform,
+    "imagenet": get_imagenet_train_transform,
+}
+
+
 DATASETS_TO_TRANSFORM = {
     "cifar5": get_cifar10_test_transform,
     "cifar10": get_cifar10_test_transform,
