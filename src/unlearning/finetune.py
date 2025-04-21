@@ -55,7 +55,7 @@ class FinetuneUnlearner(BaseUnlearner):
                     (default: False).
 
         Returns:
-            Tuple of (unlearned_model, logs)
+            Tuple of (unlearned_model, self.logs)
         """
         if 'retain' not in data_dict.keys():
             raise ValueError("'retain' data must be in data_dict.")
@@ -80,8 +80,7 @@ class FinetuneUnlearner(BaseUnlearner):
                 retain_output = unlearned_model(retain_inputs)
                 retain_loss = self.criterion(retain_output, retain_labels)
 
-                # Add L2 penalty if requested to maintain similarity to 
-                # original model
+                # Add L2 penalty for bias towards weight similarity to original
                 if self.use_l2_penalty:
                     l2_loss = l2_penalty(model=unlearned_model,
                                          model_init=model,

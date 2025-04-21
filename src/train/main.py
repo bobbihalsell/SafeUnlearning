@@ -43,7 +43,7 @@ class TrainApp:
         self.project_name = wandb_cfg['project_name']
 
         self.checkpoint_path = model_cfg.get('checkpoint_path', None)
-        self.from_checkpoint = False  # Flag to determine whether to train from checkpoint
+        self.from_checkpoint = False  # Flag: whether to train from checkpoint
         if self.checkpoint_path is not None:
             self.from_checkpoint = True
 
@@ -159,7 +159,8 @@ class TrainApp:
 
         # Create the save directory
         os.makedirs(self.model_save_dir, exist_ok=True)
-        save_path = self.model_save_dir + f'/{self.model_name}_{self.seed}_original.pt'
+        save_path = (self.model_save_dir +
+                     f'/{self.model_name}_{self.seed}_original.pt')
 
         if num_epochs == 0:
             # Handle case where user just wants to download pretrained weights
@@ -237,7 +238,8 @@ class TrainApp:
             })
 
             print(f"Epoch {start_epoch+epoch+1}/{start_epoch+num_epochs} - "
-                  f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}% - "
+                  f"Train Loss: {train_loss:.4f}, "
+                  f"Train Acc: {train_acc:.2f}% - "
                   f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%")
 
             # Save the best model based on validation loss

@@ -1,6 +1,6 @@
-""" 
-Returns standard benchmark torchvision transformation pipeline for 
-CIFAR100. 
+"""
+Returns standard benchmark torchvision transformation pipeline for
+CIFAR100.
 """
 from torchvision import transforms
 
@@ -13,7 +13,8 @@ CIFAR100_STD = (0.2673, 0.2564, 0.2762)
 def get_cifar100_train_transform():
     transform = transforms.Compose(
         [
-            transforms.RandomCrop(CIFAR100_IMAGE_SIZE, padding=CIFAR100_PADDING),
+            transforms.RandomCrop(CIFAR100_IMAGE_SIZE,
+                                  padding=CIFAR100_PADDING),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize(mean=CIFAR100_MEAN, std=CIFAR100_STD),

@@ -11,7 +11,11 @@ from attacks.lira.config_validation import LiRAValidator
 from attacks.lira.generate_predictions import run as generate_predictions
 from attacks.lira.generate_splits import run as generate_splits
 from attacks.lira.train_lira import run as train_models
+<<<<<<< HEAD
 from utils import set_seed, setup_device
+=======
+from unlearning.utils import set_seed, setup_device
+>>>>>>> liraedits
 
 
 class LiRAApp(LiRAValidator):
