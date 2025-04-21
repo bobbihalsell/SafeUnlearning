@@ -216,8 +216,8 @@ def main(cfg: DictConfig):
     app = UnlearnApp(cfg)
     if app.wandb_config is not None:
         wandb.init(
-            project=str(app.wandb_config['project_name']),
-            id=str(app.wandb_config['run_id']),
+            project=app.wandb_config['project_name'],
+            id=app.wandb_config['run_id'],
             config=OmegaConf.to_container(cfg, resolve=True),
             resume='never'  # Always make sure the unlearning run ID is new
         )

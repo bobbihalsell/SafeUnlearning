@@ -303,8 +303,8 @@ def main(cfg: DictConfig):
     trainer = TrainApp(config=cfg)
     if trainer.wandb_config is not None:
         wandb.init(
-            project=str(trainer.wandb_config['project_name']),
-            id=str(trainer.wandb_config['run_id']),
+            project=trainer.wandb_config['project_name'],
+            id=trainer.wandb_config['run_id'],
             config=OmegaConf.to_container(cfg, resolve=True),
             resume='allow'  # Allow to resume training from checkpoint
         )
