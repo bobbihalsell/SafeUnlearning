@@ -5,7 +5,8 @@ import numpy as np
 import torch
 from omegaconf import DictConfig
 
-from attacks.lira.utils import get_loaders_from_indices, get_retain_forget_val_indices
+from attacks.lira.utils import (get_loaders_from_indices, 
+                                get_retain_forget_val_indices)
 
 from unlearning.main import UnlearnApp
 
@@ -14,22 +15,28 @@ class UnlearnAppForLiRA(UnlearnApp):
     def __init__(self, config, unlearner_name):
         super().__init__(config)
         self.unlearner_name = unlearner_name
-
-    def run(self, dataloaders):
+    
+    def run(self, dataloaders, unlearning=True):
         print("running...")
         # Step 1: Initialize the model
         original_model = self.load_model()
 
         # Step 2: Unlearning
         unlearner = self.initialize_unlearner()
-        print("unlearner initialized")
+        if unlearning:
+            print("f{self.unlearner_name} initialized")
+        else:
+            print("finetuner initialized")
         unlearned_model, losses = unlearner.unlearn(
             original_model,
             data_dict=dataloaders,
             verbose=self.verbose,
             **self.unlearn_params,
         )
-        print("model unlearned")
+        if unlearning:
+            print("model unlearned")
+        else:
+            print("model finetuned")
         return unlearned_model
 
 
@@ -48,7 +55,10 @@ def run(
         print(f"{unlearner} models are already generated. Skipping.")
         return
 
-    unlearner_name = "finetune" if unlearner in ["original", "naive"] else unlearner
+    if unlearner in ["original", "naive"]:
+        unlearner_name = "finetune"
+    else:
+        unlearner_name = unlearner
     app = UnlearnAppForLiRA(config, unlearner_name)
 
     for split_ndx in range(num_splits):

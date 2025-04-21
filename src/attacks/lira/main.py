@@ -28,6 +28,18 @@ class LiRAApp(LiRAValidator):
         self.output_dir = Path(self.config["output_dir"])
         os.makedirs(self.output_dir, exist_ok=True)
 
+    def initialize_model(self):
+        pass
+
+    def generate_unlearning_configs(self, type):
+        if type == 'original':
+            config = deepcopy(self.config)
+            config["unlearner"] = config["trainer"]
+        if type == 'naive':
+            config = deepcopy(self.config)
+            config["unlearner"] = config["trainer"]
+            config["dataset"]["forget_ratio"] = 0.0
+
     def train_original_models(self):
         original_config = deepcopy(self.config)
         original_config["unlearner"] = original_config["original"]
