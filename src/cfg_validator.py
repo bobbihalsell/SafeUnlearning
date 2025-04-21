@@ -1,6 +1,4 @@
-class ConfigError(Exception):
-    def __init__(self, message='Configuration .YAML specification error.'):
-        super().__init__(message)
+from utils import ConfigError
 
 
 class InputValidator:

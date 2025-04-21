@@ -1,5 +1,4 @@
-from attacks.GLiR.glir_utils import ConfigError
-from cfg_validator import InputValidator
+from cfg_validator import InputValidator, ConfigError
 
 
 class GLiRValidator(InputValidator):

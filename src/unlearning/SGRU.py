@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from unlearning.utils import l2_penalty
+from unlearning.unlearn_utils import l2_penalty
 from unlearning.base import BaseUnlearner
 from typing import Dict
 from torch.utils.data import DataLoader

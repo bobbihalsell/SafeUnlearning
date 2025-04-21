@@ -5,11 +5,6 @@ from sklearn.metrics import (precision_score, recall_score,
 import torch 
 
 
-class ConfigError(Exception):
-    def __init__(self, message='Configuration .YAML specification error.'):
-        super().__init__(message)
-
-
 def compute_accuracy(model, dataloader, device):
     # device = model.device
     model.eval()
@@ -45,7 +40,8 @@ def create_subset(dataset, fraction, return_indices=False):
     return subset
 
 
-def create_matched_subset(dataset, target_size, exempt_points=[], test_size= None):
+def create_matched_subset(dataset, target_size, 
+                          exempt_points=[], test_size=None):
     """
     Creates a subset from the loader with exactly `target_size` samples.
     
@@ -60,16 +56,14 @@ def create_matched_subset(dataset, target_size, exempt_points=[], test_size= Non
                                 )
     # Ensure target_size does not exceed the number of available indices
     if test_size is None:
-         target_size = min(target_size, len(available_test_indices))
+        target_size = min(target_size, len(available_test_indices))
     else: 
         target_size = test_size
    
-
     indices = np.random.choice(available_test_indices, 
                                target_size, 
                                replace=False)
     subset = Subset(dataset, indices)
-
     return subset    
 
 

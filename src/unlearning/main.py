@@ -14,8 +14,9 @@ from unlearning.neggrad import NegGrad, NegGradPlus
 from unlearning.SGRU import SGRU
 from unlearning.kunlearn import KUnlearn
 from utils import set_seed, setup_device
-from unlearning.utils import save_model, ConfigError
-from unlearning.importmodel import ImportModel
+from unlearning.unlearn_utils import save_model
+from importmodel import ImportModel
+from utils import initialize_dataloaders as init_dataloaders
 import time
 import wandb
 
@@ -107,11 +108,9 @@ class UnlearnApp(UnlearningValidator):
                              ' not supported.')
         self.unlearner = unlearner
         return unlearner
-
+    
     def initialize_dataloaders(self):
-        """ Initialize dataloaders from the ImageNet dataset folder."""
-        transform = DATASETS_TO_TRANSFORM[self.dataset_name]()
-
+        """ Initialize dataloaders from the dataset folder."""
         # Load datasets for each split, exclude train and test data
         if not os.path.exists(self.dataset_save_dir):
             raise ValueError('Data directory not found.')
@@ -123,28 +122,13 @@ class UnlearnApp(UnlearningValidator):
         if 'forget' not in splits:
             raise ValueError('Forget data required in dataset directory.')
 
-        dataloaders = {}
-
-        for split in splits:
-            if split not in self.batch_sizes:
-                raise ConfigError(
-                    f"Missing batch size configuration for split '{split}' "
-                    "Configure this under dataset.cfg.batch_sizes.split_name."
-                )
-            batch_size = self.batch_sizes[split]
-            split_dir = os.path.join(self.dataset_save_dir, split)
-
-            dataset = RobustImageFolder(root=split_dir,
-                                        transform=transform)
-            dataloaders[split] = DataLoader(
-                dataset,
-                batch_size=batch_size,
-                shuffle=(split in ['retain', 'forget']),
-                num_workers=self.num_workers,
-                pin_memory=True
-            )
-
-        sample_input, _ = dataset[0]
+        dataloaders = init_dataloaders(splits=splits,
+                                       batch_sizes=self.batch_sizes,
+                                       num_workers=self.num_workers,
+                                       dataset_name=self.dataset_name,
+                                       dataset_save_dir=self.dataset_save_dir)
+        dataloader = dataloaders['forget']
+        sample_input, _ = next(iter(dataloader))
         input_shape = sample_input.shape
         # Add an empty retain dataloader if not present in the dataset
         if 'retain' not in splits:

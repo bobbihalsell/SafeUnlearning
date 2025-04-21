@@ -7,7 +7,7 @@ from attacks.GLiR.glir_utils import calculate_metrics
 from attacks.GLiR.gradient_attack import GLiR
 from attacks.GLiR.datahandler import DataHandler
 from attacks.GLiR.config_validation import GLiRValidator
-from attacks.GLiR.importmodel import ImportModel
+from importmodel import ImportModel
 from utils import set_seed, setup_device
 
 

@@ -4,13 +4,14 @@ import torch
 from torch.utils.data import DataLoader
 import timm
 from datasets import DATASETS_TO_TRANSFORM
-from unlearning.utils import ConfigError
-from utils import setup_device, set_seed
 import wandb
 import os
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.errors import MissingMandatoryValue
+from utils import setup_device, set_seed
+from utils import initialize_dataloaders as init_dataloaders
+
 
 
 class TrainApp:
@@ -104,31 +105,14 @@ class TrainApp:
         return model
 
     def initialize_dataloaders(self):
-        """ Initialize dataloaders from the ImageNet dataset folder."""
-        transform = DATASETS_TO_TRANSFORM[self.dataset_name]()
-
-        # Load datasets for each split
-        splits = ['train', 'val']
-        dataloaders = {}
-
-        for split in splits:
-            batch_size = self.batch_sizes[split]
-            split_dir = os.path.join(self.dataset_save_dir, split)
-            if not os.path.exists(split_dir):
-                raise Exception(f'{split_dir} does not exist. Is the dataset '
-                                'in ImageFolder format?')
-
-            dataset = RobustImageFolder(root=split_dir, transform=transform)
-            dataloaders[split] = DataLoader(
-                dataset,
-                batch_size=batch_size,
-                shuffle=(split == 'train'),  # Only shuffle train set
-                num_workers=self.num_workers,
-                pin_memory=True
-            )
-
+        """ Initialize dataloaders from the dataset folder."""
+        dataloaders = init_dataloaders(splits=['train', 'val'],
+                                       batch_sizes=self.batch_sizes,
+                                       num_workers=self.num_workers,
+                                       dataset_name=self.dataset_name,
+                                       dataset_save_dir=self.dataset_save_dir)
         return dataloaders
-
+    
     def reinitialize_checkpoints(self, model, optimizer):
         """ Load in model and optimizer state dict from a checkpoint."""
         if self.from_checkpoint:
@@ -136,7 +120,7 @@ class TrainApp:
             checkpoint = torch.load(self.checkpoint_path)
             model.load_state_dict(checkpoint['model_state_dict'])
 
-            # Optionally, load optimizer state_dict if you want to resume training
+            # Optionally, load optimizer state_dict to resume training
             if 'optimizer_state_dict' in checkpoint:
                 optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 

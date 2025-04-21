@@ -3,7 +3,7 @@ import numpy as np
 import os
 import shutil
 from train.image_loading import RobustImageFolder
-from unlearning.utils import ConfigError
+from utils import ConfigError
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.errors import MissingMandatoryValue

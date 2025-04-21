@@ -1,5 +1,4 @@
-from utils import ConfigError
-from cfg_validator import InputValidator
+from cfg_validator import InputValidator, ConfigError
 # import os
 
 

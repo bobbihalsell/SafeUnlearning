@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
-from unlearning.utils import ConfigError
-from utils import setup_device
+from utils import setup_device, ConfigError
 import os
 import sys
 import importlib
