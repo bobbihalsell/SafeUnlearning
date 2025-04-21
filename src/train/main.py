@@ -36,9 +36,9 @@ class TrainApp:
 
         self.train_cfg = config['train_cfg']
 
-        wandb_cfg = config['wandb_cfg']
-        self.run_id = wandb_cfg['run_id']
-        self.project_name = wandb_cfg['project_name']
+        # Set to true in main() if user provided wandb_config
+        self.wandb_enabled = False
+        self.wandb_config = config.get('wandb_cfg', None)
 
         self.checkpoint_path = model_cfg.get('checkpoint_path', None)
         self.from_checkpoint = False  # Flag: whether to train from checkpoint
@@ -186,19 +186,6 @@ class TrainApp:
             print(f'Model downloaded without training at {save_path}.')
             return None
 
-        wandb.init(
-            project=self.project_name,
-            config={
-                "epochs": num_epochs,
-                "batch_size": self.batch_sizes['train'],
-                "learning_rate": lr,
-                "weight_decay": weight_decay,
-                "model_name": self.model_name,
-                "num_classes": self.num_classes,
-            },
-            id=str(self.run_id),
-            resume="allow"
-        )
         start_epoch = 0
         if self.from_checkpoint:
             model, optimizer, start_epoch = self.reinitialize_checkpoints(
@@ -237,20 +224,22 @@ class TrainApp:
             train_loss /= len(train_dl.dataset)
             train_acc = 100.0 * correct / total
 
-            wandb.log({
-                "train_loss": train_loss,
-                "train_accuracy": train_acc,
-                "epoch": start_epoch + epoch + 1
-            })
+            if self.wandb_enabled:
+                wandb.log({
+                    "train_loss": train_loss,
+                    "train_accuracy": train_acc,
+                    "epoch": start_epoch + epoch + 1
+                })
 
             # Validation phase
             val_loss, val_acc = self.eval_model(criterion, model, val_dl)
 
-            wandb.log({
-                "val_loss": val_loss,
-                "val_accuracy": val_acc,
-                "epoch": start_epoch + epoch + 1
-            })
+            if self.wandb_enabled:
+                wandb.log({
+                    "val_loss": val_loss,
+                    "val_accuracy": val_acc,
+                    "epoch": start_epoch + epoch + 1
+                })
 
             print(f"Epoch {start_epoch+epoch+1}/{start_epoch+num_epochs} - "
                   f"Train Loss: {train_loss:.4f}, "
@@ -273,7 +262,6 @@ class TrainApp:
                 print(f"New best model saved at {save_path}")
 
         print("Training complete.")
-        wandb.finish()
 
     def eval_model(self, criterion, model, val_dl):
         model.eval()
@@ -313,7 +301,19 @@ def main(cfg: DictConfig):
             'Hint: python file.py key=value sets the appropriate value.')
 
     trainer = TrainApp(config=cfg)
+    if trainer.wandb_config is not None:
+        wandb.init(
+            project=str(trainer.wandb_config['project_name']),
+            id=str(trainer.wandb_config['run_id']),
+            config=OmegaConf.to_container(cfg, resolve=True),
+            resume='allow'  # Allow to resume training from checkpoint
+        )
+        trainer.wandb_enabled = True
+    else:
+        trainer.wandb_enabled = False
     trainer.pretrain()
+    if trainer.wandb_config is not None:
+        wandb.finish()
 
 
 if __name__ == "__main__":
