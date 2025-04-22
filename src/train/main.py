@@ -190,20 +190,22 @@ class TrainApp(TrainValidator):
             train_loss /= len(train_dl.dataset)
             train_acc = 100.0 * correct / total
 
-            wandb.log({
-                "train_loss": train_loss,
-                "train_accuracy": train_acc,
-                "epoch": start_epoch + epoch + 1
-            })
+            if self.wandb_enabled:
+                wandb.log({
+                    "train_loss": train_loss,
+                    "train_accuracy": train_acc,
+                    "epoch": start_epoch + epoch + 1
+                })
 
             # Validation phase
             val_loss, val_acc = self.eval_model(criterion, model, val_dl)
 
-            wandb.log({
-                "val_loss": val_loss,
-                "val_accuracy": val_acc,
-                "epoch": start_epoch + epoch + 1
-            })
+            if self.wandb_enabled:
+                wandb.log({
+                    "val_loss": val_loss,
+                    "val_accuracy": val_acc,
+                    "epoch": start_epoch + epoch + 1
+                })
 
             print(f"Epoch {start_epoch+epoch+1}/{start_epoch+self.epochs} - "
                   f"Train Loss: {train_loss:.4f}, "
@@ -226,7 +228,6 @@ class TrainApp(TrainValidator):
                 print(f"New best model saved at {save_path}")
 
         print("Training complete.")
-        wandb.finish()
 
     def eval_model(self, criterion, model, val_dl):
         model.eval()
@@ -266,7 +267,19 @@ def main(cfg: DictConfig):
             'Hint: python file.py key=value sets the appropriate value.')
 
     trainer = TrainApp(config=cfg)
+    if trainer.wandb_config is not None:
+        wandb.init(
+            project=trainer.wandb_config['project_name'],
+            id=trainer.wandb_config['run_id'],
+            config=OmegaConf.to_container(cfg, resolve=True),
+            resume='allow'  # Allow to resume training from checkpoint
+        )
+        trainer.wandb_enabled = True
+    else:
+        trainer.wandb_enabled = False
     trainer.pretrain()
+    if trainer.wandb_config is not None:
+        wandb.finish()
 
 
 if __name__ == "__main__":
