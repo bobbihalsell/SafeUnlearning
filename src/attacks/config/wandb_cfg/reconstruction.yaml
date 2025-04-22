@@ -1,0 +1,10 @@
+project_name: MU reconstruction
+run_id:
+  # optional run id to be used in wandb
+  # if not provided, a random id will be generated
+  # if provided, it should be unique for each run
+  # and should not be used for multiple runs
+  # run_id: "my_run_id"
+extra_config:  # optional extra configuration to be logged in wandb
+  unlearning_method: 
+  epochs: 

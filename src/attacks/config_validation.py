@@ -18,23 +18,26 @@ class InputValidator:
 
         data_config = config['data']
         self.model_name = data_config['model_name']
-        self.labels = self._load_labels(data_config.get('labels', None))
         self.dataset_name = data_config['dataset_name']
         self.num_classes = data_config['num_classes']
-        self.data_root = data_config['data_root']
+        self.save_path = data_config['save_path']
+        self.forget_root = f"{self.save_path}/forget"
 
-        self.reconstructor_name = config['reconstructor']['type']
-        self.reconstructor_lr = config['reconstructor']['lr']
-        self.reconstructor_params = config['reconstructor']['cfg']
+        recon_config = config['reconstructor']
+        self.labels = self._load_labels(recon_config.get('unlearned_labels', None))
+        self.reconstructor_name = recon_config['type']
+        self.reconstructor_lr = recon_config['lr']
+        self.reconstructor_params = recon_config['cfg']
 
-        if 'unlearner' in config['reconstructor']:
-            self.unlearner_params = config['reconstructor']['unlearner']
+        if 'unlearner' in recon_config:
+            self.unlearner_params = recon_config['unlearner']
         else:
             self.unlearner_params = {}
                    
         if self.wandb is not None:
             self.wandb_enabled = True
-            self.wandb_project = self.wandb['project']
+            self.wandb_project = self.wandb['project_name']
+            self.run_id = self.wandb.get('run_id', None)
             self.extra_config = self.wandb.get('extra_config', {})
         else:
             self.wandb_enabled = False
@@ -110,10 +113,10 @@ class InputValidator:
             raise ConfigError('Dataset support only for '
                               f'{', '.join(valid_dataset_names)}. '
                               f'Received {self.dataset_name}')
-        if self.data_root is None:
+        if self.forget_root is None:
             raise ConfigError('A path to '
                               'load the dataset from must be provided. '
-                              'data_root cannot be empty.')
+                              'forget_root cannot be empty.')
         
         if self.labels:
             if not isinstance(self.labels, list) or not all(isinstance(label, int) for label in self.labels):
