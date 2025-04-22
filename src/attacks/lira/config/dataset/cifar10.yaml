@@ -1,6 +1,6 @@
 name: cifar10
 num_classes: 10
-save_path: ./data
+save_path: ./datatest
 val_ratio: 0.05
 forget_ratio: 0.1
 cfg:

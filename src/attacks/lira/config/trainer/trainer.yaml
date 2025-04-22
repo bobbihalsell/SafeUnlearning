@@ -7,4 +7,4 @@ cfg:
   momentum: 0.9
   weight_decay: 0.0005
   use_l2_penalty: false
-  epochs: 50
+  epochs: 2

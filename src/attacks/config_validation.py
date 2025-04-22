@@ -116,7 +116,6 @@ class InputValidator:
                 raise ConfigError('Missing required params for Invert Grad reconstruction:'
                                   f' {', '.join(missing_igrad_params)}')
     
-
     def _validate_dataset_params(self):
         valid_dataset_names = {'cifar5',
                                'cifar10',

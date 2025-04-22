@@ -6,16 +6,12 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.errors import MissingMandatoryValue
 
-from attacks.lira.compute_lira import run as lira_score
-from attacks.lira.config_validation import LiRAValidator
-from attacks.lira.generate_predictions import run as generate_predictions
-from attacks.lira.generate_splits import run as generate_splits
-from attacks.lira.train_lira import run as train_models
-<<<<<<< HEAD
+from compute_lira import lira_score
+from config_validation import LiRAValidator
+from generate_predictions import  generate_predictions
+from generate_splits import generate_splits
+from train_lira import train_models
 from utils import set_seed, setup_device
-=======
-from unlearning.utils import set_seed, setup_device
->>>>>>> liraedits
 
 
 class LiRAApp(LiRAValidator):
@@ -31,22 +27,10 @@ class LiRAApp(LiRAValidator):
 
         self.output_dir = Path(self.config["output_dir"])
         os.makedirs(self.output_dir, exist_ok=True)
-
-    def initialize_model(self):
-        pass
-
-    def generate_unlearning_configs(self, type):
-        if type == 'original':
-            config = deepcopy(self.config)
-            config["unlearner"] = config["trainer"]
-        if type == 'naive':
-            config = deepcopy(self.config)
-            config["unlearner"] = config["trainer"]
-            config["dataset"]["forget_ratio"] = 0.0
-
+            
     def train_original_models(self):
         original_config = deepcopy(self.config)
-        original_config["unlearner"] = original_config["original"]
+        original_config["unlearner"] = original_config["trainer"]
 
         train_models(
             original_config,
@@ -56,11 +40,15 @@ class LiRAApp(LiRAValidator):
             self.num_forgets,
             self.output_dir,
         )
+    
         generate_predictions(
             self.dataset_name,
             self.dataset_cfg,
+            self.load_method,
             self.model_name,
             self.num_classes,
+            self.init_path,
+            self.model_kwargs,
             "original",
             self.num_splits,
             self.num_forgets,
@@ -92,6 +80,7 @@ class LiRAApp(LiRAValidator):
         )
 
     def run(self):
+        print('Generating splits...')
         generate_splits(
             self.dataset_name,
             self.forget_ratio,
@@ -102,8 +91,11 @@ class LiRAApp(LiRAValidator):
             self.output_dir,
             self.seed
         )
+        print('Training original models...')
         self.train_original_models()
+        print('Unlearning models...')
         self.unlearn_models()
+        print('Generating predictions and LIRA scores...')
         lira_score(
             self.dataset_name,
             self.model_name,

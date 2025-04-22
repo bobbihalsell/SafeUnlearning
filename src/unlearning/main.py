@@ -1,12 +1,10 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
-from train.image_loading import RobustImageFolder
 import os
 import hydra
 from omegaconf import OmegaConf, DictConfig
 from omegaconf.errors import MissingMandatoryValue
-from datasets import DATASETS_TO_TRANSFORM
 from unlearning.config_validation import UnlearningValidator
 from unlearning.finetune import FinetuneUnlearner
 from unlearning.scrub import SCRUB
@@ -38,6 +36,7 @@ class UnlearnApp(UnlearningValidator):
         os.makedirs(self.output_dir, exist_ok=True)
         # Set to true in main() if user provided wandb_config
         self.wandb_enabled = False
+        print(f' num_classes: {self.num_classes}')
 
     def load_model(self):
         """Initialize the model based on model name from user configuration."""
@@ -48,9 +47,9 @@ class UnlearnApp(UnlearningValidator):
             init_path=self.init_path,
             model_ckpt_path=self.model_ckpt_path,
             model_kwargs=self.model_kwargs,
+            from_pretrained=self.pretrained,
             )
-        model = importer.load_model()
-
+        model = importer.model
         return model
 
     def initialize_unlearner(self):

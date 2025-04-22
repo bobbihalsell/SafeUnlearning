@@ -34,7 +34,7 @@ class DataHandler:
                                         dataset_name=self.dataset_name,
                                         dataset_save_dir=self.dataset_save_dir)
         background_points, indices = create_subset(
-                                                   back_data,
+                                                   back_data['test'],
                                                    self.background_ratio, 
                                                    return_indices=True
                                                    )

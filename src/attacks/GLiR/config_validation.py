@@ -5,17 +5,8 @@ class GLiRValidator(InputValidator):
     """ Validator specifically for unlearning configurations."""
     def __init__(self, config):
         super().__init__(config)
-        self._validate_required_sections()
+        self._validate_required_sections(['model', 'dataset', 'attack'])
     
-    def _validate_required_sections(self):
-        """Ensure unlearning-specific sections exist."""
-        required_sections = ['model', 'dataset', 'attack']
-        for section in required_sections:
-            if not hasattr(self, f'{section}_file'):
-                raise ConfigError(
-                    f"Missing required config section: '{section}'"
-                    )
-            
     def _validate_dataset_params(self):
         super()._validate_dataset_params()
         self._require(self.dataset_file, 'background_ratio')
@@ -36,3 +27,6 @@ class GLiRValidator(InputValidator):
            and not (0 <= self.test_size <= 1)):
             raise ConfigError("test_size must be between 0 and 1 "
                               "(inclusive)")
+        self.pca_components = self.attack_file.get('pca_components', None)
+        self.regularization = self.attack_file.get('regularization', 1e-5)
+        self.gradient_scaling = self.attack_file.get('gradient_scaling', True)

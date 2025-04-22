@@ -7,16 +7,19 @@ import torch
 from torch.nn.functional import softmax
 from torch.utils.data import ConcatDataset, DataLoader
 
-from attacks.lira.utils import load_model
+from importmodel import ImportModel
 from datasets.load_datasets import load_train_val_test_datasets
 from datasets import DATASETS_TO_TRANSFORM
 
 
-def run(
+def generate_predictions(
     dataset_name: str,
     dataset_cfg: Dict,
+    load_method: str,
     model_name: str,
     num_classes: int,
+    init_path: str,
+    model_kwargs: Dict,
     unlearner: str,
     num_splits: int,
     num_forgets: int,
@@ -47,11 +50,15 @@ def run(
 
     for split_ndx in range(num_splits):
         for forget_ndx in range(num_forgets):
-            model = load_model(
-                model_name,
-                num_classes,
-                models_path / f"{model_name}_{split_ndx}_{forget_ndx}.pth",
-            )
+            ckpt_path = models_path / f"{model_name}_{split_ndx}_{forget_ndx}.pth"
+            importmodel = ImportModel(load_method,
+                                      model_name, 
+                                      num_classes,
+                                      init_path, 
+                                      ckpt_path,
+                                      model_kwargs, 
+                                      )
+            model = importmodel.model
             model.to(device)
             model.eval()
             predictions = []

@@ -100,6 +100,7 @@ class GLiR:
             batch_size: Size of batches for covariance computation
         """        
         # Compute gradient differences for points
+        print(len(points), "points")
         grad_diffs = []
         for (x, y) in tqdm(points):
             grad_before = self.compute_gradient(self.model_before, x, y)
@@ -218,7 +219,7 @@ class GLiR:
             p_val = results[1]
             p_vals.append(p_val)
             if teststatistic:
-                test_statistic = results[1]
+                test_statistic = results[2]
                 test_statistics.append(test_statistic)
         if teststatistic:
             return classes, p_vals, test_statistics

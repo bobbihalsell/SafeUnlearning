@@ -8,26 +8,14 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.errors import MissingMandatoryValue
 import json
+from config_validator import DatasetValidator
 
 
-class DatasetInitializer:
+class DatasetInitializer(DatasetValidator):
     def __init__(self, config: DictConfig):
+        super().__init__(config)
         config = OmegaConf.to_container(config, resolve=True)
-        dataset_cfg = config['dataset']
-        self.dataset_name = dataset_cfg['name']
-        self.init_dir = dataset_cfg['init_dir']
-        self.save_dir = dataset_cfg['save_dir']
-        self.proportion = dataset_cfg['proportion']
-        self.val_ratio = dataset_cfg['val_ratio']
-
-        forget_cfg = config['forget']
-        self.forget_method = forget_cfg['method']
-        self.forget_idx = forget_cfg['forget_idx']
-        self.retain_size = forget_cfg.get('retain_size', None)
-        self.num = forget_cfg.get('num', None)
-
-        seed = config.get('seed', 42)
-        np.random.seed(seed)
+        np.random.seed(self.seed)
 
     def rename_imagenet_folders(self):
         """Create a copy of the ImageNet subset with folder names
@@ -41,8 +29,8 @@ class DatasetInitializer:
         with open(mapping_path, 'r') as f:
             default_imagenet_mapping = json.load(f)
 
-        source_root = self.init_dir
-        target_root = self.init_dir.rstrip('/') + '_renamed'
+        source_root = self.init_path
+        target_root = self.init_path.rstrip('/') + '_renamed'
 
         os.makedirs(target_root, exist_ok=True)
 
@@ -85,45 +73,45 @@ class DatasetInitializer:
         This will download dataset splits in the save directory.
         """
         # Check if the save path is filled from a previous run and clear it
-        if os.path.exists(self.save_dir):
+        if os.path.exists(self.save_path):
             print("Clearing existing dataset "
-                  f"split directory: {self.save_dir}")
-            shutil.rmtree(self.save_dir)
+                  f"split directory: {self.save_path}")
+            shutil.rmtree(self.save_path)
 
-        os.makedirs(self.save_dir, exist_ok=True)
+        os.makedirs(self.save_path, exist_ok=True)
 
-        init_dir = self.init_dir
+        init_path = self.init_path
         if self.dataset_name == 'imagenet':
             # Rename the folders to match label indices
             self.rename_imagenet_folders()
-            init_dir = self.init_dir.rstrip('/') + '_renamed'
+            init_path = self.init_path.rstrip('/') + '_renamed'
 
         load_train_val_test_datasets(
             dataset_name=self.dataset_name,
             proportion=self.proportion,
             val_ratio=self.val_ratio,
-            dataset_load_dir=init_dir,
-            dataset_save_dir=self.save_dir,
+            dataset_load_dir=init_path,
+            dataset_save_dir=self.save_path,
         )
 
         # Create symlinks for desired retain and forget set images
         if self.forget_method == 'instance':
             self.create_symlink_subsets_by_indices(
-                train_dir=self.save_dir + '/train',
-                output_dir=self.save_dir,
+                train_dir=self.save_path + '/train',
+                output_dir=self.save_path,
                 forget_indices=self.forget_idx,
                 retain_size=self.retain_size
             )
         elif self.forget_method == 'class':
             self.create_symlink_subsets_by_classes(
-                train_dir=self.save_dir + '/train',
-                output_dir=self.save_dir,
+                train_dir=self.save_path + '/train',
+                output_dir=self.save_path,
                 forget_classes=self.forget_idx
             )
         elif self.forget_method == 'classnum':
             self.create_symlink_subsets_by_class_number(
-                train_dir=self.save_dir + '/train',
-                output_dir=self.save_dir,
+                train_dir=self.save_path + '/train',
+                output_dir=self.save_path,
                 forget_classes=self.forget_idx
             )
         else:
@@ -132,7 +120,7 @@ class DatasetInitializer:
 
         if self.dataset_name == 'imagenet':
             # Remove the interim directory created to avoid mutating original
-            renamed_dir = self.init_dir.rstrip('/') + '_renamed'
+            renamed_dir = self.init_path.rstrip('/') + '_renamed'
             if os.path.exists(renamed_dir):
                 shutil.rmtree(renamed_dir)
 

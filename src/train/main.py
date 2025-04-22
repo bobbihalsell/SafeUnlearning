@@ -1,9 +1,6 @@
 import torchvision
-from train.image_loading import RobustImageFolder
 import torch
-from torch.utils.data import DataLoader
 import timm
-from datasets import DATASETS_TO_TRANSFORM
 import wandb
 import os
 import hydra
@@ -11,41 +8,16 @@ from omegaconf import DictConfig, OmegaConf
 from omegaconf.errors import MissingMandatoryValue
 from utils import setup_device, set_seed
 from utils import initialize_dataloaders as init_dataloaders
+from config_validation import TrainValidator
 
 
-
-class TrainApp:
+class TrainApp(TrainValidator):
     """ Perform pretraining, or model loading and saving, for a model."""
     def __init__(self, config: DictConfig):
+        super().__init__(config)
         config = OmegaConf.to_container(config, resolve=True)
         self.seed = config['seed']
         set_seed(self.seed)
-
-        model_cfg = config['model']
-        self.model_name = model_cfg['name']
-        self.pretrained = model_cfg['pretrained']
-        self.num_classes = model_cfg['num_classes']
-        self.model_save_dir = model_cfg['save_dir']
-        self.freeze_all_except_last = model_cfg['freeze_all_except_classifier']
-        assert self.model_save_dir is not None
-
-        dataset_cfg = config['dataset']
-        self.dataset_name = dataset_cfg['name']
-        self.dataset_save_dir = dataset_cfg['load_dir']
-
-        self.batch_sizes = dataset_cfg['batch_sizes']
-        self.num_workers = dataset_cfg.get('num_workers', 1)
-
-        self.train_cfg = config['train_cfg']
-
-        wandb_cfg = config['wandb_cfg']
-        self.run_id = wandb_cfg['run_id']
-        self.project_name = wandb_cfg['project_name']
-
-        self.checkpoint_path = model_cfg.get('checkpoint_path', None)
-        self.from_checkpoint = False  # Flag: whether to train from checkpoint
-        if self.checkpoint_path is not None:
-            self.from_checkpoint = True
 
     def initialize_model(self):
         """Initialize the model based on model name from user configuration."""
@@ -137,10 +109,6 @@ class TrainApp:
 
     def pretrain(self):
         """ Perform pretraining of a model on a dataset."""
-        lr = self.train_cfg['lr']
-        num_epochs = self.train_cfg['epochs']
-        weight_decay = self.train_cfg['weight_decay']
-
         # Step 1: Initialize the model
         model = self.initialize_model()
         device = setup_device()
@@ -154,15 +122,15 @@ class TrainApp:
         # Step 3: Set up loss function and optimizer
         criterion = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(model.parameters(),
-                                     lr=lr,
-                                     weight_decay=weight_decay)
+                                     lr=self.lr,
+                                     weight_decay=self.weight_decay)
 
         # Create the save directory
         os.makedirs(self.model_save_dir, exist_ok=True)
         save_path = (self.model_save_dir +
                      f'/{self.model_name}_{self.seed}_original.pt')
 
-        if num_epochs == 0:
+        if self.epochs == 0:
             # Handle case where user just wants to download pretrained weights
             checkpoint = {
                 'model_state_dict': model.state_dict(),
@@ -174,10 +142,10 @@ class TrainApp:
         wandb.init(
             project=self.project_name,
             config={
-                "epochs": num_epochs,
+                "epochs": self.epochs,
                 "batch_size": self.batch_sizes['train'],
-                "learning_rate": lr,
-                "weight_decay": weight_decay,
+                "learning_rate": self.lr,
+                "weight_decay": self.weight_decay,
                 "model_name": self.model_name,
                 "num_classes": self.num_classes,
             },
@@ -197,7 +165,7 @@ class TrainApp:
         best_val_loss = float("inf")
 
         print(f"Starting training with device {device}...")
-        for epoch in range(num_epochs):
+        for epoch in range(self.epochs):
             # Training phase
             model.train()
             train_loss = 0.0
@@ -237,7 +205,7 @@ class TrainApp:
                 "epoch": start_epoch + epoch + 1
             })
 
-            print(f"Epoch {start_epoch+epoch+1}/{start_epoch+num_epochs} - "
+            print(f"Epoch {start_epoch+epoch+1}/{start_epoch+self.epochs} - "
                   f"Train Loss: {train_loss:.4f}, "
                   f"Train Acc: {train_acc:.2f}% - "
                   f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%")

@@ -1,6 +1,5 @@
 name: resnet18
 pretrained: ???  # Start from library-provided pretrained weights.
 freeze_all_except_classifier: false
-num_classes: ???
 checkpoint_path: # (OPTIONAL) Path to model weights to start/resume training from
 save_dir: ??? # directory to save the trained model

@@ -16,7 +16,7 @@ class InputValidator:
                     getattr(self, validate_method)()
             else:
                 setattr(self, key, config[key])
-        assert hasattr(self, 'output_dir')
+        # assert hasattr(self, 'output_dir')
 
     def _require(self, model_config, key, alias=None):
         if key not in model_config:
@@ -25,6 +25,14 @@ class InputValidator:
             alias = key
         setattr(self, alias, model_config[key]) 
         return model_config[key]
+    
+    def _validate_required_sections(self, required_sections):
+        """Ensure unlearning-specific sections exist."""
+        for section in required_sections:
+            if not hasattr(self, f'{section}_file'):
+                raise ConfigError(
+                    f"Missing required config section: '{section}'"
+                    )
         
     def _validate_unlearner_params(self):
         """Validate parameters required by each unlearner type."""
@@ -69,17 +77,17 @@ class InputValidator:
                 self._require(cfg, param)
     
     def _validate_dataset_params(self):
+        print('Validating dataset parameters')
         config = self.dataset_file
         self._require(config, 'name', 'dataset_name')
-
+        print(hasattr(self, 'dataset_name'))
         valid_dataset_names = {'cifar5', 'cifar10', 'cifar100', 'imagenet'}        
         if self.dataset_name not in valid_dataset_names:
             raise ConfigError(f'Dataset support only for '
                               f'{", ".join(valid_dataset_names)}. '
                               f'Received {self.dataset_name}')
-        
+        self._require(self.dataset_file, 'num_classes')
         self._require(config, 'save_path', 'dataset_save_dir')
-        self._require(config, 'num_classes')
 
     def _validate_model_params(self):
         """Check model-related config params from the YAML file."""
@@ -97,8 +105,7 @@ class InputValidator:
         else:
             raise ConfigError(f'Invalid model loading method: {load_method}')
         
-        for arg in ['init_path', 'model_name', 
-                    'model_kwargs', 'model_ckpt_path']:
+        for arg in ['init_path', 'model_kwargs']:
             if not hasattr(self, arg):
                 setattr(self, arg, None)
         count = 0
@@ -108,6 +115,8 @@ class InputValidator:
                 count += 1
         if count == 0:
             self.model_ckpt_path = config.get('model_ckpt_path', None)
+        if not hasattr(self, 'pretrained'):
+            setattr(self, 'pretrained', True)
         
     def _validate_class_params(self, config):
         self._require(config, 'class_path', 'init_path')
@@ -116,10 +125,10 @@ class InputValidator:
     
     def _validate_torchhub_params(self, config):
         self._require(config, 'repo_path', 'init_path')
-        self._require(config, 'model_name', 'model_name')
+        self._require(config, 'model_name')
     
     def _validate_torchvision_params(self, config):
-        self._require(config, 'model_name', 'init_path')
+        self._require(config, 'model_name', 'model_name')
     
     def _validate_timm_params(self, config):
         self._require(config, 'model_name', 'model_name')

@@ -41,8 +41,11 @@ class ProbasNeverAndForgotten:
         self.forgotten = forgotten if forgotten is not None else []
 
     def __repr__(self):
-        rep = f"Probas Never {np.mean(self.never):.3f}+-{np.std(self.never):.3f} "
-        rep += f"Forgotten  {np.mean(self.forgotten):.3f}+-{np.std(self.forgotten):.3f}"
+        n_mean = f"{np.mean(self.never):.3f}"
+        n_std = f"{np.std(self.never):.3f}"
+        f_mean = f"{np.mean(self.forgotten):.3f}"
+        f_std = f"{np.std(self.forgotten):.3f}"
+        rep = f"Probas Never {n_mean}+-{n_std} Forgotten {f_mean}+-{f_std}"
         return rep
 
 
@@ -91,23 +94,23 @@ def compute_membership_probabilities(
 def extract_correct_probabilities(
     probas: Array, targets: Array, indices: Dict[int, NeverAndForgotten]
 ) -> Dict[int, ProbasNeverAndForgotten]:
-    indices_to_correct_probas_never_and_forgotten = {}
+    indices_to_correct_probas_nvr_and_fgtn = {}
     for ndx in sorted(indices):
-        indices_to_correct_probas_never_and_forgotten[ndx] = ProbasNeverAndForgotten()
+        indices_to_correct_probas_nvr_and_fgtn[ndx] = ProbasNeverAndForgotten()
         forgotten = indices[ndx].forgotten
         for split_ndx, forget_ndx in forgotten:
             proba = probas[ndx, split_ndx, forget_ndx]
             correct_proba = proba[targets[ndx]]
-            indices_to_correct_probas_never_and_forgotten[ndx].forgotten.append(
+            indices_to_correct_probas_nvr_and_fgtn[ndx].forgotten.append(
                 correct_proba
             )
         for split_ndx, forget_ndx in indices[ndx].never:
             proba = probas[ndx, split_ndx, forget_ndx]
             correct_proba = proba[targets[ndx]]
-            indices_to_correct_probas_never_and_forgotten[ndx].never.append(
+            indices_to_correct_probas_nvr_and_fgtn[ndx].never.append(
                 correct_proba
             )
-    return indices_to_correct_probas_never_and_forgotten
+    return indices_to_correct_probas_nvr_and_fgtn
 
 
 def reconstruct_split_and_forget(root: Path, num_splits: int) -> Array:
@@ -131,14 +134,15 @@ def get_preds(
         forgets = []
         for forget_ndx in range(num_forgets):
             fname = f"{model}_{split_ndx}_{forget_ndx}.npy"
-            preds = np.load(root / unlearner / "predictions" / fname, allow_pickle=True)
+            preds = np.load(root / unlearner / "predictions" / fname,
+                            allow_pickle=True)
             forgets.append(preds)
         storage.append(np.stack(forgets))
     res = np.transpose(np.stack(storage), (2, 0, 1, 3))
     return res
 
 
-def run(
+def lira_score(
     dataset_name: str,
     model_name: str,
     unlearner: str,
@@ -149,11 +153,12 @@ def run(
 ) -> None:
     test_indices = np.load(output_dir / "splits" / "test_matrices.npy")
 
-    train, _, test = load_train_val_test_datasets(dataset_name, 1, 0, save_path, "")
+    train, _, test = load_train_val_test_datasets(dataset_name, 1, 0, 
+                                                  save_path, "")
     dataset = ConcatDataset([train, test])
     targets = np.array([label for (image, label) in dataset])
 
-    forgets_splits_and_forget_indices = reconstruct_split_and_forget(
+    forgets_splits_and_indices = reconstruct_split_and_forget(
         output_dir, num_splits
     )
 
@@ -167,12 +172,13 @@ def run(
             )
     for split_ndx in range(num_splits):
         for forget_ndx in range(num_forgets):
-            for value in forgets_splits_and_forget_indices[split_ndx, forget_ndx]:
+            for value in forgets_splits_and_indices[split_ndx, forget_ndx]:
                 id_to_forgotten_never_seen[value].forgotten.append(
                     (split_ndx, forget_ndx)
                 )
 
-    storage = get_preds(output_dir, model_name, unlearner, num_splits, num_forgets)
+    storage = get_preds(output_dir, model_name, unlearner, 
+                        num_splits, num_forgets)
     id_to_correct_probas = extract_correct_probabilities(
         storage, targets, id_to_forgotten_never_seen
     )

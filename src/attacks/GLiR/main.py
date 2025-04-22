@@ -54,7 +54,7 @@ class GLiRApp(GLiRValidator):
                                        self.model_name, 
                                        self.num_classes,
                                        self.init_path, 
-                                       self.original_model_ckpt_path,
+                                       self.unlearned_model_ckpt_path,
                                        self.model_kwargs, 
                                        )
         self.unlearned_model = unlearned_import.model
@@ -63,9 +63,8 @@ class GLiRApp(GLiRValidator):
                         model_before=self.original_model, 
                         model_after=self.unlearned_model,
                         num_params=self.num_params, 
-                        small_var_lim=self.small_var_lim,
-                        device=self.device
-                        )  
+                        small_var_lim=self.small_var_lim
+                        )
         
     def initialise_baseline(self):
         self.attack.establish_baseline(self.background)
@@ -97,6 +96,10 @@ class GLiRApp(GLiRValidator):
             self.threshold,
             teststatistic=True
             )
+        print(f'predicted forget points: {sum(classifications)}')
+        print(f'predicted test points: {len(classifications) - sum(classifications)}')
+        print(f'max test statistic: {max(test_statistics)}')
+        print(f'min test statistic: {min(test_statistics)}')
 
         # Evaluate the attack
         print('evaluating...')
