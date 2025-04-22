@@ -146,7 +146,7 @@ class GGLReconstructor:
 
             if self.unlearning_method == 'neggradplus':
                 kwargs['epochs'] = 1
-                recon_1 = self.perform_scrub_updates(
+                recon_1 = self.perform_neggradplus_updates(
                     generated_image, labels, recon_1, **kwargs
                 )
             # Interpolate between original and unlearned model
