@@ -77,10 +77,8 @@ class InputValidator:
                 self._require(cfg, param)
     
     def _validate_dataset_params(self):
-        print('Validating dataset parameters')
         config = self.dataset_file
         self._require(config, 'name', 'dataset_name')
-        print(hasattr(self, 'dataset_name'))
         valid_dataset_names = {'cifar5', 'cifar10', 'cifar100', 'imagenet'}        
         if self.dataset_name not in valid_dataset_names:
             raise ConfigError(f'Dataset support only for '
