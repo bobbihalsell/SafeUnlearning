@@ -1,16 +1,16 @@
 import unittest
 import torch
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import sys
 import os
 
 
-sys.path.insert(
-    0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-    )
+# sys.path.insert(
+#     0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+#     )
 
 
-from src.attacks.InvertGrad.reconstructor import InvertGradConfig, InvertGradReconstructor  
+from attacks.InvertGrad.reconstructor import InvertGradConfig, InvertGradReconstructor  
 
 
 ## Dummy model for testing
@@ -181,3 +181,5 @@ class TestGradientDifference(unittest.TestCase):
 
         self.assertTrue(torch.allclose(grad_diff[0], torch.ones_like(grad_diff[0])))
 
+if __name__ == "__main__":
+    unittest.main()

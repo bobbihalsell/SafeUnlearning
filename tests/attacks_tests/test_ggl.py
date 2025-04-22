@@ -157,6 +157,7 @@ class TestGGLReconstructor(unittest.TestCase):
         mock_scrub.unlearn.return_value = (MagicMock(), None)
         mock_scrub_class.return_value = mock_scrub
 
+        expected_device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         image = torch.randn(1, 3, 224, 224)
         label = 2  # integer input
         model = MagicMock()
@@ -170,7 +171,7 @@ class TestGGLReconstructor(unittest.TestCase):
 
         self.assertTrue(torch.is_tensor(forget_labels))
         self.assertEqual(forget_labels.dtype, torch.long)
-        self.assertEqual(str(forget_labels.device), 'cuda:0')
+        self.assertEqual(str(forget_labels.device), expected_device)
 
     @patch("attacks.GGL.reconstructor.SCRUB")
     def test_forget_and_retain_dataloaders_scrub(self, mock_scrub_class):
@@ -203,6 +204,7 @@ class TestGGLReconstructor(unittest.TestCase):
         mock_scrub.unlearn.return_value = (MagicMock(), None)
         mock_scrub_class.return_value = mock_scrub
 
+        expected_device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         image = torch.randn(1, 3, 224, 224)
         labels = torch.tensor([1])
         model = MagicMock()
@@ -223,7 +225,7 @@ class TestGGLReconstructor(unittest.TestCase):
 
         self.reconstructor.perform_scrub_updates(image, labels, model, **kwargs)
 
-        mock_scrub_class.assert_called_once_with(device=torch.device('cuda'))
+        mock_scrub_class.assert_called_once_with(device=torch.device(expected_device))
         mock_scrub.unlearn.assert_called_once()
 
         _, unlearn_kwargs = mock_scrub.unlearn.call_args
