@@ -13,6 +13,7 @@ from pytorch_pretrained_biggan import BigGAN
 
 from attacks.GGL.turbo import Turbo1
 from unlearning.scrub import SCRUB
+from unlearning.neggrad import NegGradPlus
 
 
 class GGLReconstructor:
@@ -122,6 +123,11 @@ class GGLReconstructor:
             recon = self.perform_scrub_updates(
                 generated_image, labels, recon, **kwargs
             )
+        
+        if self.unlearning_method == 'neggradplus':
+            recon = self.perform_neggradplus_updates(
+                generated_image, labels, recon, **kwargs
+            )
 
         if loss_type == 'interpolated':
             # Calculate interpolated loss
@@ -138,6 +144,11 @@ class GGLReconstructor:
                     generated_image, labels, recon_1, **kwargs
                 )
 
+            if self.unlearning_method == 'neggradplus':
+                kwargs['epochs'] = 1
+                recon_1 = self.perform_scrub_updates(
+                    generated_image, labels, recon_1, **kwargs
+                )
             # Interpolate between original and unlearned model
             interp_model = self.interpolate_models(
                 self.original_model, self.target_model, alpha=0.5
@@ -240,7 +251,7 @@ class GGLReconstructor:
         forget_loader = torch.utils.data.DataLoader(
             forget_dataset, batch_size=len(forget_dataset), shuffle=False
         )
-        # Create forget dictionary
+        # Create forget dictionary - we don't have access to retain set
         forget_dict = {'forget': forget_loader}
 
         empty_x = torch.empty((0, 3, 224, 224))
@@ -253,6 +264,52 @@ class GGLReconstructor:
 
         # Run the unlearning process
         unlearned_model, _ = scrub.unlearn(
+            model=original_model,
+            data_dict=forget_dict,
+            verbose=verbose,
+            lr=self.lr,
+            **kwargs
+        )
+
+        return unlearned_model
+
+    def perform_neggradplus_updates(
+        self, generated_image, labels, original_model, verbose=True,
+        **kwargs
+    ):
+
+        """
+        Perform neggradplus updates to mimic the unlearning process.
+        """
+        neggradplus = NegGradPlus(device=self.device)
+
+        # Convert label to tensor if necessary
+        if isinstance(labels, int):
+            labels = torch.tensor([labels]).long().to(self.device)
+        else:
+            labels = labels.to(self.device)
+
+        # Create forget loader
+        forget_dataset = torch.utils.data.TensorDataset(
+            generated_image, labels
+        )
+
+        forget_loader = torch.utils.data.DataLoader(
+            forget_dataset, batch_size=len(forget_dataset), shuffle=False
+        )
+        # Create forget dictionary
+        forget_dict = {'forget': forget_loader}
+
+        empty_x = torch.empty((0, 3, 224, 224))
+        empty_labels = torch.empty((0,), dtype=torch.long)
+        empty_dataset = TensorDataset(empty_x, empty_labels)
+        # Create forget dictionary - we don't have access to retain set
+        forget_dict['retain'] = DataLoader(
+            empty_dataset
+        )
+
+        # Run the unlearning process
+        unlearned_model, _ = neggradplus.unlearn(
             model=original_model,
             data_dict=forget_dict,
             verbose=verbose,
