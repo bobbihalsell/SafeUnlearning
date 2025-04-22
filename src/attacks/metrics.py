@@ -1,14 +1,9 @@
 """Parts of this code are based on https://sudomake.ai/inception-score-explained/."""
 import torch
 import torch.nn.functional as F
-import lpips
 
-import torch.nn as nn
-import torchvision.models as models
 import torchvision.transforms as transforms
-from PIL import Image
 
-import torch.nn.functional as F  
 from torchvision.transforms.functional import resize
 import torch
 from torchvision import transforms

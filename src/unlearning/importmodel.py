@@ -180,10 +180,11 @@ class ImportModel:
 
     def _init_from_timm(self):
         try:
-            num_classes = self.model_kwargs.get('num_classes')
+            pretrained = (self.model_ckpt_path is None)
             self.model = timm.create_model(
                 self.model_name,
-                num_classes=num_classes
+                num_classes=self.num_classes,
+                pretrained=pretrained
             )
         except Exception as e:
             raise ConfigError(f"Failed to load timm model: {str(e)}")
