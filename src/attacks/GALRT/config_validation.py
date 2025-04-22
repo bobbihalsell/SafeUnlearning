@@ -1,7 +1,7 @@
 from cfg_validator import InputValidator, ConfigError
 
 
-class GLiRValidator(InputValidator):
+class GALRTValidator(InputValidator):
     """ Validator specifically for unlearning configurations."""
     def __init__(self, config):
         super().__init__(config)
@@ -27,6 +27,5 @@ class GLiRValidator(InputValidator):
            and not (0 <= self.test_size <= 1)):
             raise ConfigError("test_size must be between 0 and 1 "
                               "(inclusive)")
-        self.pca_components = self.attack_file.get('pca_components', None)
-        self.regularization = self.attack_file.get('regularization', 1e-5)
-        self.gradient_scaling = self.attack_file.get('gradient_scaling', True)
+        self._require(self.attack_file, 'method')
+        self.stat_method = self.attack_file.get('method', None)

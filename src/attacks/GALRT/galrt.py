@@ -90,7 +90,7 @@ class GALRT:
         grads = torch.cat(grads)
         return grads[self.indices]
     
-    def establish_baseline(self, points, set_type='test'):
+    def establish_baseline(self, points, method, set_type='test'):
         """
         Establish baseline distributions using points from a specific set
         
@@ -101,7 +101,7 @@ class GALRT:
         print(f"Establishing baseline using {len(points)} {set_type} points")
         features = []
         for (x, y) in tqdm(points):
-            feature_vector = self.compute_feature_vector(x, y)
+            feature_vector = self.compute_feature_vector(x, y, method)
             features.append(feature_vector)
         features = torch.stack(features)
 
@@ -110,7 +110,7 @@ class GALRT:
         feature_vars_norm = features - feature_means
         feature_vars = feature_vars_norm.var(axis=0, keepdim=False)
         
-        feature_dim = "augmented" if self.use_original_gradients else "difference only"
+        feature_dim = "difference only" if method == 'glir' else "augmented"
         print(f"Total {feature_dim} feature dimensions:", feature_vars.numel())
 
         # Identify and remove small vars for numerical stability
@@ -149,8 +149,10 @@ class GALRT:
         grad_diff_norm = torch.norm(grad_diff)
         grad_before_norm = torch.norm(grad_before_magnitude)
         epsilon = 1e-10
+        if method == 'glir':
+            return grad_diff
         
-        if method == 'concat':
+        elif method == 'concat':
             return torch.cat([grad_diff, grad_before_magnitude])
         
         elif method == 'concatnorm':
@@ -194,22 +196,25 @@ class GALRT:
                 'magnitude': grad_before_magnitude
             }
             
-    def compute_test_statistic(self, x, y, featue_method):
+    def compute_test_statistic(self, x, y, method, stat_method='neg'):
         """
         Compute GALRT test statistic for a data point
         """
-        feature_vector = self.compute_feature_vector(x, y, featue_method, )
-        # Filter to valid indices
-        feature_vector = feature_vector[self.valid_indices]
-        # Center the feature vector
-        centered_vector = feature_vector - self.mean_vector.squeeze(0)
-        mahalanobis_distance = torch.sum(
-            centered_vector * (self.sigma_inv @ centered_vector)
-        )
-        lrt_statistic = 2 * mahalanobis_distance
+        if method == 'separate':
+            lrt_statistic = self.compute_test_statistic_separate(x, y, stat_method)
+        else:
+            feature_vector = self.compute_feature_vector(x, y, method)
+            # Filter to valid indices
+            feature_vector = feature_vector[self.valid_indices]
+            # Center the feature vector
+            centered_vector = feature_vector - self.mean_vector.squeeze(0)
+            mahalanobis_distance = torch.sum(
+                centered_vector * (self.sigma_inv @ centered_vector)
+            )
+            lrt_statistic = 2 * mahalanobis_distance
         return lrt_statistic
     
-    def compute_test_statistic_separate(self, x, y, method='neg'):
+    def compute_test_statistic(self, x, y, stat_method='neg'):
         """
         Compute test statistic when using separate statistics
         for gradient differences and original gradient magnitudes.
@@ -238,9 +243,9 @@ class GALRT:
         )
         
         # Custom combination (forget: high diff, low mag)
-        if method == 'neg':
+        if stat_method == 'neg':
             custom_stat = mahalanobis_diff - mahalanobis_mag
-        elif method == 'ratio':
+        elif stat_method == 'ratio':
             custom_stat = mahalanobis_diff / (mahalanobis_mag + 1e-10)
         
         return custom_stat

@@ -3,15 +3,15 @@ import json
 import hydra
 from omegaconf import OmegaConf, DictConfig
 from omegaconf.errors import MissingMandatoryValue
-from attacks.GLiR.glir_utils import calculate_metrics
-from attacks.GLiR.gradient_attack import GLiR
-from attacks.GLiR.datahandler import DataHandler
-from attacks.GLiR.config_validation import GLiRValidator
+from attacks.GALRT.galrt_utils import calculate_metrics
+from attacks.GALRT.galrt import GALRT
+from attacks.GALRT.datahandler import DataHandler
+from attacks.GALRT.config_validation import GALRTValidator
 from importmodel import ImportModel
 from utils import set_seed, setup_device
 
 
-class GLiRApp(GLiRValidator):
+class GALRTApp(GALRTValidator):
     """
     Implement the white-box mia described in 
     https://arxiv.org/abs/2306.07273
@@ -59,7 +59,7 @@ class GLiRApp(GLiRValidator):
                                        )
         self.unlearned_model = unlearned_import.model
 
-        self.attack = GLiR(
+        self.attack = GALRT(
                         model_before=self.original_model, 
                         model_after=self.unlearned_model,
                         num_params=self.num_params, 
@@ -67,7 +67,8 @@ class GLiRApp(GLiRValidator):
                         )
         
     def initialise_baseline(self):
-        self.attack.establish_baseline(self.background)
+        print(f'creating baseline with method: {self.method}')
+        self.attack.establish_baseline(self.background, self.method, self.stat_method)
         return
 
     def perform_attack(self):
@@ -80,7 +81,15 @@ class GLiRApp(GLiRValidator):
                 attack scores
         """
         # Ensure the save path exists
-        os.makedirs(self.output_dir, exist_ok=True)
+        # os.makedirs(self.output_dir, exist_ok=True)
+        if self.stat_method is not None:
+            output_path = os.path.join(self.output_dir, self.method, 
+                                       self.stat_method)
+        else:
+            output_path = os.path.join(self.output_dir, self.method)
+
+        # Create the directory (and any necessary parent directories)
+        os.makedirs(output_path, exist_ok=True)
 
         # Unpack the labels and data points 
         # labels = [z for _, z in self.querypoints]
@@ -159,7 +168,7 @@ def main(cfg: DictConfig):
             'Missing the following required arguments in the configuration: '
             f'{missing_keys}. \n'
             'Hint: python file.py key=value sets the appropriate value.')
-    app = GLiRApp(cfg)
+    app = GALRTApp(cfg)
     app.run()
 
 
