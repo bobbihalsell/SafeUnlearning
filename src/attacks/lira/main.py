@@ -69,8 +69,11 @@ class LiRAApp(LiRAValidator):
         generate_predictions(
             self.dataset_name,
             self.dataset_cfg,
+            self.load_method,
             self.model_name,
             self.num_classes,
+            self.init_path,
+            self.model_kwargs,
             self.unlearner_name,
             self.num_splits,
             self.num_forgets,

@@ -24,7 +24,7 @@ class UnlearnAppForLiRA(UnlearnApp):
         self.unlearner_name = unlearner_name
       
     def run(self, dataloaders, unlearning=True):
-        print("\nrunning...")
+        print("running...")
         # Step 1: Initialize the model
         original_model = self.load_model()
 
