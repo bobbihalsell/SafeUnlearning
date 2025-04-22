@@ -1,6 +1,10 @@
+# Adapted from JonasGeiping/invertinggradients, licensed under MIT
+# Source: https://github.com/JonasGeiping/invertinggradients/
+
 from copy import deepcopy
 from dataclasses import dataclass
 from collections import defaultdict
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -49,7 +53,7 @@ class InvertGradConfig:
     lr_decay: bool = True
     scoring_choice: str = 'loss'
     eval: bool = True
-    filter: str = None
+    filter: Optional[str] = None
 
     def __post_init__(self):
         # Force conversion to float if the value is passed as a string
@@ -148,8 +152,12 @@ class InvertGradReconstructor():
             raise ValueError('Pixel mean/median scoring choice can only be'
                              ' performed on one image.')
 
-        self.normalizer = transforms.Normalize(image_mean, image_std)
-        if eval:
+        self.normalizer = transforms.Normalize(
+            mean=image_mean,
+            std=image_std
+        )
+
+        if self.config.eval:
             self.original_model.eval()
 
         # initalize input data
@@ -167,7 +175,6 @@ class InvertGradReconstructor():
                                             torch.nn.functional.
                                             log_softmax(pred, dim=-1), 1))
             self.loss_fn_ce = loss_fn
-
         else:
             self.reconstruct_label = False
 
@@ -235,7 +242,7 @@ class InvertGradReconstructor():
             return torch.zeros((self.config.num_runs, self.num_images,
                                 *self.image_size), device=self.device)
         else:
-            raise ValueError()
+            raise ValueError("Invalid initialization method. Choose from ['randn', 'rand', 'zeros'].")
 
     def _run_trial(self,
                    x_trial,
@@ -257,48 +264,24 @@ class InvertGradReconstructor():
         if self.reconstruct_label:
             output_test = self.original_model(x_trial)
 
-            # Replace the labels with the model's predictions
+            # Create trainable label vector to reconstruct
             labels = (
                 torch.randn(output_test.shape[1])
                 .to(self.device)
                 .requires_grad_(True)
             )
 
-            # Set up the optimizer with the labels
-            if self.config.optim == 'adam':
-                optimizer = torch.optim.Adam([x_trial, labels], lr=self.lr)
-            elif self.config.optim == 'sgd': 
-                optimizer = torch.optim.SGD([x_trial, labels], lr=self.lr,
-                                            momentum=0.9, nesterov=True)
-            elif self.config.optim == 'LBFGS':
-                optimizer = torch.optim.LBFGS([x_trial, labels])
-            elif self.config.optim == 'adamw':
-                optimizer = torch.optim.AdamW([x_trial, labels], lr=self.lr)
-            else:
-                raise ValueError()
-        else:
-
-            # Set up the optimizer without the labels
-            if self.config.optim == 'adam':
-                optimizer = torch.optim.Adam([x_trial], lr=self.lr)
-            elif self.config.optim == 'sgd':
-                optimizer = torch.optim.SGD([x_trial], lr=self.lr,
-                                            momentum=0.9, nesterov=True)
-            elif self.config.optim == 'LBFGS':
-                optimizer = torch.optim.LBFGS([x_trial])
-            elif self.config.optim == 'adamw':
-                optimizer = torch.optim.AdamW([x_trial, labels], lr=self.lr)
-            else:
-                raise ValueError()
+        # Set up the optimizer with the labels
+        optimizer = self._set_optimizer(x_trial, labels)
 
         recon_iterations = self.config.recon_iterations
         if self.config.lr_decay:
             scheduler = torch.optim.lr_scheduler.MultiStepLR(
                 optimizer,
                 milestones=[
-                    recon_iterations // 2.667,
-                    recon_iterations // 1.6,
-                    recon_iterations // 1.142,
+                    int(recon_iterations / 2.667),
+                    int(recon_iterations / 1.6),
+                    int(recon_iterations / 1.142),
                 ],
                 gamma=0.5,
             )
@@ -477,7 +460,33 @@ class InvertGradReconstructor():
             print(f'Optimal result score: {stats["opt"]:2.4f}')
         return x_with_opt, stats
 
+    def _set_optimizer(self,
+                       x_trial,
+                       labels=None):
+        """
+        Set up the optimizer for the trial.
+        Args:
+            x_trial (torch.Tensor): Input image for the trial.
+        Returns:
+            torch.optim.Optimizer: Optimizer for the trial.
+        """
+        params = [x_trial]
+        if self.reconstruct_label:
+            params.append(labels)
 
+        if self.config.optim == 'adam':
+            optimizer = torch.optim.Adam(params, lr=self.lr)
+        elif self.config.optim == 'sgd':
+            optimizer = torch.optim.SGD(params, lr=self.lr, momentum=0.9, nesterov=True)
+        elif self.config.optim == 'LBFGS':
+            optimizer = torch.optim.LBFGS(params)
+        elif self.config.optim == 'adamw':
+            optimizer = torch.optim.AdamW(params, lr=self.lr)
+        else:
+            raise ValueError(f"Unsupported optimizer: {self.config.optim}")
+        
+        return optimizer
+    
 class DistillKL(nn.Module):
     """
     Kullback-Leibler Divergence Loss for Distillation.
@@ -514,7 +523,9 @@ class DistillKL(nn.Module):
         """
         p_s = F.log_softmax(y_s / self.T, dim=1)
         p_t = F.softmax(y_t / self.T, dim=1)
-        loss = F.kl_div(p_s, p_t, size_average=False) * (self.T**2) / y_s.shape[0]
+        loss = F.kl_div(
+            p_s, p_t, reduction='sum'
+        ) * (self.T**2) / y_s.shape[0]
 
         return loss
 
@@ -594,7 +605,7 @@ def reconstruction_costs(gradients,
     else:
         raise ValueError("Invalid indices option. Choose from ['def', 'batch',"
                          "'topk-1', 'top10', 'top50', 'first', 'first4', "
-                         "'first5',first10','first50', 'last5', 'last10',"
+                         "'first5', 'first10', 'first50', 'last5', 'last10',"
                          " 'last50']")
 
     ex = input_gradient[0]
