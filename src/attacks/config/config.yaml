@@ -1,11 +1,9 @@
 defaults:
   - _self_
-  - data: ???
+  - dataset: ???
   - model: ???
   - reconstructor: ???
 experiment_name: "reconstruction_experiment"
-original_weights: ???
-unlearned_weights: ???
 output_dir: ./artifacts/
 seed: 42
 verbose: true

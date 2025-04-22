@@ -14,55 +14,46 @@ from utils import set_seed, setup_device
 from unlearning.importmodel import ImportModel  #TODO: change once importmodel is refactored
 from attacks.utils import safe_dataclass_load, SaveImage, calculate_metrics, load_from_directory
 from datasets import DATASETS_TO_PARAMS
-from attacks.config_validation import InputValidator
+from attacks.config_validation import ReconstructorValidator
 from attacks.GGL.reconstructor import GGLReconstructor
 from attacks.InvertGrad.reconstructor import InvertGradReconstructor,InvertGradConfig
 
 DEFAULT_SEED = 42
 
-class ReconstructorApp(InputValidator):
+class ReconstructorApp(ReconstructorValidator):
     def __init__(self, config: DictConfig):
         # Perform input validation first
         config = OmegaConf.to_container(config, resolve=True)
         super().__init__(config)
 
         self.device = setup_device()
-        print(config.keys())
         print(f'Using device: {self.device}')
-        self.seed = config['seed']
         set_seed(self.seed)
 
         # Output directory
         self.output_dir = config.get('output_dir', './artifacts/')
         os.makedirs(self.output_dir, exist_ok=True)
 
-    def load_original_model(self):
-        """Initialize the model based on model name from user configuration."""
-        importer = ImportModel(
-            load_method=self.load_method,
-            model_name=self.model_name,
-            num_classes=self.num_classes,
-            init_path=self.init_path,
-            model_ckpt_path=self.model_ckpt_path,
-            model_kwargs=self.model_kwargs,
-            )
-        model = importer.load_model()
-
-        return model
+        # Forget root for eval metrics
+        self.forget_root = f"{self.dataset_save_dir}/forget"
     
-    def load_unlearned_model(self):
-        """Initialize the model based on model name from user configuration."""
-        importer = ImportModel(
-            load_method=self.load_method,
-            model_name=self.model_name,
-            num_classes=self.num_classes,
-            init_path=self.init_path,
-            model_ckpt_path=self.model_ckpt_path,
-            model_kwargs=self.model_kwargs,
-            )
-        model = importer.load_model()
-
-        return model
+    def initialise_model(self):
+        original_import = ImportModel(self.load_method,
+                                      self.model_name,
+                                      self.num_classes,
+                                      self.init_path,
+                                      self.original_model_ckpt_path,
+                                      self.model_kwargs
+                                     )
+        self.original_model = original_import.load_model()
+        unlearned_import = ImportModel(self.load_method,
+                                      self.model_name,
+                                      self.num_classes,
+                                      self.init_path,
+                                      self.unlearned_model_ckpt_path,
+                                      self.model_kwargs
+                                       )
+        self.unlearned_model = unlearned_import.load_model()
     
     def initalise_image_params(self):
         self.image_mean, self.image_std, self.image_size = DATASETS_TO_PARAMS[self.dataset_name]
@@ -114,10 +105,10 @@ class ReconstructorApp(InputValidator):
         print('running...')
         # Step 1 : read yaml files
         # Step 2 : load unlearned model 
-        unlearned_model = self.load_model_from_disk(self.unlearned_weights)
-
+        # unlearned_model = self.load_model_from_disk(self.unlearned_weights)
+        self.initialise_model()
         # Step 3: Initialize the pretrained model
-        original_model = self.load_model_from_disk(self.original_weights)
+        # original_model = self.load_model_from_disk(self.original_weights)
 
         # Step 3: Initialize wandb
         if self.wandb_enabled:
@@ -140,8 +131,8 @@ class ReconstructorApp(InputValidator):
         # Step 4: Reconstruction
         self.initalise_image_params()
         
-        reconstructor = self.initialize_reconstructor(unlearned_model, original_model)
-        print('reconstructor initialized')
+        reconstructor = self.initialize_reconstructor(self.unlearned_model, self.original_model)
+        print('Reconstructor initialized')
 
         start_time = time.time()
         if self.reconstructor_name == 'ggl':
