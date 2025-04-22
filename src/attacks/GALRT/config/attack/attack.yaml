@@ -1,0 +1,7 @@
+threshold: 0.05
+num_params: 5000
+small_var_lim: 0.01
+test_size: null
+pca_components:
+regularization: 0.0
+gradient_scaling: False

@@ -149,7 +149,7 @@ class ReconstructorApp(InputValidator):
 
 
     def run(self):
-        print('running...')
+        print('\nrunning...')
         # Step 1 : read yaml files
         # Step 2 : load unlearned model 
         unlearned_model = self.load_model_from_disk(self.unlearned_weights)

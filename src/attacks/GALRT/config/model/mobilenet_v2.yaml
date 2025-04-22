@@ -1,0 +1,4 @@
+model_name: mobilenet_v2
+load_method: torchvision
+original_model_ckpt_path: ???  # You must specify a path to the original model.
+unlearned_model_ckpt_path: ???
