@@ -9,10 +9,11 @@ import os
 from utils import setup_device
 
 
-class GALRT:
+class GLiR2:
     def __init__(self, 
                  model_before, 
                  model_after, 
+                 method='glir',
                  loss_fn=nn.CrossEntropyLoss(), 
                  num_params=None, 
                  small_var_lim=0.1,
@@ -32,6 +33,7 @@ class GALRT:
         """
         self.model_before = model_before
         self.model_after = model_after
+        self.method = method
         self.loss_fn = loss_fn
         if device is None:
             device = setup_device()
@@ -90,167 +92,93 @@ class GALRT:
         grads = torch.cat(grads)
         return grads[self.indices]
     
-    def establish_baseline(self, points, method, set_type='test'):
-        """
-        Establish baseline distributions using points from a specific set
-        
-        Args:
-            points: List of (x, y) tuples for points
-            set_type: Type of set ('test', 'retain', or 'mixed')
-        """        
-        print(f"Establishing baseline using {len(points)} {set_type} points")
-        features = []
-        for (x, y) in tqdm(points):
-            feature_vector = self.compute_feature_vector(x, y, method)
-            features.append(feature_vector)
-        features = torch.stack(features)
-
-        # Compute the mean and variance of the features
-        feature_means = features.mean(dim=0, keepdim=True)
-        feature_vars_norm = features - feature_means
-        feature_vars = feature_vars_norm.var(axis=0, keepdim=False)
-        
-        feature_dim = "difference only" if method == 'glir' else "augmented"
-        print(f"Total {feature_dim} feature dimensions:", feature_vars.numel())
-
-        # Identify and remove small vars for numerical stability
-        small_var = feature_vars < self.small_var_lim
-        print("Small variance elements:", torch.sum(small_var).item())
-        feature_means = feature_means[:, ~small_var]
-        feature_vars_norm = feature_vars_norm[:, ~small_var]
-        
-        # Calculate covariance matrix
-        self.sigma = (feature_vars_norm.t() @ feature_vars_norm) / len(feature_vars_norm)
-        self.mean_vector = feature_means
-        self.valid_indices = ~small_var
-        
-        print("Inverting Sigma matrix...")
-        try:
-            # Add regularization for numerical stability
-            sigma_reg = self.sigma + torch.eye(self.sigma.shape[0], 
-                                               device=self.sigma.device) * 1e-4
-            L = torch.linalg.cholesky(sigma_reg)
-            self.sigma_inv = torch.cholesky_inverse(L)
-            print("Cholesky decomposition successful")
-        except Exception as e:
-            print(f"Cholesky failed: {str(e)}")
-            print("Using standard inverse with regularization...")
-            # Add more regularization for standard inverse
-            sigma_reg = self.sigma + torch.eye(self.sigma.shape[0], 
-                                               device=self.sigma.device) * 1e-3
-            self.sigma_inv = torch.inverse(sigma_reg)
-            print("Standard inverse successful")
-
-    def compute_feature_vector(self, x, y, method):
+    def compute_feature_vector(self, x, y):
         grad_before = self.compute_gradient(self.model_before, x, y)
         grad_after = self.compute_gradient(self.model_after, x, y)
         grad_diff = grad_before - grad_after
         grad_before_magnitude = torch.abs(grad_before)
         grad_diff_norm = torch.norm(grad_diff)
         grad_before_norm = torch.norm(grad_before_magnitude)
-        epsilon = 1e-10
-        if method == 'glir':
+        if self.method == 'glir':
             return grad_diff
         
-        elif method == 'concat':
-            return torch.cat([grad_diff, grad_before_magnitude])
-        
-        elif method == 'concatnorm':
-            if grad_diff_norm > 1e-10:
-                grad_diff = grad_diff / grad_diff_norm
-            if grad_before_norm > 1e-10:
-                grad_before_magnitude = grad_before_magnitude / grad_before_norm
-            return torch.cat([grad_diff, grad_before_magnitude])
-        
-        elif method == 'simple_ratio':
-            # Just add the simple ratio features (without all the nonlinear ones)
-            forget_score = grad_diff_norm / (grad_before_norm + epsilon)
-            test_score = grad_before_norm / (grad_diff_norm + epsilon)
-            return torch.cat([grad_diff, grad_before_magnitude, 
-                             torch.tensor([forget_score]), torch.tensor([test_score])])
-        
-        elif method == 'only_ratios':
-            # Return only the ratio features (compact representation)
-            forget_score = grad_diff_norm / (grad_before_norm + epsilon)
-            test_score = grad_before_norm / (grad_diff_norm + epsilon)
+        elif self.method == 'ratio':
+            forget_score = grad_diff_norm / (grad_before_norm + 1e-10)
+            test_score = grad_before_norm / (grad_diff_norm + 1e-10)
             return torch.tensor([forget_score, test_score])
-        
-        elif method == 'nonlinear':
-            forget_score = grad_diff_norm / (grad_before_norm + epsilon)
-            test_score = grad_before_norm / (grad_diff_norm + epsilon)
-            retain_score = 1.0 / (grad_diff_norm + grad_before_norm + epsilon)
-            product_score = grad_diff_norm * grad_before_norm
-            exp_diff = torch.exp(torch.clamp(grad_diff_norm / 10.0, -10, 10))
-            exp_before = torch.exp(torch.clamp(grad_before_norm / 10.0, -10, 10))
-            
-            additional_features = torch.tensor([
-                forget_score, test_score, retain_score, 
-                product_score, exp_diff, exp_before
-            ])
-            return torch.cat([grad_diff, grad_before_magnitude, additional_features])
-        
-        elif method == 'separate':
-            # Return as separate components
-            return {
-                'diff': grad_diff,
-                'magnitude': grad_before_magnitude
-            }
-            
-    def compute_test_statistic(self, x, y, method, stat_method='neg'):
-        """
-        Compute GALRT test statistic for a data point
-        """
-        if method == 'separate':
-            lrt_statistic = self.compute_test_statistic_separate(x, y, stat_method)
-        else:
-            feature_vector = self.compute_feature_vector(x, y, method)
-            # Filter to valid indices
-            feature_vector = feature_vector[self.valid_indices]
-            # Center the feature vector
-            centered_vector = feature_vector - self.mean_vector.squeeze(0)
-            mahalanobis_distance = torch.sum(
-                centered_vector * (self.sigma_inv @ centered_vector)
-            )
-            lrt_statistic = 2 * mahalanobis_distance
-        return lrt_statistic
-    
-    def compute_test_statistic(self, x, y, stat_method='neg'):
-        """
-        Compute test statistic when using separate statistics
-        for gradient differences and original gradient magnitudes.
-        """
-        # Get feature dictionary
-        features = self.compute_feature_vector(x, y, 'separate')
-        grad_diff = features['diff']
-        grad_magnitude = features['magnitude']
-        
-        # Apply filtering to valid indices (if applicable)
-        if hasattr(self, 'valid_indices_diff') and hasattr(self, 'valid_indices_mag'):
-            grad_diff = grad_diff[self.valid_indices_diff]
-            grad_magnitude = grad_magnitude[self.valid_indices_mag]
-        
-        # Center the vectors
-        centered_diff = grad_diff - self.mean_vector_diff.squeeze(0)
-        centered_mag = grad_magnitude - self.mean_vector_mag.squeeze(0)
-        
-        # Compute separate Mahalanobis distances
-        mahalanobis_diff = torch.sum(
-            centered_diff * (self.sigma_inv_diff @ centered_diff)
-        )
-        
-        mahalanobis_mag = torch.sum(
-            centered_mag * (self.sigma_inv_mag @ centered_mag)
-        )
-        
-        # Custom combination (forget: high diff, low mag)
-        if stat_method == 'neg':
-            custom_stat = mahalanobis_diff - mahalanobis_mag
-        elif stat_method == 'ratio':
-            custom_stat = mahalanobis_diff / (mahalanobis_mag + 1e-10)
-        
-        return custom_stat
 
-    def compute_p_value(self, lrt_statistic, df=None):
+    def establish_baseline(self, points):
+        """
+        Establish baseline distributions using points from a specific set
+        
+        Args:
+            points: List of (x, y) tuples for points
+            name: Name of the set ('retain', 'forget', 'unused', 'val')
+            batch_size: Size of batches for covariance computation
+        """        
+        # Compute gradient differences for points
+        print(len(points), "points")
+        grad_diffs = []
+        for (x, y) in tqdm(points):
+            grad_before = self.compute_gradient(self.model_before, x, y)
+            grad_after = self.compute_gradient(self.model_after, x, y)
+                
+            grad_diffs.append(grad_before - grad_after)
+        grad_diffs = torch.stack(grad_diffs)
+
+        # Compute the mean and variance of the gradient differences
+        grad_means = grad_diffs.mean(dim=0, keepdim=True)
+        grad_vars_norm = grad_diffs - grad_means
+        grad_vars = grad_vars_norm.var(axis=0, keepdim=False)
+        print("Total gradient dimensions:", grad_vars.numel())
+
+        # Identify and remove small vars for numerical stability
+        small_var = grad_vars < self.small_var_lim
+        print("small_var elements :", torch.sum(small_var))
+        grad_means = grad_means[:, ~small_var]
+        grad_vars_norm = grad_vars_norm[:, ~small_var]
+        grad_vars = torch.diag(grad_vars_norm.var(axis=0, keepdim=False))
+        self.mean_vector = grad_means
+        self.sigma = (grad_vars_norm.t() @ grad_vars_norm)/len(grad_vars_norm)
+        self.valid_indices = ~small_var
+
+        print("Inverting Sigma...")
+        try:
+            sigma_reg = self.sigma + torch.eye(self.sigma.shape[0], 
+                                               device=self.sigma.device
+                                               ) * 1e-4
+            L = torch.linalg.cholesky(sigma_reg)
+            self.sigma_inv = torch.cholesky_inverse(L)
+            print("Cholesky decomposition successful")
+        except Exception as e:
+            print(f"Cholesky failed: {str(e)}")
+            print("Using standard inverse with regularization...")
+            # Add regularization to help with numerical stability
+            sigma_reg = self.sigma + torch.eye(self.sigma.shape[0], 
+                                               device=self.sigma.device
+                                               ) * 1e-4
+            self.sigma_inv = torch.inverse(sigma_reg)
+            print("Standard inverse successful")
+    
+    def compute_test_statistic(self, x, y):
+        """
+        Compute test statistic for a data point
+        """
+        feature_vector = self.compute_feature_vector(x, y)
+        # Filter to valid indices
+        if hasattr(self, 'valid_indices'):
+            feature_vector = feature_vector[self.valid_indices]
+        # Center the feature vector
+        centered_vector = feature_vector - self.mean_vector.squeeze(0)
+        
+        # Compute the Mahalanobis distance
+        mahalanobis_distance = torch.sum(
+            centered_vector * (self.sigma_inv @ centered_vector)
+        )
+        lrt_statistic = 2 * mahalanobis_distance
+        return lrt_statistic
+
+    def compute_p_value(self, lrt_statistic):
         """
         Compute the p-value using the chi-squared distribution
         
@@ -258,13 +186,8 @@ class GALRT:
             lrt_statistic: The likelihood ratio test statistic
             df: Degrees of freedom (default: None, calculated from data)
         """
-        if df is None:
-            # Default to number of features used
-            df = self.sigma_inv.shape[0]
-            
-        # Compute the p-value using the chi-squared distribution CDF
-        p_value = 1 - chi2.cdf(lrt_statistic.item(), df)
-        
+        self.df = self.sigma_inv.shape[0]
+        p_value = 1 - chi2.cdf(lrt_statistic.item(), self.df)
         return p_value
 
     def classify_point(self, x, y, threshold, teststatistic=False):
@@ -312,12 +235,12 @@ class GALRT:
             return classes, p_vals, test_statistics
         return classes, p_vals
 
-    def plot_roc_curve(self, classifications, labels, savepath=None):
+    def plot_roc_curve(self, scores, labels, savepath=None):
         """
         Plots the ROC curve by varying the classification threshold.
         """
         # Calculate the FPR and TPR for various thresholds
-        fpr, tpr, thresholds = roc_curve(labels, classifications)
+        fpr, tpr, thresholds = roc_curve(labels, scores)
 
         # Calculate the Area Under the Curve (AUC)
         roc_auc = auc(fpr, tpr)
@@ -355,7 +278,6 @@ class GALRT:
                                savepath=None, 
                                alpha=0.05, 
                                bins=50, 
-                               df=1
                                ):
         """
         Plot the GLiR test statistics distribution with different colors based 
@@ -386,7 +308,7 @@ class GALRT:
                 
             # Calculate test statistics from p-values
             if test_statistics is None:
-                test_statistics = chi2.ppf(1 - p_values, df)
+                test_statistics = chi2.ppf(1 - p_values, self.df)
         
         # Handle the case where test statistics are provided
         elif test_statistics is not None:
@@ -397,7 +319,7 @@ class GALRT:
             
             # Calculate p-values if not provided
             if p_values is None:
-                p_values = 1 - chi2.cdf(test_statistics, df)
+                p_values = 1 - chi2.cdf(test_statistics, self.df)
         
         else:
             raise ValueError(
@@ -448,11 +370,11 @@ class GALRT:
         
         # Plot 1: Chi-squared distribution with test statistics
         x = np.linspace(0, max(20, np.max(test_statistics) * 1.2), 1000)
-        chi2_pdf = chi2.pdf(x, df)
-        ax1.plot(x, chi2_pdf, 'k-', lw=2, label=f'χ²({df}) Distribution')
+        chi2_pdf = chi2.pdf(x, self.df)
+        ax1.plot(x, chi2_pdf, 'k-', lw=2, label=f'χ²({self.df}) Distribution')
         
         # Threshold alpha
-        threshold = chi2.ppf(1 - alpha, df)
+        threshold = chi2.ppf(1 - alpha, self.df)
         ax1.axvline(x=threshold, color='g', linestyle='--', 
                     label=f'alpha={alpha} threshold')
         
@@ -460,7 +382,7 @@ class GALRT:
         if labels is not None:
             # Forget points (red)
             if len(forget_stats) > 0:
-                ax1.scatter(forget_stats, chi2.pdf(forget_stats, df), 
+                ax1.scatter(forget_stats, chi2.pdf(forget_stats, self.df), 
                             color='r', alpha=0.7, 
                             label='Forget Points (label=1)')
                 ax1.plot(forget_stats, np.zeros_like(forget_stats), '|', 
@@ -468,14 +390,14 @@ class GALRT:
             
             # Test points (blue)
             if len(test_stats) > 0:
-                ax1.scatter(test_stats, chi2.pdf(test_stats, df), 
+                ax1.scatter(test_stats, chi2.pdf(test_stats, self.df), 
                             color='b', alpha=0.7, 
                             label='Test Points (label=0)')
                 ax1.plot(test_stats, np.zeros_like(test_stats), '|', 
                          alpha=0.4, color='b', ms=20)
         else:
             # No labels, plot all points in green
-            ax1.scatter(test_statistics, chi2.pdf(test_statistics, df), 
+            ax1.scatter(test_statistics, chi2.pdf(test_statistics, self.df), 
                         color='g', alpha=0.7, 
                         label='Test Statistics')
             ax1.plot(test_statistics, np.zeros_like(test_statistics), '|', 

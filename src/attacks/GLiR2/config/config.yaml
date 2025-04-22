@@ -1,0 +1,17 @@
+defaults:
+  - _self_
+  - model: ???
+  - dataset: ???
+  - attack: ???
+seed: 42
+verbose: true
+visualise: true
+# output_dir: ???
+output_dir: ./artifactstest/mia/scrub0008
+
+# ./artifactstest/mia/neggrad0005
+# ./artifactstest/mia/scrub0008
+# ./artifactstest/mia/neggrad0005
+
+# python src/attacks/GLiR2/main.py dataset=cifar10 model=torchhub attack=attack
+
