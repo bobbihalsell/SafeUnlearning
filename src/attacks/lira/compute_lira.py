@@ -161,7 +161,6 @@ def lira_score(
     forgets_splits_and_indices = reconstruct_split_and_forget(
         output_dir, num_splits
     )
-
     id_to_forgotten_never_seen = {}
     for split_ndx, row in enumerate(test_indices):
         for value in row:
@@ -173,6 +172,13 @@ def lira_score(
     for split_ndx in range(num_splits):
         for forget_ndx in range(num_forgets):
             for value in forgets_splits_and_indices[split_ndx, forget_ndx]:
+                if value not in id_to_forgotten_never_seen:
+                    raise ValueError(
+                        f"Forget index {value} (split {split_ndx}, "
+                        f"forget {forget_ndx}) was not found in test indices. "
+                        f"Try increasing the number of splits or ensuring test "
+                        f"indices cover all forgotten samples."
+                    )
                 id_to_forgotten_never_seen[value].forgotten.append(
                     (split_ndx, forget_ndx)
                 )
