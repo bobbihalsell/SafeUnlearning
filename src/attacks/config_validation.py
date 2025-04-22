@@ -8,10 +8,6 @@ class ReconstructorValidator(InputValidator):
         super().__init__(config)
 
         self._validate_required_sections()
-        # self._validate_dataset_params()
-        # self._validate_model_params()
-        # self._validate_reconstructor_params()
-        
 
     def _validate_required_sections(self):
         """Ensure unlearning-specific sections exist."""
@@ -21,16 +17,11 @@ class ReconstructorValidator(InputValidator):
                 raise ConfigError(
                     f"Missing required config section: '{section}'"
                     )
-            else:
-                print(f"Found required section: {section}")
     
     def _validate_reconstructor_params(self):
-        print("validating reconstructor params")
         recon_config = self.reconstructor_file
-        print(f"Recon config: {recon_config}")
         method = self._require(recon_config, 'type', 'reconstructor_name')
-        print("===================")
-        print(self.reconstructor_name)
+
 
         self.labels = self._load_labels(recon_config.get('unlearned_labels', None))
 
@@ -76,10 +67,8 @@ class ReconstructorValidator(InputValidator):
     
     def _validate_wandb_params(self):
         self._require(self.wandb_file, 'project_name')
-        if self.wandb_file.get('extra_config', None) is not None:
-            self.extra_config = self._require(self.wandb_file, 'extra_config')
-        if self.wandb_file.get('run_id', None) is not None:
-            self.run_id = self._require(self.wandb_file, 'run_id')
+        self.extra_config = self._require(self.wandb_file, 'extra_config') if self.wandb_file.get('extra_config') else {}
+        self.run_id = self._require(self.wandb_file, 'run_id') if self.wandb_file.get('run_id') else None
 
 
         
@@ -92,24 +81,5 @@ class ReconstructorValidator(InputValidator):
         else:
             return None    
 
-class InputValidator:
-    """ Validates most inputs to the configuration YAML file."""
-    def __init__(self, config):
-        assert isinstance(config, dict)
 
-
-
-                   
-        if self.wandb is not None:
-            self.wandb_enabled = True
-            self.wandb_project = self.wandb['project_name']
-            self.run_id = self.wandb.get('run_id', None)
-            self.extra_config = self.wandb.get('extra_config', {})
-        else:
-            self.wandb_enabled = False
-        
-        self._validate_experiment_params()
-        self._validate_dataset_params()
-
-        self._validate_reconstructor_params()
         

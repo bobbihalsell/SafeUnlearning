@@ -102,31 +102,28 @@ class ReconstructorApp(ReconstructorValidator):
 
 
     def run(self):
-        print('running...')
+        print('Running reconstruction...')
         # Step 1 : read yaml files
-        # Step 2 : load unlearned model 
-        # unlearned_model = self.load_model_from_disk(self.unlearned_weights)
+        # Step 2 : Load models model 
         self.initialise_model()
-        # Step 3: Initialize the pretrained model
-        # original_model = self.load_model_from_disk(self.original_weights)
 
         # Step 3: Initialize wandb
         if self.wandb_enabled:
-            config = self.reconstructor_params.copy() 
+            config = self.reconstructor_params.copy()
             config['type'] = self.reconstructor_name
-            config['reconstructor_lr'] = self.reconstructor_lr  
+            config['reconstructor_lr'] = self.reconstructor_lr
             config.update(self.extra_config)
 
             if self.run_id is None:
                 self.run_id = wandb.util.generate_id()
             
             wandb.init(
-                project = self.wandb_project,
+                project = self.project_name,
                 id = self.run_id,
                 config = config,
                 group = self.experiment_name
                 )
-        
+
 
         # Step 4: Reconstruction
         self.initalise_image_params()

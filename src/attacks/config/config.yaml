@@ -3,7 +3,7 @@ defaults:
   - dataset: ???
   - model: ???
   - reconstructor: ???
-experiment_name: "reconstruction_experiment"
+experiment_name: "reconstruction_experiment"  # Used to group all runs in wandb and name artifact files
 output_dir: ./artifacts/
 seed: 42
 verbose: true

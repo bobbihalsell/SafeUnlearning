@@ -11,7 +11,7 @@ cfg:   # attack-specific parameters
   weights: equal
   optim: adamw
   num_runs: 1
-  recon_iterations: 1000
+  recon_iterations: 5000
   total_variation: 1e-2
   init: randn
   lr_decay: True
