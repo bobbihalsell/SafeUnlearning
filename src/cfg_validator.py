@@ -106,13 +106,10 @@ class InputValidator:
         for arg in ['init_path', 'model_kwargs']:
             if not hasattr(self, arg):
                 setattr(self, arg, None)
-        count = 0
         for key in config:
             if key.endswith('_ckpt_path'):
                 setattr(self, key, config[key])
-                count += 1
-        if count == 0:
-            self.model_ckpt_path = config.get('model_ckpt_path', None)
+        self.model_ckpt_path = config.get('model_ckpt_path', None)
         if not hasattr(self, 'pretrained'):
             setattr(self, 'pretrained', True)
         

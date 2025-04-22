@@ -19,13 +19,12 @@ class UnlearnAppForLiRA(UnlearnApp):
         # Update configuration
         config["model"]["pretrained"] = False
         config["unlearner"]["name"] = unlearner_name
-        print(config)
         # Convert back to OmegaConf and initialize parent
         super().__init__(OmegaConf.create(config))
         self.unlearner_name = unlearner_name
       
     def run(self, dataloaders, unlearning=True):
-        print("running...")
+        print("\nrunning...")
         # Step 1: Initialize the model
         original_model = self.load_model()
 
@@ -67,78 +66,74 @@ def train_models(
     else:
         unlearner_name = unlearner
     print(f"Unlearner: {unlearner_name}")
-    print(config)
     app = UnlearnAppForLiRA(config, unlearner_name)
     print('dataset       ', hasattr(app, "dataset_name"))
     total_models = num_splits * num_forgets
     model_num = 0
-    with tqdm(total=total_models, desc="Unlearning Models") as pbar:
-        for split_ndx in range(num_splits):
-            for forget_ndx in range(num_forgets):
-                model_num += 1
-                
-                # Check if this specific model already exists
-                target_model_path = (
-                    output_dir
-                    / unlearner
-                    / "models"
-                    / f"{model_name}_{split_ndx}_{forget_ndx}.pth"
+    for split_ndx in range(num_splits):
+        for forget_ndx in range(num_forgets):
+            model_num += 1
+            
+            # Check if this specific model already exists
+            target_model_path = (
+                output_dir
+                / unlearner
+                / "models"
+                / f"{model_name}_{split_ndx}_{forget_ndx}.pth"
+            )
+            
+            if os.path.exists(target_model_path):
+                print(f"Model {model_name}_{split_ndx}_{forget_ndx}.pth "
+                      "already exists. Skipping.")
+                continue
+            
+            # Update progress bar with current model information
+            print(f"Split {split_ndx+1}/{num_splits}, Forget {forget_ndx+1}/"
+                  f"{num_forgets}, Model {model_num}/{total_models}")
+            
+            try:
+                retain, forget, val = get_retain_forget_val_indices(
+                    lira_path=output_dir / "splits",
+                    split_ndx=split_ndx,
+                    forget_ndx=forget_ndx,
                 )
-                
-                if os.path.exists(target_model_path):
-                    print(f"Model {model_name}_{split_ndx}_{forget_ndx}.pth already exists. Skipping.")
-                    pbar.update(1)
-                    continue
-                
-                # Update progress bar with current model information
-                pbar.set_description(f"Split {split_ndx+1}/{num_splits}, Forget {forget_ndx+1}/{num_forgets}, Model {model_num}/{total_models}")
-                
-                try:
-                    retain, forget, val = get_retain_forget_val_indices(
-                        lira_path=output_dir / "splits",
-                        split_ndx=split_ndx,
-                        forget_ndx=forget_ndx,
-                    )
-                    if unlearner == "original":
-                        retain = np.concatenate([retain, forget])
+                if unlearner == "original":
+                    retain = np.concatenate([retain, forget])
 
-                    loaders = get_loaders_from_indices(
-                        app.dataset_name,
-                        app.dataset_save_dir,
-                        [retain, forget, val],
-                        app.batch_sizes,
-                        app.num_workers,
-                    )
-                    unlearning = False
-                    if unlearner not in ["original", "naive"]:
-                        unlearning = True
-                        original_model_path = (
-                            output_dir
-                            / "original"
-                            / "models"
-                            / f"{model_name}_{split_ndx}_{forget_ndx}.pth"
-                        )
-                        
-                        # Check if original model exists before trying to load it
-                        if not os.path.exists(original_model_path):
-                            print(f"Warning: Original model {original_model_path} not found. Skipping.")
-                            pbar.update(1)
-                            continue
-                            
-                        app.model_ckpt_path = original_model_path
-                        
-                    unlearned_model = app.run(loaders, unlearning=unlearning)
-                    torch.save(
-                        {"model_state_dict": unlearned_model.state_dict()},
-                        target_model_path,
+                loaders = get_loaders_from_indices(
+                    app.dataset_name,
+                    app.dataset_save_dir,
+                    [retain, forget, val],
+                    app.batch_sizes,
+                    app.num_workers,
+                )
+                unlearning = False
+                if unlearner not in ["original", "naive"]:
+                    unlearning = True
+                    original_model_path = (
+                        output_dir
+                        / "original"
+                        / "models"
+                        / f"{model_name}_{split_ndx}_{forget_ndx}.pth"
                     )
                     
-                except Exception as e:
-                    print(f"Error processing model {model_name}_{split_ndx}_{forget_ndx}: {str(e)}")
-                    # Continue with next model rather than crashing completely
+                    # Check if original model exists before trying to load it
+                    if not os.path.exists(original_model_path):
+                        print(f"Warning: Original model {original_model_path} not found. Skipping.")
+                        continue
+                        
+                    app.model_ckpt_path = original_model_path
+                    
+                unlearned_model = app.run(loaders, unlearning=unlearning)
+                torch.save(
+                    {"model_state_dict": unlearned_model.state_dict()},
+                    target_model_path,
+                )
                 
-                # Update progress bar
-                pbar.update(1)
+            except Exception as e:
+                print(f"Error processing model {model_name}_{split_ndx}_{forget_ndx}: {str(e)}")
+                # Continue with next model rather than crashing completely
+            
 
 
 # def run(
