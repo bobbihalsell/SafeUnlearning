@@ -7,11 +7,11 @@ from torchvision import transforms
 import torch
 from PIL import Image
 
-sys.path.insert(
-    0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-    )
+# sys.path.insert(
+#     0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+#     )
 
-from src.train.image_loading import RobustImageFolder
+from train.image_loading import RobustImageFolder
 
 
 class TestRobustImageFolder(unittest.TestCase):

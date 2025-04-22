@@ -1,0 +1,15 @@
+default:
+    image: python:3.12
+    before_script:
+       - apt-get update
+       - apt-get install -y python3-pip
+       - pip install -r requirements.txt
+stages:
+    - test
+    - notify
+test:
+    script:
+        - python3 -m unittest discover -s tests
+notify:
+    script:
+        - echo "Pipeline finished"

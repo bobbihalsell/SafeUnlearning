@@ -10,3 +10,5 @@ tqdm==4.67.1
 matplotlib==3.10.1
 wandb==0.19.9
 hydra-core==1.3.2
+pytorch_pretrained_biggan==0.1.1
+gpytorch==1.14
