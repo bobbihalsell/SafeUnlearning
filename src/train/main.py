@@ -1,49 +1,23 @@
 import torchvision
-from train.image_loading import RobustImageFolder
 import torch
-from torch.utils.data import DataLoader
 import timm
-from datasets import DATASETS_TO_TRANSFORM
-from utils import setup_device, set_seed
 import wandb
 import os
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.errors import MissingMandatoryValue
+from utils import setup_device, set_seed
+from utils import initialize_dataloaders as init_dataloaders
+from train.config_validation import TrainValidator
 
 
-class TrainApp:
+class TrainApp(TrainValidator):
     """ Perform pretraining, or model loading and saving, for a model."""
     def __init__(self, config: DictConfig):
+        super().__init__(config)
         config = OmegaConf.to_container(config, resolve=True)
         self.seed = config['seed']
         set_seed(self.seed)
-
-        model_cfg = config['model']
-        self.model_name = model_cfg['name']
-        self.pretrained = model_cfg['pretrained']
-        self.num_classes = model_cfg['num_classes']
-        self.model_save_dir = model_cfg['save_dir']
-        self.freeze_all_except_last = model_cfg['freeze_all_except_classifier']
-        assert self.model_save_dir is not None
-
-        dataset_cfg = config['dataset']
-        self.dataset_name = dataset_cfg['name']
-        self.dataset_save_dir = dataset_cfg['load_dir']
-
-        self.batch_sizes = dataset_cfg['batch_sizes']
-        self.num_workers = dataset_cfg.get('num_workers', 1)
-
-        self.train_cfg = config['train_cfg']
-
-        # Set to true in main() if user provided wandb_config
-        self.wandb_enabled = False
-        self.wandb_config = config.get('wandb_cfg', None)
-
-        self.checkpoint_path = model_cfg.get('checkpoint_path', None)
-        self.from_checkpoint = False  # Flag: whether to train from checkpoint
-        if self.checkpoint_path is not None:
-            self.from_checkpoint = True
 
     def initialize_model(self):
         """Initialize the model based on model name from user configuration."""
@@ -103,31 +77,14 @@ class TrainApp:
         return model
 
     def initialize_dataloaders(self):
-        """ Initialize dataloaders from the ImageNet dataset folder."""
-        transform = DATASETS_TO_TRANSFORM[self.dataset_name]()
-
-        # Load datasets for each split
-        splits = ['train', 'val']
-        dataloaders = {}
-
-        for split in splits:
-            batch_size = self.batch_sizes[split]
-            split_dir = os.path.join(self.dataset_save_dir, split)
-            if not os.path.exists(split_dir):
-                raise Exception(f'{split_dir} does not exist. Is the dataset '
-                                'in ImageFolder format?')
-
-            dataset = RobustImageFolder(root=split_dir, transform=transform)
-            dataloaders[split] = DataLoader(
-                dataset,
-                batch_size=batch_size,
-                shuffle=(split == 'train'),  # Only shuffle train set
-                num_workers=self.num_workers,
-                pin_memory=True
-            )
-
+        """ Initialize dataloaders from the dataset folder."""
+        dataloaders = init_dataloaders(splits=['train', 'val'],
+                                       batch_sizes=self.batch_sizes,
+                                       num_workers=self.num_workers,
+                                       dataset_name=self.dataset_name,
+                                       dataset_save_dir=self.dataset_save_dir)
         return dataloaders
-
+    
     def reinitialize_checkpoints(self, model, optimizer):
         """ Load in model and optimizer state dict from a checkpoint."""
         if self.from_checkpoint:
@@ -135,7 +92,7 @@ class TrainApp:
             checkpoint = torch.load(self.checkpoint_path)
             model.load_state_dict(checkpoint['model_state_dict'])
 
-            # Load optimizer state_dict to resume training
+            # Optionally, load optimizer state_dict to resume training
             if 'optimizer_state_dict' in checkpoint:
                 optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
@@ -152,10 +109,6 @@ class TrainApp:
 
     def pretrain(self):
         """ Perform pretraining of a model on a dataset."""
-        lr = self.train_cfg['lr']
-        num_epochs = self.train_cfg['epochs']
-        weight_decay = self.train_cfg['weight_decay']
-
         # Step 1: Initialize the model
         model = self.initialize_model()
         device = setup_device()
@@ -169,15 +122,15 @@ class TrainApp:
         # Step 3: Set up loss function and optimizer
         criterion = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(model.parameters(),
-                                     lr=lr,
-                                     weight_decay=weight_decay)
+                                     lr=self.lr,
+                                     weight_decay=self.weight_decay)
 
         # Create the save directory
         os.makedirs(self.model_save_dir, exist_ok=True)
         save_path = (self.model_save_dir +
                      f'/{self.model_name}_{self.seed}_original.pt')
 
-        if num_epochs == 0:
+        if self.epochs == 0:
             # Handle case where user just wants to download pretrained weights
             checkpoint = {
                 'model_state_dict': model.state_dict(),
@@ -185,7 +138,20 @@ class TrainApp:
             torch.save(checkpoint, save_path)
             print(f'Model downloaded without training at {save_path}.')
             return None
-
+        if self.wandb_enabled:
+            wandb.init(
+                project=self.project_name,
+                config={
+                    "epochs": self.epochs,
+                    "batch_size": self.batch_sizes['train'],
+                    "learning_rate": self.lr,
+                    "weight_decay": self.weight_decay,
+                    "model_name": self.model_name,
+                    "num_classes": self.num_classes,
+                },
+                id=str(self.run_id),
+                resume="allow"
+            )
         start_epoch = 0
         if self.from_checkpoint:
             model, optimizer, start_epoch = self.reinitialize_checkpoints(
@@ -199,7 +165,7 @@ class TrainApp:
         best_val_loss = float("inf")
 
         print(f"Starting training with device {device}...")
-        for epoch in range(num_epochs):
+        for epoch in range(self.epochs):
             # Training phase
             model.train()
             train_loss = 0.0
@@ -241,7 +207,7 @@ class TrainApp:
                     "epoch": start_epoch + epoch + 1
                 })
 
-            print(f"Epoch {start_epoch+epoch+1}/{start_epoch+num_epochs} - "
+            print(f"Epoch {start_epoch+epoch+1}/{start_epoch+self.epochs} - "
                   f"Train Loss: {train_loss:.4f}, "
                   f"Train Acc: {train_acc:.2f}% - "
                   f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%")
@@ -301,18 +267,15 @@ def main(cfg: DictConfig):
             'Hint: python file.py key=value sets the appropriate value.')
 
     trainer = TrainApp(config=cfg)
-    if trainer.wandb_config is not None:
+    if trainer.wandb_enabled:
         wandb.init(
-            project=trainer.wandb_config['project_name'],
-            id=trainer.wandb_config['run_id'],
+            project=trainer.wandb_project_name,
+            id=trainer.wandb_run_id,
             config=OmegaConf.to_container(cfg, resolve=True),
             resume='allow'  # Allow to resume training from checkpoint
         )
-        trainer.wandb_enabled = True
-    else:
-        trainer.wandb_enabled = False
     trainer.pretrain()
-    if trainer.wandb_config is not None:
+    if trainer.wandb_enabled:
         wandb.finish()
 
 

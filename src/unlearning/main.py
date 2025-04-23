@@ -1,26 +1,25 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
-from train.image_loading import RobustImageFolder
 import os
 import hydra
 from omegaconf import OmegaConf, DictConfig
 from omegaconf.errors import MissingMandatoryValue
-from datasets import DATASETS_TO_TRANSFORM
-from unlearning.config_validation import InputValidator
+from unlearning.config_validation import UnlearningValidator
 from unlearning.finetune import FinetuneUnlearner
 from unlearning.scrub import SCRUB
 from unlearning.neggrad import NegGrad, NegGradPlus
 from unlearning.SGRU import SGRU
 from unlearning.kunlearn import KUnlearn
 from utils import set_seed, setup_device
-from unlearning.utils import save_model, ConfigError
-from unlearning.importmodel import ImportModel
+from unlearning.unlearn_utils import save_model
+from importmodel import ImportModel
+from utils import initialize_dataloaders as init_dataloaders
 import time
 import wandb
 
 
-class UnlearnApp(InputValidator):
+class UnlearnApp(UnlearningValidator):
     def __init__(self, config: DictConfig):
         # Perform input validation first
         config = OmegaConf.to_container(config, resolve=True)
@@ -36,7 +35,8 @@ class UnlearnApp(InputValidator):
         self.output_dir = config['output_dir']
         os.makedirs(self.output_dir, exist_ok=True)
         # Set to true in main() if user provided wandb_config
-        self.wandb_enabled = False
+        # self.wandb_enabled = False
+        print(f' num_classes: {self.num_classes}')
 
     def load_model(self):
         """Initialize the model based on model name from user configuration."""
@@ -47,9 +47,9 @@ class UnlearnApp(InputValidator):
             init_path=self.init_path,
             model_ckpt_path=self.model_ckpt_path,
             model_kwargs=self.model_kwargs,
+            from_pretrained=self.pretrained,
             )
-        model = importer.load_model()
-
+        model = importer.model
         return model
 
     def initialize_unlearner(self):
@@ -107,11 +107,9 @@ class UnlearnApp(InputValidator):
                              ' not supported.')
         self.unlearner = unlearner
         return unlearner
-
+    
     def initialize_dataloaders(self):
-        """ Initialize dataloaders from the ImageNet dataset folder."""
-        transform = DATASETS_TO_TRANSFORM[self.dataset_name]()
-
+        """ Initialize dataloaders from the dataset folder."""
         # Load datasets for each split, exclude train and test data
         if not os.path.exists(self.dataset_save_dir):
             raise ValueError('Data directory not found.')
@@ -123,28 +121,13 @@ class UnlearnApp(InputValidator):
         if 'forget' not in splits:
             raise ValueError('Forget data required in dataset directory.')
 
-        dataloaders = {}
-
-        for split in splits:
-            if split not in self.batch_sizes:
-                raise ConfigError(
-                    f"Missing batch size configuration for split '{split}' "
-                    "Configure this under dataset.cfg.batch_sizes.split_name."
-                )
-            batch_size = self.batch_sizes[split]
-            split_dir = os.path.join(self.dataset_save_dir, split)
-
-            dataset = RobustImageFolder(root=split_dir,
-                                        transform=transform)
-            dataloaders[split] = DataLoader(
-                dataset,
-                batch_size=batch_size,
-                shuffle=(split in ['retain', 'forget']),
-                num_workers=self.num_workers,
-                pin_memory=True
-            )
-
-        sample_input, _ = dataset[0]
+        dataloaders = init_dataloaders(splits=splits,
+                                       batch_sizes=self.batch_sizes,
+                                       num_workers=self.num_workers,
+                                       dataset_name=self.dataset_name,
+                                       dataset_save_dir=self.dataset_save_dir)
+        dataloader = dataloaders['forget']
+        sample_input, _ = next(iter(dataloader))
         input_shape = sample_input.shape
         # Add an empty retain dataloader if not present in the dataset
         if 'retain' not in splits:
@@ -214,18 +197,15 @@ def main(cfg: DictConfig):
             f'{missing_keys}. \n'
             'Hint: python file.py key=value sets the appropriate value.')
     app = UnlearnApp(cfg)
-    if app.wandb_config is not None:
+    if app.wandb_enabled is not None:
         wandb.init(
-            project=app.wandb_config['project_name'],
-            id=app.wandb_config['run_id'],
+            project=app.wandb_project_name,
+            id=app.wandb_run_id,
             config=OmegaConf.to_container(cfg, resolve=True),
             resume='never'  # Always make sure the unlearning run ID is new
         )
-        app.wandb_enabled = True
-    else:
-        app.wandb_enabled = False
     app.run()
-    if app.wandb_config is not None:
+    if app.wandb_enabled:
         wandb.finish()
 
 
