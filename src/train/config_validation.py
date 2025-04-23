@@ -9,7 +9,6 @@ class TrainValidator(InputValidator):
         super().__init__(config)
         self._validate_required_sections(['model', 'dataset',
                                           'trainer'])
-        self._require(config, 'model_save_dir')
 
     def _validate_dataset_params(self):
         super()._validate_dataset_params()
@@ -18,8 +17,10 @@ class TrainValidator(InputValidator):
             setattr(self, key, value)
 
     def _validate_model_params(self):
-        self._require(self.model_file, 'name', 'model_name')
-        self._require(self.model_file, 'freeze_all_except_classifier',
+        super()._validate_model_params()
+        self._require(self.model_file, 'save_dir', 'model_save_dir')
+        self._require(self.model_file,
+                      'freeze_all_except_classifier',
                       'freeze_all_except_last')
         self.pretrained = self.model_file.get('pretrained', None)
         self.checkpoint_path = self.model_file.get('model_ckpt_path', None)

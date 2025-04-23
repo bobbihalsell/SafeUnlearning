@@ -5,4 +5,3 @@ defaults:
   - trainer: ???
   - wandb: 
 seed: 42
-model_save_dir: ??? # directory to save the trained model

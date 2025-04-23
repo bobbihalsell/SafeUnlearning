@@ -1,6 +1,7 @@
 load_method: class  
 class_path: ???
-model_name: ???
+class_name: ???
 model_ckpt_path:
 model_kwargs:
 freeze_all_except_classifier: false
+save_dir: ??? # directory to save the trained model

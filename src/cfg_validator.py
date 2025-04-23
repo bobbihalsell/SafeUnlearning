@@ -120,7 +120,7 @@ class InputValidator:
                 setattr(self, key, config[key])
         self.model_ckpt_path = config.get('model_ckpt_path', None)
         if not hasattr(self, 'pretrained'):
-            setattr(self, 'pretrained', True)
+            setattr(self, 'pretrained', None)
         
     def _validate_class_params(self, config):
         self._require(config, 'class_path', 'init_path')

@@ -4,3 +4,4 @@ model_name: ???
 model_ckpt_path:
 freeze_all_except_classifier: false
 pretrained: true
+save_dir: ??? # directory to save the trained model
