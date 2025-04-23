@@ -16,16 +16,7 @@ class InputValidator:
                     getattr(self, validate_method)()
             else:
                 setattr(self, key, config[key])
-                
-        if hasattr(self, 'wandb_file'):
-            print('wandb_file')
-            self.wandb_enabled = True
-            print('wandb_enabled')
-            self.wandb_project_name = self.wandb_file['project_name']
-            self.wandb_run_id = self.wandb_file.get('run_id', None)
-            self.wandb_extra_config = self.wandb_file.get('extra_config', {})
-        else:
-            self.wandb_enabled = False
+        self.wandb_enabled = hasattr(self, 'wandb_file')
 
     def _require(self, model_config, key, alias=None):
         if key not in model_config:
@@ -140,3 +131,4 @@ class InputValidator:
     def _validate_wandb_params(self):
         self._require(self.wandb_file, 'project_name')
         self._require(self.wandb_file, 'run_id')
+        self.wandb_extra_config = self.wandb_file.get('extra_config', {})

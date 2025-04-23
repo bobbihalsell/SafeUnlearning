@@ -269,8 +269,8 @@ def main(cfg: DictConfig):
     trainer = TrainApp(config=cfg)
     if trainer.wandb_enabled:
         wandb.init(
-            project=trainer.wandb_project_name,
-            id=trainer.wandb_run_id,
+            project=trainer.project_name,
+            id=trainer.run_id,
             config=OmegaConf.to_container(cfg, resolve=True),
             resume='allow'  # Allow to resume training from checkpoint
         )
