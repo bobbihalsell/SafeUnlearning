@@ -6,4 +6,6 @@ defaults:
 seed: 42
 verbose: true
 output_dir: ./artifacts/models
-id: 
+id: '002'
+
+# python src/unlearning/main.py dataset=cifar10 model=torchhub model.repo_path=chenyaofo/pytorch-cifar-models model.model_name=cifar10_resnet20 unlearner=sgru dataset.save_path=./data output_dir=./artifacts/models +wandb_cfg=default

@@ -27,3 +27,4 @@ class GLiRValidator(InputValidator):
            and not (0 <= self.test_size <= 1)):
             raise ConfigError("test_size must be between 0 and 1 "
                               "(inclusive)")
+        self._require(self.attack_file, 'method')
