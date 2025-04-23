@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
 
 def reconstruction_costs(gradients,
                          input_gradient,
@@ -128,6 +130,7 @@ def reconstruction_costs(gradients,
 
     return total_costs / len(gradients)
 
+
 def total_variation(x):
     """
     Anisotropic total variation regularization.
@@ -161,7 +164,7 @@ class DistillKL(nn.Module):
     """
 
     def __init__(self,
-                T):
+                 T):
         """
         Initialize the Kullback-Leibler divergence loss.
         Args:

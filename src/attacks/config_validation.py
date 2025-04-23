@@ -57,7 +57,7 @@ class ReconstructorValidator(InputValidator):
                            'batch_size', 'loss_models', 'budget',
                            'search_dim', 'use_tanh', 
                            'gp_optim', 'use_scheduler', 
-                           'initial_lr', 'unlearned_labels']
+                           'initial_lr']
         for param in required_params:
             self._require(self.recon_params, param)
 
@@ -89,12 +89,23 @@ class ReconstructorValidator(InputValidator):
         
     def _load_labels(self, labels_cfg):
         if isinstance(labels_cfg, str) and os.path.isfile(labels_cfg):
-            with open(labels_cfg, 'r') as f:
-                return [int(line.strip()) for line in f if line.strip()]
+            try:
+                with open(labels_cfg, 'r') as f:
+                    lines = [line.strip() for line in f if line.strip()]
+                    labels = [int(line) for line in lines]
+                if not labels:
+                    raise ConfigError(f"Label file {labels_cfg} is empty.")
+                return labels
+            except ValueError:
+                raise ConfigError(f"Invalid label format in {labels_cfg}. Expected integers.")
+        
         elif isinstance(labels_cfg, list):
-            return labels_cfg
+            if all(isinstance(label, int) for label in labels_cfg):
+                return labels_cfg
+            else:
+                raise ConfigError(f"Invalid label format in {labels_cfg}. Expected a list of integers.")
         else:
-            return None    
+            return None
 
 <<<<<<< HEAD
     def _validate_reconstructor_params(self):
