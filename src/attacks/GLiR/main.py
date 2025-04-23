@@ -9,6 +9,8 @@ from attacks.GLiR.datahandler import DataHandler
 from attacks.GLiR.config_validation import GLiRValidator
 from importmodel import ImportModel
 from utils import set_seed, setup_device
+from combined_roc_curve import load_roc_data, plot_all_rocs
+from sklearn.metrics import roc_curve, auc
 
 
 class GLiRApp(GLiRValidator):
@@ -28,7 +30,12 @@ class GLiRApp(GLiRValidator):
 
         # Output directory
         self.output_dir = config['output_dir']
+        self.combined_roc_dir = config['combined_roc_dir']        
+        os.makedirs(self.combined_roc_dir, exist_ok=True)
         os.makedirs(self.output_dir, exist_ok=True)
+ 
+        # combine roc ?
+        self.plot_combined_roc = config["plot_combined_roc"]
 
     def initialise_data(self):
         self.data = DataHandler(
@@ -132,6 +139,43 @@ class GLiRApp(GLiRValidator):
         print(f"Accuracy: {metrics['Accuracy']}")
         print(f"Precision: {metrics['Precision']}")
         print(f"Recall: {metrics['Recall']}")
+        #=============================================================================================
+        if self.combined_roc_dir is not None:
+            os.makedirs(self.combined_roc_dir, exist_ok=True)
+            combined_roc_path = os.path.join(self.combined_roc_dir, "roc_data.json")
+
+        
+            fpr, tpr, _ = roc_curve(labels, one_take_pvals)
+            roc_auc = auc(fpr, tpr)
+            new_roc_data = {
+                "fpr": fpr.tolist(),
+                "tpr": tpr.tolist(),
+                "auc": roc_auc,
+                "label": os.path.basename(os.path.normpath(self.output_dir)) 
+            }
+
+
+            if os.path.exists(combined_roc_path):
+                with open(combined_roc_path, "r") as f:
+                    all_roc_data = json.load(f)
+            else:
+                all_roc_data = []
+
+
+            all_roc_data.append(new_roc_data)
+
+
+            with open(combined_roc_path, "w") as f:
+                json.dump(all_roc_data, f, indent=4)
+                print(f"Appended ROC data to: {combined_roc_path}")
+
+
+            if self.plot_combined_roc:
+                plot_all_rocs(all_roc_data, savepath=self.combined_roc_dir)
+            
+    #=====================================================================
+        
+
 
     def run(self):
         print("Peparing query points and background points...")

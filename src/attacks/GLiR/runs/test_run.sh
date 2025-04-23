@@ -1,0 +1,1 @@
+python src/attacks/GLiR/main.py dataset=cifar10 model=torchhub attack=attack

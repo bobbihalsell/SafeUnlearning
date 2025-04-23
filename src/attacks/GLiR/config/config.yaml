@@ -7,7 +7,9 @@ seed: 42
 verbose: true
 visualise: true
 # output_dir: ???
-output_dir: ./artifactstest/mia/sgru2
+output_dir: ./artifactstest/mia/glir/scrub
+combined_roc_dir: ./artifactstest/mia/glir
+plot_combined_roc: true
 
 # ./artifactstest/mia/neggrad0005
 # ./artifactstest/mia/scrub0008
