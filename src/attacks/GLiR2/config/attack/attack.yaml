@@ -3,5 +3,3 @@ num_params: 5000
 small_var_lim: 0.01
 test_size: null
 method: ratio # glir or ratio 
-# method: only_ratios_norm # glir or concat or concatnorm or only_ratios or simple_ratio or nonlinear or separate
-# stat_method:  #neg or ratio

@@ -9,7 +9,7 @@ import os
 from utils import setup_device
 
 
-class GALRT:
+class GLiR2:
     def __init__(self, 
                  model_before, 
                  model_after, 

@@ -2,4 +2,4 @@ load_method: torchhub
 repo_path: chenyaofo/pytorch-cifar-models
 model_name: cifar10_resnet20
 original_model_ckpt_path: artifacts2/models/unlearn/sgru/cifar10_resnet20_42_original_002.pt
-unlearned_model_ckpt_path: artifacts2/models/unlearn/neggradplus/cifar10_resnet20_42_unlearned_002.pt
+unlearned_model_ckpt_path: artifacts2/models/unlearn/sgru/cifar10_resnet20_42_unlearned_002.pt

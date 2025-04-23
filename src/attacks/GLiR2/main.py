@@ -3,15 +3,15 @@ import json
 import hydra
 from omegaconf import OmegaConf, DictConfig
 from omegaconf.errors import MissingMandatoryValue
-from src.attacks.GLiR2.glir_utils import calculate_metrics
-from attacks.GLiR2.glir2 import GALRT
+from attacks.GLiR2.glir_utils import calculate_metrics
+from attacks.GLiR2.glir2 import GLiR2
 from attacks.GLiR2.datahandler import DataHandler
-from attacks.GLiR2.config_validation import GALRTValidator
+from attacks.GLiR2.config_validation import GLiRValidator
 from importmodel import ImportModel
 from utils import set_seed, setup_device
 
 
-class GALRTApp(GALRTValidator):
+class GLiRApp(GLiRValidator):
     """
     Implement the white-box mia described in 
     https://arxiv.org/abs/2306.07273
@@ -59,7 +59,7 @@ class GALRTApp(GALRTValidator):
                                        )
         self.unlearned_model = unlearned_import.model
 
-        self.attack = GALRT(
+        self.attack = GLiR2(
                         model_before=self.original_model, 
                         model_after=self.unlearned_model,
                         num_params=self.num_params, 
@@ -165,7 +165,7 @@ def main(cfg: DictConfig):
             'Missing the following required arguments in the configuration: '
             f'{missing_keys}. \n'
             'Hint: python file.py key=value sets the appropriate value.')
-    app = GALRTApp(cfg)
+    app = GLiRApp(cfg)
     app.run()
 
 

@@ -1,7 +1,7 @@
 from cfg_validator import InputValidator, ConfigError
 
 
-class GALRTValidator(InputValidator):
+class GLiRValidator(InputValidator):
     """ Validator specifically for unlearning configurations."""
     def __init__(self, config):
         super().__init__(config)
@@ -28,4 +28,3 @@ class GALRTValidator(InputValidator):
             raise ConfigError("test_size must be between 0 and 1 "
                               "(inclusive)")
         self._require(self.attack_file, 'method')
-        self.stat_method = self.attack_file.get('method', None)
