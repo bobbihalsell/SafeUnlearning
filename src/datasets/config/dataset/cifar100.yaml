@@ -1,5 +1,6 @@
 name: cifar100
-init_dir: ??? # the directory filepath where the dataset should be initially downloaded to, for CIFAR, or currently exists, for ImageNet
-save_dir: ??? # the directory filepath where the split dataset should be saved
+init_path: ??? # the directory filepath where the dataset should be initially downloaded to, for CIFAR, or currently exists, for ImageNet
+save_path: ??? # the directory filepath where the split dataset should be saved
 proportion: 1 # Choose 1 to use all data. Data will always be balanced.
+num_classes: 100
 val_ratio: 0.2

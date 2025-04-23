@@ -1,6 +1,8 @@
 name: cifar100
-load_dir: ??? # directory to the ImageFolder-format dataset
-batch_sizes:
-  train: 128
-  val: 128
-num_workers: 4
+num_classes: 100
+save_path: ??? # directory to the ImageFolder-format dataset
+cfg:
+  batch_sizes:
+    train: 128
+    val: 128
+  num_workers: 4

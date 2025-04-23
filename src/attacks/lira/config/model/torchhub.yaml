@@ -1,0 +1,4 @@
+load_method: torchhub  
+repo_path: ???
+model_name: ???
+model_ckpt_path:
