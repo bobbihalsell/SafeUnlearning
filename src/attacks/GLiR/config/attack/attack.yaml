@@ -2,4 +2,4 @@ threshold: 0.2
 num_params: 5000
 small_var_lim: 0.01
 test_size: null
-method: ratio # glir or ratio 
+method: ratio # diff or ratio 

@@ -147,7 +147,7 @@ class GLiR:
         grad_diff_norm = torch.norm(grad_diff)
         grad_before_norm = torch.norm(grad_before_magnitude)
         epsilon = 1e-10
-        if self.method == 'glir':
+        if self.method == 'diff':
             return grad_diff
         
         elif self.method == 'ratio':
