@@ -20,7 +20,8 @@ def generate_lira_train_tests(
         indices[attempt_ndx] = np.random.default_rng(attempt_ndx).permutation(
             deepcopy(lira_dev_indices)
         )
-    train_indices, test_indices = indices[:, :train_size], indices[:, train_size:]
+    train_indices = indices[:, :train_size]
+    test_indices = indices[:, train_size:]
 
     # We verify that the indices row by row are different
     for train_row, test_row in zip(train_indices, test_indices):
@@ -42,7 +43,7 @@ def generate_all_forgets(
     return retains, forgets
 
 
-def run(
+def generate_splits(
     dataset_name: str,
     forget_ratio: float,
     val_ratio: float,
@@ -59,7 +60,8 @@ def run(
         print("Splits are already generated. Skipping.")
         return
 
-    train, _, test = load_train_val_test_datasets(dataset_name, 1, 0, save_path, "")
+    train, _, test = load_train_val_test_datasets(dataset_name, 1, 0, 
+                                                  save_path, "")
     train_len, test_len = len(train), len(test)
 
     indices = np.arange(train_len + test_len)

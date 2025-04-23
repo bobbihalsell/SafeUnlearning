@@ -1,5 +1,4 @@
-model_loading: torchvision  
+load_method: torchvision  
 model_name: ???
 original_model_ckpt_path:  # You must specify a path to the original model.
 unlearned_model_ckpt_path: ???
-num_classes: 10

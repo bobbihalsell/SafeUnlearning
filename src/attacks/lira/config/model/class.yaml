@@ -1,0 +1,5 @@
+load_method: class  
+class_path: ???
+class_name: ???
+model_ckpt_path: ???
+model_kwargs:

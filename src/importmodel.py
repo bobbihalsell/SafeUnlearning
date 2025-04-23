@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
-from unlearning.utils import ConfigError
-from utils import setup_device
+from utils import setup_device, ConfigError
 import os
 import sys
 import importlib
@@ -19,6 +18,7 @@ class ImportModel:
                     init_path=None,
                     model_ckpt_path=None,
                     model_kwargs=None,
+                    from_pretrained=True,
                 ):
         self.device = setup_device()
         self.load_method = load_method
@@ -27,6 +27,8 @@ class ImportModel:
         self.model_ckpt_path = model_ckpt_path
         self.model_kwargs = model_kwargs or {}  # Handle None
         self.num_classes = num_classes
+        self.from_pretrained = from_pretrained
+        self.model = self.load_model()
 
     def load_model(self):
         """
@@ -115,7 +117,8 @@ class ImportModel:
     def _init_from_torch_hub(self):
         """Load model from torch hub."""
         try:
-            pretrained = (self.model_ckpt_path is None)
+            pretrained = (self.model_ckpt_path is None 
+                          and self.from_pretrained)
 
             # Try with 'weights' parameter first
             try:
@@ -145,7 +148,10 @@ class ImportModel:
 
     def _init_from_torchvision(self):
         try:
-            weights = "DEFAULT" if (self.model_ckpt_path is None) else None
+            if self.model_ckpt_path is None and self.from_pretrained:
+                weights = "DEFAULT"
+            else:
+                weights = None
             self.model = torchvision.models.get_model(
                         self.model_name,
                         weights=weights,
@@ -180,11 +186,9 @@ class ImportModel:
 
     def _init_from_timm(self):
         try:
-            pretrained = (self.model_ckpt_path is None)
             self.model = timm.create_model(
                 self.model_name,
-                num_classes=self.num_classes,
-                pretrained=pretrained
+                num_classes=self.num_classes
             )
         except Exception as e:
             raise ConfigError(f"Failed to load timm model: {str(e)}")
@@ -194,15 +198,13 @@ class ImportModel:
         try:
             print(f"Loading weights from {self.model_ckpt_path}")
             if not os.path.exists(self.model_ckpt_path):
-                raise ConfigError(
-                    f"Weight file not found: {self.model_ckpt_path}"
-                )
+                raise ConfigError(f"Weight file not found: {self.model_ckpt_path}")
 
             # Load checkpoint
             checkpoint = torch.load(
                 self.model_ckpt_path,
                 map_location=self.device
-                )
+            )
 
             # Extract state dict smartly
             if isinstance(checkpoint, dict):
@@ -223,5 +225,24 @@ class ImportModel:
             self.model.load_state_dict(state_dict)
             print(f"Successfully loaded weights from {self.model_ckpt_path}")
 
+        except RuntimeError as e:
+            error_msg = str(e)
+            if "Missing key(s)" in error_msg or "Unexpected key(s)" in error_msg:
+                # Count the number of missing/unexpected keys
+                missing_count = error_msg.count("Missing key(s)")
+                unexpected_count = error_msg.count("Unexpected key(s)")
+                
+                # Create a concise error message
+                error_summary = "Model architecture mismatch: "
+                if missing_count > 0:
+                    error_summary += f"The checkpoint is missing layers present in your model. "
+                if unexpected_count > 0:
+                    error_summary += f"The checkpoint contains layers not present in your model. "
+                    
+                error_summary += "This typically means the model architecture used to create the checkpoint differs from your current model."
+                raise ConfigError(error_summary)
+            else:
+                # Re-raise for other RuntimeErrors
+                raise ConfigError(f"Failed to load weights: {str(e)}")
         except Exception as e:
             raise ConfigError(f"Failed to load weights: {str(e)}")

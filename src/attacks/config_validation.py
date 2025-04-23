@@ -1,5 +1,21 @@
-from attacks.utils import ConfigError
-import os
+from cfg_validator import InputValidator, ConfigError
+# import os
+
+
+class GLiRValidator(InputValidator):
+    """ Validator specifically for unlearning configurations."""
+    def __init__(self, config):
+        super().__init__(config)
+        self._validate_required_sections()
+    
+    def _validate_required_sections(self):
+        """Ensure unlearning-specific sections exist."""
+        required_sections = ['model', 'dataset', 'attack']
+        for section in required_sections:
+            if not hasattr(self, f'{section}_file'):
+                raise ConfigError(
+                    f"Missing required config section: '{section}'"
+                    )
 
 
 class InputValidator:
@@ -100,7 +116,6 @@ class InputValidator:
                 raise ConfigError('Missing required params for Invert Grad reconstruction:'
                                   f' {', '.join(missing_igrad_params)}')
     
-
     def _validate_dataset_params(self):
         valid_dataset_names = {'cifar5',
                                'cifar10',

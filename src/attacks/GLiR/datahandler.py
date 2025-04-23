@@ -1,14 +1,12 @@
-from attacks.GLiR.utils import create_subset, create_matched_subset
-import os
 import torch
 import random
-from train.image_loading import RobustImageFolder
-from datasets import DATASETS_TO_TRANSFORM
-from unlearning.utils import ConfigError
+from attacks.GLiR.glir_utils import create_subset, create_matched_subset
+from utils import initialize_datasets
 
 
 class DataHandler:
-    def __init__(self, dataset_name, dataset_save_dir, background_ratio, test_size):
+    def __init__(self, dataset_name, dataset_save_dir, 
+                 background_ratio, test_size):
         """
         Initialize the data handler with configuration parameters.
         
@@ -17,31 +15,8 @@ class DataHandler:
         """
         self.dataset_name = dataset_name
         self.dataset_save_dir = dataset_save_dir
-        # self.batch_sizes = cfg.dataset.cfg.batch_sizes
-        # self.num_workers = cfg.dataset.cfg.num_workers
         self.background_ratio = background_ratio
         self.test_size = test_size
-
-    def initialize_datasets(self):
-        """ 
-        Initialize dataloaders from the dataset folder in ImageFolder format.
-        Returns a dictionary of dataloaders for retain, forget, and val splits.
-        """
-        transform = DATASETS_TO_TRANSFORM[self.dataset_name]()
-
-        # Load datasets for each split
-        splits = ['forget', 'test']
-        datasets = {}
-
-        for split in splits:
-            split_dir = os.path.join(self.dataset_save_dir, split)
-            if not os.path.exists(split_dir):
-                raise Exception(f'{split_dir} does not exist. '
-                                'Is the dataset in ImageFolder format?')
-
-            dataset = RobustImageFolder(root=split_dir, transform=transform)
-            datasets[split] = dataset
-        return datasets
 
     def prepare_background_points(self):
         """
@@ -55,9 +30,11 @@ class DataHandler:
                 baseline
             indices (list): indices used to create subset
         """
-        datasets = self.initialize_datasets()
+        back_data = initialize_datasets(splits=['test'],
+                                        dataset_name=self.dataset_name,
+                                        dataset_save_dir=self.dataset_save_dir)
         background_points, indices = create_subset(
-                                                   datasets['test'], 
+                                                   back_data['test'],
                                                    self.background_ratio, 
                                                    return_indices=True
                                                    )
@@ -67,7 +44,9 @@ class DataHandler:
     
     def prepare_querypoints(self):
         """Create the query points"""
-        datasets = self.initialize_datasets()
+        datasets = initialize_datasets(splits=['forget', 'test'],
+                                       dataset_name=self.dataset_name,
+                                       dataset_save_dir=self.dataset_save_dir)
         # use the whole forgetting datasets
         forget_points = create_subset(datasets["forget"], 1)  
         print("In the query points, number of forget points is "
@@ -81,7 +60,7 @@ class DataHandler:
                     datasets['test'], 
                     target_size=forget_size,  # Force matching forget_data size
                     exempt_points=self.indices,
-                    test_size = self.test_size
+                    test_size=self.test_size
                     )
         print(
             f"In the query points, number of test points is {len(test_points)}"

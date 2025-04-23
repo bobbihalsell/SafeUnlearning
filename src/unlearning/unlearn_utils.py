@@ -1,7 +1,5 @@
 import torch
 import torch.nn as nn
-import random
-import numpy as np
 import os
 
 
@@ -34,7 +32,7 @@ def save_model(model: nn.Module,
     directory = os.path.join(output_dir, 'unlearn', unlearning_algorithm)
     os.makedirs(directory, exist_ok=True)  # Ensure the directory exists
 
-    if id is not None:
+    if id != '' and id is not None:
         save_name = f'{model_name}_{seed}_{model_type}_{id}.pt'
     else:
         save_name = f'{model_name}_{seed}_{model_type}.pt'
@@ -56,14 +54,9 @@ def save_model(model: nn.Module,
     return filepath
 
 
-class UnsupportedModelError(Exception):
-    def __init__(self, message='Model type is not supported for this operation.'):
-        super().__init__(message)
-
-
-class ConfigError(Exception):
-    def __init__(self, message='Configuration .YAML specification error.'):
-        super().__init__(message)
+# class UnsupportedModelError(Exception):
+#     def __init__(self, message='Model type is not supported for this operation.'):
+#         super().__init__(message)
 
 
 def l2_penalty(model, model_init, weight_decay):
@@ -76,26 +69,3 @@ def l2_penalty(model, model_init, weight_decay):
     l2_loss *= weight_decay / 2.0
     return l2_loss
 
-
-def setup_device():
-    """ Setup a torch device.
-
-    Returns:
-        str
-    """
-    if torch.cuda.is_available():
-        return 'cuda'
-    elif torch.mps.is_available():
-        return 'mps'
-    else:
-        return 'cpu'
-
-
-def set_seed(seed: int = 42):
-    """Set the random seed for reproducibility."""
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)  # For multi-GPU setups
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False  # Ensure deterministic behavior
