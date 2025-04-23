@@ -1,0 +1,5 @@
+load_method: timm  
+model_name: ???
+model_ckpt_path:
+freeze_all_except_classifier: false
+pretrained: true

@@ -1,4 +1,0 @@
-load_method: timm # Pytorch Image Models
-pretrained: ???  # Start from library-provided pretrained weights.
-freeze_all_except_classifier: false
-model_ckpt_path: # (OPTIONAL) Path to model weights to start/resume training from

@@ -1,4 +1,0 @@
-load_method: torchvision # Torchvision
-pretrained: ???
-freeze_all_except_classifier: false
-checkpoint_path: # (OPTIONAL) Path to model weights to start/resume training from

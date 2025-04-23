@@ -6,6 +6,7 @@ import os
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.errors import MissingMandatoryValue
+from importmodel import ImportModel
 from utils import setup_device, set_seed
 from utils import initialize_dataloaders as init_dataloaders
 from train.config_validation import TrainValidator
@@ -19,52 +20,18 @@ class TrainApp(TrainValidator):
         self.seed = config['seed']
         set_seed(self.seed)
 
-    def initialize_model(self):
+    def load_model(self):
         """Initialize the model based on model name from user configuration."""
-        if hasattr(torchvision.models, self.model_name):
-            model = torchvision.models.get_model(
-                self.model_name,
-                weights="DEFAULT" if self.pretrained else None,
+        importer = ImportModel(
+            load_method=self.load_method,
+            model_name=self.model_name,
+            num_classes=self.num_classes,
+            init_path=self.init_path,
+            model_ckpt_path=self.model_ckpt_path,
+            model_kwargs=self.model_kwargs,
+            from_pretrained=self.pretrained,
             )
-
-            if self.num_classes != 1000:  # Imagenet-1k
-                print('Replacing default classification head...')
-                # Adjust the last layer to match number of classes
-                if hasattr(model, "fc"):  # ResNet-style
-                    model.fc = torch.nn.Linear(
-                        model.fc.in_features,
-                        self.num_classes
-                    )
-                elif hasattr(model, "classifier"):
-                    # MobileNet, EfficientNet, VGG, DenseNet
-                    if isinstance(model.classifier, torch.nn.Sequential):
-                        # Handle cases where classifier is Sequential
-                        last_layer_idx = len(model.classifier) - 1
-                        model.classifier[last_layer_idx] = torch.nn.Linear(
-                            model.classifier[last_layer_idx].in_features,
-                            self.num_classes
-                        )
-                    else:
-                        model.classifier = torch.nn.Linear(
-                            model.classifier.in_features,
-                            self.num_classes
-                        )
-                else:
-                    raise AttributeError("Unknown classification layer "
-                                         f'for {self.model_name}')
-
-        else:
-            print(f'Could not find {self.model_name} in torchvision.'
-                  ' Looking in timm.')
-            try:
-                model = timm.create_model(
-                    self.model_name,
-                    pretrained=self.pretrained,
-                    num_classes=self.num_classes,
-                )
-            except Exception:
-                raise AttributeError(f"{self.model_name} not found.")
-
+        model = importer.model
         return model
 
     def freeze_all_except_classifier(self, model):

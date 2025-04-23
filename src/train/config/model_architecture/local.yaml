@@ -1,7 +1,0 @@
-load_method: class # There is a local class defined somewhere
-class_name: ???
-class_path: ???
-pretrained: ???  # Start from library-provided pretrained weights.
-freeze_all_except_classifier: false
-model_ckpt_path: ???
-model_kwargs:
