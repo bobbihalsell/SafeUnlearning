@@ -51,7 +51,7 @@ class TrainApp(TrainValidator):
                                        dataset_name=self.dataset_name,
                                        dataset_save_dir=self.dataset_save_dir)
         return dataloaders
-    
+
     def reinitialize_checkpoints(self, model, optimizer):
         """ Load in model and optimizer state dict from a checkpoint."""
         if self.from_checkpoint:
