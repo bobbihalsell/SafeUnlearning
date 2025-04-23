@@ -9,7 +9,7 @@ import os
 from utils import setup_device
 
 
-class GLiR2:
+class GALRT:
     def __init__(self, 
                  model_before, 
                  model_after, 
@@ -92,6 +92,53 @@ class GLiR2:
         grads = torch.cat(grads)
         return grads[self.indices]
     
+    def establish_baseline(self, points):
+        """
+        Establish baseline distributions using points from a specific set
+        """        
+        print(f"Establishing baseline using {len(points)} points with method '{self.method}'")
+        # Standard approach for non-separate methods
+        features = []
+        for (x, y) in tqdm(points):
+            feature_vector = self.compute_feature_vector(x, y)
+            features.append(feature_vector)
+        features = torch.stack(features)
+
+        # Compute the mean and variance of the features
+        feature_means = features.mean(dim=0, keepdim=True)
+        feature_vars_norm = features - feature_means
+        feature_vars = feature_vars_norm.var(axis=0, keepdim=False)
+        print(f"Total {self.method} feature dimensions:", feature_vars.numel())
+
+        # Identify and remove small vars for numerical stability
+        small_var = feature_vars < self.small_var_lim
+        print("Small variance elements:", torch.sum(small_var).item())
+        feature_means = feature_means[:, ~small_var]
+        feature_vars_norm = feature_vars_norm[:, ~small_var]
+        
+        # Calculate covariance matrix
+        self.sigma = (feature_vars_norm.t() @ feature_vars_norm
+                      ) / len(feature_vars_norm)
+        self.mean_vector = feature_means
+        self.valid_indices = ~small_var
+        
+        print("Inverting Sigma matrix...")
+        try:
+            # Add regularization for numerical stability
+            sigma_reg = self.sigma + torch.eye(self.sigma.shape[0], 
+                                               device=self.sigma.device) * 1e-4
+            L = torch.linalg.cholesky(sigma_reg)
+            self.sigma_inv = torch.cholesky_inverse(L)
+            print("Cholesky decomposition successful")
+        except Exception as e:
+            print(f"Cholesky failed: {str(e)}")
+            print("Using standard inverse with regularization...")
+            # Add more regularization for standard inverse
+            sigma_reg = self.sigma + torch.eye(self.sigma.shape[0], 
+                                               device=self.sigma.device) * 1e-3
+            self.sigma_inv = torch.inverse(sigma_reg)
+            print("Standard inverse successful")
+
     def compute_feature_vector(self, x, y):
         grad_before = self.compute_gradient(self.model_before, x, y)
         grad_after = self.compute_gradient(self.model_after, x, y)
@@ -99,95 +146,63 @@ class GLiR2:
         grad_before_magnitude = torch.abs(grad_before)
         grad_diff_norm = torch.norm(grad_diff)
         grad_before_norm = torch.norm(grad_before_magnitude)
+        epsilon = 1e-10
         if self.method == 'glir':
             return grad_diff
         
         elif self.method == 'ratio':
-            forget_score = grad_diff_norm / (grad_before_norm + 1e-10)
-            test_score = grad_before_norm / (grad_diff_norm + 1e-10)
+            # Return only the ratio features (compact representation)
+            forget_score = grad_diff_norm / (grad_before_norm + epsilon)
+            test_score = grad_before_norm / (grad_diff_norm + epsilon)
             return torch.tensor([forget_score, test_score])
-
-    def establish_baseline(self, points):
-        """
-        Establish baseline distributions using points from a specific set
-        
-        Args:
-            points: List of (x, y) tuples for points
-            name: Name of the set ('retain', 'forget', 'unused', 'val')
-            batch_size: Size of batches for covariance computation
-        """        
-        # Compute gradient differences for points
-        print(len(points), "points")
-        grad_diffs = []
-        for (x, y) in tqdm(points):
-            grad_before = self.compute_gradient(self.model_before, x, y)
-            grad_after = self.compute_gradient(self.model_after, x, y)
-                
-            grad_diffs.append(grad_before - grad_after)
-        grad_diffs = torch.stack(grad_diffs)
-
-        # Compute the mean and variance of the gradient differences
-        grad_means = grad_diffs.mean(dim=0, keepdim=True)
-        grad_vars_norm = grad_diffs - grad_means
-        grad_vars = grad_vars_norm.var(axis=0, keepdim=False)
-        print("Total gradient dimensions:", grad_vars.numel())
-
-        # Identify and remove small vars for numerical stability
-        small_var = grad_vars < self.small_var_lim
-        print("small_var elements :", torch.sum(small_var))
-        grad_means = grad_means[:, ~small_var]
-        grad_vars_norm = grad_vars_norm[:, ~small_var]
-        grad_vars = torch.diag(grad_vars_norm.var(axis=0, keepdim=False))
-        self.mean_vector = grad_means
-        self.sigma = (grad_vars_norm.t() @ grad_vars_norm)/len(grad_vars_norm)
-        self.valid_indices = ~small_var
-
-        print("Inverting Sigma...")
-        try:
-            sigma_reg = self.sigma + torch.eye(self.sigma.shape[0], 
-                                               device=self.sigma.device
-                                               ) * 1e-4
-            L = torch.linalg.cholesky(sigma_reg)
-            self.sigma_inv = torch.cholesky_inverse(L)
-            print("Cholesky decomposition successful")
-        except Exception as e:
-            print(f"Cholesky failed: {str(e)}")
-            print("Using standard inverse with regularization...")
-            # Add regularization to help with numerical stability
-            sigma_reg = self.sigma + torch.eye(self.sigma.shape[0], 
-                                               device=self.sigma.device
-                                               ) * 1e-4
-            self.sigma_inv = torch.inverse(sigma_reg)
-            print("Standard inverse successful")
-    
+            
     def compute_test_statistic(self, x, y):
         """
         Compute test statistic for a data point
         """
         feature_vector = self.compute_feature_vector(x, y)
-        # Filter to valid indices
+        
+        # Handle dimension mismatch between feature vector and valid_indices
         if hasattr(self, 'valid_indices'):
             feature_vector = feature_vector[self.valid_indices]
+        
         # Center the feature vector
-        centered_vector = feature_vector - self.mean_vector.squeeze(0)
+        if hasattr(self, 'mean_vector'):
+            centered_vector = feature_vector - self.mean_vector.squeeze(0)
+        # else:
+        #     # No mean vector available
+        #     centered_vector = feature_vector
         
         # Compute the Mahalanobis distance
-        mahalanobis_distance = torch.sum(
-            centered_vector * (self.sigma_inv @ centered_vector)
-        )
+        if hasattr(self, 'sigma_inv'):
+            mahalanobis_distance = torch.sum(
+                centered_vector * (self.sigma_inv @ centered_vector)
+            )
+        # else:
+        #     # No sigma_inv available
+        #     mahalanobis_distance = torch.sum(centered_vector ** 2)
+        
+        # Compute the Likelihood Ratio Test Statistic
         lrt_statistic = 2 * mahalanobis_distance
+    
         return lrt_statistic
 
     def compute_p_value(self, lrt_statistic):
         """
         Compute the p-value using the chi-squared distribution
-        
-        Args:
-            lrt_statistic: The likelihood ratio test statistic
-            df: Degrees of freedom (default: None, calculated from data)
         """
+        # Handle the case when lrt_statistic is a multi-element tensor
+        # if isinstance(lrt_statistic, torch.Tensor) and lrt_statistic.numel() > 1:
+        #     # Choose which element to use based on your logic
+        #     lrt_value = lrt_statistic[0].item()  # Use first element
+        # else:
+        #     lrt_value = lrt_statistic.item() if isinstance(lrt_statistic, torch.Tensor) else lrt_statistic
+        lrt_value = lrt_statistic.item() #if isinstance(lrt_statistic, torch.Tensor) else lrt_statistic
         self.df = self.sigma_inv.shape[0]
-        p_value = 1 - chi2.cdf(lrt_statistic.item(), self.df)
+            
+        # Compute the p-value using the chi-squared distribution CDF
+        p_value = 1 - chi2.cdf(lrt_value, self.df)
+    
         return p_value
 
     def classify_point(self, x, y, threshold, teststatistic=False):
@@ -205,7 +220,7 @@ class GLiR2:
         else:
             return is_forgotten, p_val
 
-    def classify_set(self, points, threshold=0.05, teststatistic=False):
+    def classify_set(self, points, threshold, teststatistic=False):
         """
         Classify a set of points as forgotten or retained
         
@@ -235,12 +250,12 @@ class GLiR2:
             return classes, p_vals, test_statistics
         return classes, p_vals
 
-    def plot_roc_curve(self, scores, labels, savepath=None):
+    def plot_roc_curve(self, classifications, labels, savepath=None):
         """
         Plots the ROC curve by varying the classification threshold.
         """
         # Calculate the FPR and TPR for various thresholds
-        fpr, tpr, thresholds = roc_curve(labels, scores)
+        fpr, tpr, thresholds = roc_curve(labels, classifications)
 
         # Calculate the Area Under the Curve (AUC)
         roc_auc = auc(fpr, tpr)
@@ -382,7 +397,7 @@ class GLiR2:
         if labels is not None:
             # Forget points (red)
             if len(forget_stats) > 0:
-                ax1.scatter(forget_stats, chi2.pdf(forget_stats, self.df), 
+                ax1.scatter(forget_stats, chi2.pdf(forget_stats,self. df), 
                             color='r', alpha=0.7, 
                             label='Forget Points (label=1)')
                 ax1.plot(forget_stats, np.zeros_like(forget_stats), '|', 

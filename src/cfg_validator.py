@@ -127,3 +127,4 @@ class InputValidator:
     
     def _validate_timm_params(self, config):
         self._require(config, 'model_name', 'model_name')
+

@@ -7,6 +7,5 @@ seed: 42
 verbose: true
 visualise: true
 # output_dir: ???
-output_dir: ./artifactstest/glir/neggrad005_before
-
+output_dir: ./artifactstest/mia/neggradoriginal
 

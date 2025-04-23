@@ -3,15 +3,15 @@ import json
 import hydra
 from omegaconf import OmegaConf, DictConfig
 from omegaconf.errors import MissingMandatoryValue
-from attacks.GLiR.glir_utils import calculate_metrics
-from attacks.GLiR.gradient_attack import GLiR
-from attacks.GLiR.datahandler import DataHandler
-from attacks.GLiR.config_validation import GLiRValidator
+from src.attacks.GLiR2.glir_utils import calculate_metrics
+from attacks.GLiR2.glir2 import GALRT
+from attacks.GLiR2.datahandler import DataHandler
+from attacks.GLiR2.config_validation import GALRTValidator
 from importmodel import ImportModel
 from utils import set_seed, setup_device
 
 
-class GLiRApp(GLiRValidator):
+class GALRTApp(GALRTValidator):
     """
     Implement the white-box mia described in 
     https://arxiv.org/abs/2306.07273
@@ -59,14 +59,16 @@ class GLiRApp(GLiRValidator):
                                        )
         self.unlearned_model = unlearned_import.model
 
-        self.attack = GLiR(
+        self.attack = GALRT(
                         model_before=self.original_model, 
                         model_after=self.unlearned_model,
                         num_params=self.num_params, 
-                        small_var_lim=self.small_var_lim
+                        small_var_lim=self.small_var_lim,
+                        method=self.method,
                         )
         
     def initialise_baseline(self):
+        print(f'creating baseline with method: {self.method}')
         self.attack.establish_baseline(self.background)
         return
 
@@ -80,7 +82,11 @@ class GLiRApp(GLiRValidator):
                 attack scores
         """
         # Ensure the save path exists
-        os.makedirs(self.output_dir, exist_ok=True)
+        # os.makedirs(self.output_dir, exist_ok=True)
+        output_path = os.path.join(self.output_dir, self.method)
+
+        # Create the directory (and any necessary parent directories)
+        os.makedirs(output_path, exist_ok=True)
 
         # Unpack the labels and data points 
         # labels = [z for _, z in self.querypoints]
@@ -94,7 +100,7 @@ class GLiRApp(GLiRValidator):
         classifications, p_vals, test_statistics = self.attack.classify_set(
             data, 
             self.threshold,
-            teststatistic=True
+            teststatistic=True,
             )
         print(f'predicted forget points: {sum(classifications)}')
         print(f'predicted test points: {len(classifications) - sum(classifications)}')
@@ -109,15 +115,15 @@ class GLiRApp(GLiRValidator):
         # Save the ROC curve and GLIR distribution plot
         print('visualising...')
         self.attack.plot_roc_curve(one_take_pvals, labels,
-                                   savepath=self.output_dir)
+                                   savepath=output_path)
         self.attack.plot_glir_distribution(p_values=p_vals, 
                                            test_statistics=test_statistics,
                                            labels=labels,
-                                           savepath=self.output_dir, 
+                                           savepath=output_path, 
                                            alpha=self.threshold)
 
         # Save metrics as JSON
-        metrics_path = os.path.join(self.output_dir, "attack_metrics.json")
+        metrics_path = os.path.join(output_path, "attack_metrics.json")
         with open(metrics_path, "w") as f:
             json.dump(metrics, f, indent=4)
             print(f"Metrics saved at: {metrics_path}")
@@ -159,7 +165,7 @@ def main(cfg: DictConfig):
             'Missing the following required arguments in the configuration: '
             f'{missing_keys}. \n'
             'Hint: python file.py key=value sets the appropriate value.')
-    app = GLiRApp(cfg)
+    app = GALRTApp(cfg)
     app.run()
 
 
