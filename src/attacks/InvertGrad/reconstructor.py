@@ -10,7 +10,9 @@ import torch
 import torchvision.transforms as transforms
 
 from attacks.InvertGrad.medianfilt import MedianPool2d
-from attacks.InvertGrad.reconstruction_cost import reconstruction_costs, total_variation, DistillKL
+from attacks.InvertGrad.reconstruction_cost import (reconstruction_costs,
+                                                    total_variation,
+                                                    DistillKL)
 from utils import set_seed
 
 
@@ -476,7 +478,8 @@ class InvertGradReconstructor():
         if self.config.optim == 'adam':
             optimizer = torch.optim.Adam(params, lr=self.lr)
         elif self.config.optim == 'sgd':
-            optimizer = torch.optim.SGD(params, lr=self.lr, momentum=0.9, nesterov=True)
+            optimizer = torch.optim.SGD(params, lr=self.lr,
+                                        momentum=0.9, nesterov=True)
         elif self.config.optim == 'LBFGS':
             optimizer = torch.optim.LBFGS(params)
         elif self.config.optim == 'adamw':

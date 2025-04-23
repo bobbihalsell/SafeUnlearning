@@ -1,17 +1,11 @@
 import unittest
 import torch
 from unittest.mock import patch
-import sys
-import os
 
+from attacks.InvertGrad.reconstructor import (InvertGradConfig,
+                                              InvertGradReconstructor)
 
-# sys.path.insert(
-#     0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-#     )
-
-
-from attacks.InvertGrad.reconstructor import InvertGradConfig, InvertGradReconstructor  
-
+from attacks.InvertGrad.reconstruction_cost import reconstruction_costs
 
 ## Dummy model for testing
 class DummyModel(torch.nn.Module):
@@ -59,16 +53,31 @@ class TestInvertGradReconstructor(unittest.TestCase):
         self.device = torch.device("cpu")
         self.model = DummyModel()
         self.config = InvertGradConfig()
-
-    def test_initialization(self):
-        reconstructor = InvertGradReconstructor(
+        self.reconstructor = InvertGradReconstructor(
             device=self.device,
             original_model=self.model,
             unlearned_model=self.model,
             config=self.config
         )
-        self.assertEqual(reconstructor.config.cost_fn, 'sim')
-        self.assertIs(reconstructor.original_model, self.model)
+
+    def test_initialization(self):
+        self.assertEqual(self.reconstructor.config.cost_fn, 'sim')
+        self.assertIs(self.reconstructor.original_model, self.model)
+
+    def test_init_images(self):
+        self.reconstructor.num_images = 1
+        self.reconstructor.image_size = (3, 32, 32)
+        images = self.reconstructor._init_images()
+        self.assertEqual(images.shape, (self.config.num_runs, 
+                                        self.reconstructor.num_images, 
+                                        *self.reconstructor.image_size))
+
+    def test_reconstruction_costs(self):
+        gradients = [torch.randn(10, 10) for _ in range(5)]
+        input_gradient = [torch.randn(10, 10) for _ in range(5)]
+        cost = reconstruction_costs(gradients, input_gradient, cost_fn='l2')
+        self.assertIsInstance(cost, torch.Tensor)
+
 
     @patch.object(InvertGradReconstructor, "_run_trial")
     @patch.object(InvertGradReconstructor, "_score_trial")
