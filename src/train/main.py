@@ -1,6 +1,4 @@
-import torchvision
 import torch
-import timm
 import wandb
 import os
 import hydra
@@ -77,7 +75,7 @@ class TrainApp(TrainValidator):
     def pretrain(self):
         """ Perform pretraining of a model on a dataset."""
         # Step 1: Initialize the model
-        model = self.initialize_model()
+        model = self.load_model()
         device = setup_device()
         model.to(device)
 
@@ -127,6 +125,14 @@ class TrainApp(TrainValidator):
 
         if self.freeze_all_except_last:
             model = self.freeze_all_except_classifier(model)
+
+        # Evaluate initial model performance
+        self._eval_initial_model(
+            criterion,
+            model,
+            train_dl,
+            val_dl
+        )
 
         # Training configuration
         best_val_loss = float("inf")
@@ -220,6 +226,20 @@ class TrainApp(TrainValidator):
 
         return val_loss, val_acc
 
+    def _eval_initial_model(self, criterion, model, train_dl, val_dl):
+        initial_train_loss, initial_train_acc = self.eval_model(criterion,
+                                                                model,
+                                                                train_dl)
+        initial_val_loss, initial_val_acc = self.eval_model(criterion,
+                                                            model,
+                                                            val_dl)
+
+        print(f'Initial Train Loss: '
+              f'{initial_train_loss:.4f}. '
+              f'Acc: {initial_train_acc:.2f}%.', end=' || ')
+        print(f'Initial Val Loss: '
+              f'{initial_val_loss:.4f}. '
+              f'Acc: {initial_val_acc:.2f}%.', end=' || ')
 
 @hydra.main(version_base=None, config_path="config", config_name="config")
 def main(cfg: DictConfig):

@@ -1,0 +1,1 @@
+python src/train/main.py dataset=cifar10 model=torchhub model.model_name=resnet18 trainer=default dataset.save_path=./data model.pretrained=true model.repo_path=chenyaofo/pytorch-cifar-models model.model_name=cifar10_resnet20 model.save_dir=./artifacts/models/cifar_test trainer.epochs=2 +wandb_cfg=default

@@ -3,5 +3,4 @@ defaults:
   - model: ???
   - dataset: ???
   - trainer: ???
-  - wandb: 
 seed: 42

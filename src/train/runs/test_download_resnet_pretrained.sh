@@ -1,0 +1,1 @@
+python src/train/main.py dataset=imagenet model=torchvision model.model_name=resnet18 trainer=default dataset.save_path=./data model.pretrained=true model.save_dir=./artifacts/models/imagenet_test trainer.epochs=0 +wandb_cfg=default
