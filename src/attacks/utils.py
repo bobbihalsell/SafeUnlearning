@@ -181,7 +181,7 @@ def calculate_metrics(img_batch, ref_batch, dataset_size, verbose=True):
         print("\n*** Evaluation Metrics ***")
 
         for i, (val, idx) in enumerate(psnr_value):
-            print(f"Recon image {i}: Best match is ref {idx} with MSE {val:.6f}")
+            print(f"Recon image {i}: Best match is ref {idx} with PSNR {val:.6f}")
         for i, (mse, idx) in enumerate(mse_value):
             print(f"Recon image {i}: Best match is ref {idx} with MSE {mse:.6f}")
 

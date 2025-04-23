@@ -1,0 +1,5 @@
+load_method: torchhub  
+repo_path: ???
+model_name: ???
+original_model_ckpt_path: ???  # You must specify a path to the original model.
+unlearned_model_ckpt_path: ???

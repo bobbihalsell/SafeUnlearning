@@ -1,5 +1,6 @@
 type: ggl
 lr: 0.01
+unlearned_labels: ??
 cfg:
   num_updates: 1
   unlearning_method: neggrad
