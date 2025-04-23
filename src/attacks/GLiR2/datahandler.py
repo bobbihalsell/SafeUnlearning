@@ -1,6 +1,6 @@
 import torch
 import random
-from attacks.GLiR2.glir_utils import create_subset, create_matched_subset
+from attacks.GLiR.glir_utils import create_subset, create_matched_subset
 from utils import initialize_datasets
 
 

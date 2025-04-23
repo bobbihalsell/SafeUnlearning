@@ -8,8 +8,8 @@ from scipy.stats import chi2
 import os
 from utils import setup_device
 
-# test push
-class GLiR2:
+
+class GLiR:
     def __init__(self, 
                  model_before, 
                  model_after, 
@@ -169,19 +169,11 @@ class GLiR2:
         # Center the feature vector
         if hasattr(self, 'mean_vector'):
             centered_vector = feature_vector - self.mean_vector.squeeze(0)
-        # else:
-        #     # No mean vector available
-        #     centered_vector = feature_vector
-        
         # Compute the Mahalanobis distance
         if hasattr(self, 'sigma_inv'):
             mahalanobis_distance = torch.sum(
                 centered_vector * (self.sigma_inv @ centered_vector)
             )
-        # else:
-        #     # No sigma_inv available
-        #     mahalanobis_distance = torch.sum(centered_vector ** 2)
-        
         # Compute the Likelihood Ratio Test Statistic
         lrt_statistic = 2 * mahalanobis_distance
     
@@ -191,15 +183,8 @@ class GLiR2:
         """
         Compute the p-value using the chi-squared distribution
         """
-        # Handle the case when lrt_statistic is a multi-element tensor
-        # if isinstance(lrt_statistic, torch.Tensor) and lrt_statistic.numel() > 1:
-        #     # Choose which element to use based on your logic
-        #     lrt_value = lrt_statistic[0].item()  # Use first element
-        # else:
-        #     lrt_value = lrt_statistic.item() if isinstance(lrt_statistic, torch.Tensor) else lrt_statistic
-        lrt_value = lrt_statistic.item() #if isinstance(lrt_statistic, torch.Tensor) else lrt_statistic
+        lrt_value = lrt_statistic.item()
         self.df = self.sigma_inv.shape[0]
-            
         # Compute the p-value using the chi-squared distribution CDF
         p_value = 1 - chi2.cdf(lrt_value, self.df)
     
@@ -397,7 +382,7 @@ class GLiR2:
         if labels is not None:
             # Forget points (red)
             if len(forget_stats) > 0:
-                ax1.scatter(forget_stats, chi2.pdf(forget_stats,self. df), 
+                ax1.scatter(forget_stats, chi2.pdf(forget_stats, self.df), 
                             color='r', alpha=0.7, 
                             label='Forget Points (label=1)')
                 ax1.plot(forget_stats, np.zeros_like(forget_stats), '|', 

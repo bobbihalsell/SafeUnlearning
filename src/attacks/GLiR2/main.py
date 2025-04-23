@@ -3,10 +3,10 @@ import json
 import hydra
 from omegaconf import OmegaConf, DictConfig
 from omegaconf.errors import MissingMandatoryValue
-from attacks.GLiR2.glir_utils import calculate_metrics
-from attacks.GLiR2.glir2 import GLiR2
-from attacks.GLiR2.datahandler import DataHandler
-from attacks.GLiR2.config_validation import GLiRValidator
+from attacks.GLiR.glir_utils import calculate_metrics
+from attacks.GLiR.glir import GLiR
+from attacks.GLiR.datahandler import DataHandler
+from attacks.GLiR.config_validation import GLiRValidator
 from importmodel import ImportModel
 from utils import set_seed, setup_device
 
@@ -59,7 +59,7 @@ class GLiRApp(GLiRValidator):
                                        )
         self.unlearned_model = unlearned_import.model
 
-        self.attack = GLiR2(
+        self.attack = GLiR(
                         model_before=self.original_model, 
                         model_after=self.unlearned_model,
                         num_params=self.num_params, 
