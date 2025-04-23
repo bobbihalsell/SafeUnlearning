@@ -1,7 +1,8 @@
 type: invertgrad  # Options: ggl, invertgrad
 lr: 0.05
-cfg:
-  num_images:        # Optional: either pass in labels or num_images
+unlearned_labels: # Optional: either pass in labels or num_images
+cfg:   # attack-specific parameters
+  num_images:        
   grad_diff_lr: 0.01
   signed: True
   boxed: True
@@ -10,7 +11,7 @@ cfg:
   weights: equal
   optim: adamw
   num_runs: 1
-  recon_iterations: 1000
+  recon_iterations: 5000
   total_variation: 1e-2
   init: randn
   lr_decay: True

@@ -8,7 +8,7 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.errors import MissingMandatoryValue
 import json
-from config_validator import DatasetValidator
+from datasets.config_validator import DatasetValidator
 
 
 class DatasetInitializer(DatasetValidator):

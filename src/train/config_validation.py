@@ -8,7 +8,7 @@ class TrainValidator(InputValidator):
         config = OmegaConf.to_container(config, resolve=True)
         super().__init__(config)
         self._validate_required_sections(['model', 'dataset', 
-                                          'trainer', 'wandb'])
+                                          'trainer'])
         
     def _validate_dataset_params(self):
         super()._validate_dataset_params()
@@ -17,7 +17,6 @@ class TrainValidator(InputValidator):
             setattr(self, key, value)
 
     def _validate_model_params(self):
-        print('validating model params')
         self._require(self.model_file, 'name', 'model_name')
         self._require(self.model_file, 'pretrained')
         self._require(self.model_file, 'save_dir', 'model_save_dir')

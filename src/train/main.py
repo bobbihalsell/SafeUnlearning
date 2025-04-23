@@ -8,7 +8,7 @@ from omegaconf import DictConfig, OmegaConf
 from omegaconf.errors import MissingMandatoryValue
 from utils import setup_device, set_seed
 from utils import initialize_dataloaders as init_dataloaders
-from config_validation import TrainValidator
+from train.config_validation import TrainValidator
 
 
 class TrainApp(TrainValidator):
@@ -138,20 +138,20 @@ class TrainApp(TrainValidator):
             torch.save(checkpoint, save_path)
             print(f'Model downloaded without training at {save_path}.')
             return None
-
-        wandb.init(
-            project=self.project_name,
-            config={
-                "epochs": self.epochs,
-                "batch_size": self.batch_sizes['train'],
-                "learning_rate": self.lr,
-                "weight_decay": self.weight_decay,
-                "model_name": self.model_name,
-                "num_classes": self.num_classes,
-            },
-            id=str(self.run_id),
-            resume="allow"
-        )
+        if self.wandb_enabled:
+            wandb.init(
+                project=self.project_name,
+                config={
+                    "epochs": self.epochs,
+                    "batch_size": self.batch_sizes['train'],
+                    "learning_rate": self.lr,
+                    "weight_decay": self.weight_decay,
+                    "model_name": self.model_name,
+                    "num_classes": self.num_classes,
+                },
+                id=str(self.run_id),
+                resume="allow"
+            )
         start_epoch = 0
         if self.from_checkpoint:
             model, optimizer, start_epoch = self.reinitialize_checkpoints(
@@ -267,18 +267,15 @@ def main(cfg: DictConfig):
             'Hint: python file.py key=value sets the appropriate value.')
 
     trainer = TrainApp(config=cfg)
-    if trainer.wandb_config is not None:
+    if trainer.wandb_enabled:
         wandb.init(
-            project=trainer.wandb_config['project_name'],
-            id=trainer.wandb_config['run_id'],
+            project=trainer.wandb_project_name,
+            id=trainer.wandb_run_id,
             config=OmegaConf.to_container(cfg, resolve=True),
             resume='allow'  # Allow to resume training from checkpoint
         )
-        trainer.wandb_enabled = True
-    else:
-        trainer.wandb_enabled = False
     trainer.pretrain()
-    if trainer.wandb_config is not None:
+    if trainer.wandb_enabled:
         wandb.finish()
 
 

@@ -1,5 +1,6 @@
 type: ggl
 lr: 0.01
+unlearned_labels: ??
 cfg:
   num_updates: 1
   unlearning_method: neggrad
@@ -13,10 +14,10 @@ cfg:
   initial_lr: 1
   initial_z_path: 
 unlearner:
-  alpha: None
-  gamma: None
-  min_epochs: None
-  max_epochs: None
+  alpha: None # for scrub, otherwise leave None
+  gamma: None # for scrub, otherwise leave None
+  min_epochs: None # for scrub, otherwise leave None
+  max_epochs: None # for scrub, otherwise leave None
   weight_decay: 0
   use_l2_penalty: False
   optimizer: sgd
@@ -24,5 +25,7 @@ unlearner:
   sep_epochs: True
   lr_decay_factor: 
   epochs_per_lr_decay: 
+  epochs: 1 # for neggradplus, otherwise leave None
+  beta: None # for neggradplus, otherwise leave None
 
 

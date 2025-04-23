@@ -355,20 +355,26 @@ class Turbo1:
                     z_res = torch.from_numpy(best_x).unsqueeze(0)
                     z_res.to(self.device)
 
-                    # Save the latent vector
-                    save_dir = "./././artifacts/run/"
+                    script_dir = os.path.dirname(os.path.abspath(__file__))
+                    project_root = os.path.abspath(os.path.join(script_dir, "..", "..", ".."))
+                    # Build the path to the artifacts folder
+                    save_dir = os.path.join(project_root, "artifacts", "run")
+                    # Ensure the directory exists
                     os.makedirs(save_dir, exist_ok=True)
-
+                    try:
                     # Save the numpy array
-                    np.save(
-                        os.path.join(save_dir, f"best_latent_z_step{self.n_evals}.npy"),
-                        z_res.detach().cpu().numpy()
-                    )
+                        np.save(
+                            os.path.join(save_dir, f"best_latent_z_step{self.n_evals}.npy"),
+                            z_res.detach().cpu().numpy()
+                        )
+                        print(f"z_res saved at: {save_dir}/best_latent_z_step{self.n_evals}.npy")
+                    except Exception as e:
+                        print(f"Failed to save file: {e}")
 
                     # Print confirmation message
                     print(
                         f"z_res saved at : "
-                        f"best_latent_z_step{self.n_evals}.npy"
+                        f"{save_dir}/best_latent_z_step{self.n_evals}.npy"
                     )
 
                 # Append data to the global history

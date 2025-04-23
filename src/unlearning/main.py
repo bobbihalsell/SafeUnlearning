@@ -35,7 +35,7 @@ class UnlearnApp(UnlearningValidator):
         self.output_dir = config['output_dir']
         os.makedirs(self.output_dir, exist_ok=True)
         # Set to true in main() if user provided wandb_config
-        self.wandb_enabled = False
+        # self.wandb_enabled = False
         print(f' num_classes: {self.num_classes}')
 
     def load_model(self):
@@ -197,18 +197,15 @@ def main(cfg: DictConfig):
             f'{missing_keys}. \n'
             'Hint: python file.py key=value sets the appropriate value.')
     app = UnlearnApp(cfg)
-    if app.wandb_config is not None:
+    if app.wandb_enabled is not None:
         wandb.init(
-            project=app.wandb_config['project_name'],
-            id=app.wandb_config['run_id'],
+            project=app.wandb_project_name,
+            id=app.wandb_run_id,
             config=OmegaConf.to_container(cfg, resolve=True),
             resume='never'  # Always make sure the unlearning run ID is new
         )
-        app.wandb_enabled = True
-    else:
-        app.wandb_enabled = False
     app.run()
-    if app.wandb_config is not None:
+    if app.wandb_enabled:
         wandb.finish()
 
 

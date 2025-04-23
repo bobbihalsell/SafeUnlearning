@@ -16,7 +16,7 @@ class InputValidator:
                     getattr(self, validate_method)()
             else:
                 setattr(self, key, config[key])
-        # assert hasattr(self, 'output_dir')
+        self.wandb_enabled = hasattr(self, 'wandb_file')
 
     def _require(self, model_config, key, alias=None):
         if key not in model_config:
@@ -128,3 +128,6 @@ class InputValidator:
     def _validate_timm_params(self, config):
         self._require(config, 'model_name', 'model_name')
 
+    def _validate_wandb_params(self):
+        self._require(self.wandb_file, 'project_name')
+        self._require(self.wandb_file, 'run_id')

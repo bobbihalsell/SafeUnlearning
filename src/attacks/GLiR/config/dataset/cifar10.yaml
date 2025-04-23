@@ -2,6 +2,3 @@ name: cifar10  # Options: cifar10, cifar5, cifar100, imagenet
 num_classes: 10
 save_path: ./data # the directory filepath where the dataset should be loaded in from. 
 background_ratio: 0.1 # the ratio of background data in the dataset.
-
-# python src/unlearning/main.py dataset=cifar10 model=torchhub model.repo_path=chenyaofo/pytorch-cifar-models model.model_name=cifar10_resnet20 unlearner=neggradplus dataset.save_path=./data output_dir=./artifacts/models
-# python src/unlearning/main.py dataset=cifar10 model=torchhub model.repo_path=chenyaofo/pytorch-cifar-models model.model_name=cifar10_resnet20 unlearner=neggrad dataset.save_path=./data output_dir=./artifacts/models
