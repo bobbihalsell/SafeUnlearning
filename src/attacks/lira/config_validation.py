@@ -1,9 +1,17 @@
+from typing import Dict, Any
 from cfg_validator import InputValidator
 
 
 class LiRAValidator(InputValidator):
-    """ Validator specifically for unlearning configurations."""
-    def __init__(self, config):
+    """Validator for LiRA configurations."""
+    
+    def __init__(self, config: Dict[str, Any]):
+        """Initialize the LiRA validator with configuration parameters.
+        
+        Args:
+            config: Configuration dictionary containing all necessary parameters
+            for LiRA attack setup.
+        """
         super().__init__(config)
         self._validate_required_sections(['model', 'dataset', 'trainer',
                                           'unlearner', 'attack'])
@@ -21,7 +29,6 @@ class LiRAValidator(InputValidator):
         self._require(self.attack_file, 'num_forgets')
 
     def _validate_trainer_params(self):
-        """Validate parameters."""
         config = self.trainer_file
         self._require(config, 'evaluate', 'train_evaluate')
         cfg = self._require(config, 'cfg', 'trainer_cfg')
