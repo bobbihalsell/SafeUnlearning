@@ -1,0 +1,10 @@
+defaults:
+  - dataset: ???
+  - model: ???
+  - trainer: ???
+  - _self_
+
+experiment_name: ???
+output_dir: artifacts/train/${experiment_name}
+seed: 42
+verbose: true

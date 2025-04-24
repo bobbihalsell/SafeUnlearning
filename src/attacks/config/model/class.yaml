@@ -1,6 +1,0 @@
-load_method: class  
-class_path: ???
-class_name: ???
-original_model_ckpt_path: ???  # You must specify a path to the original model.
-unlearned_model_ckpt_path: ???
-model_kwargs:

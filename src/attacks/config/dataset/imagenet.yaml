@@ -1,9 +1,0 @@
-name: imagenet  # Options: cifar10, cifar5, cifar100, imagenet
-num_classes: 1000
-save_path: ??? # the directory filepath where the dataset should be loaded in from. 
-cfg:
-  batch_sizes:
-    retain: 64
-    forget: 64
-    val: 64
-  num_workers: 4

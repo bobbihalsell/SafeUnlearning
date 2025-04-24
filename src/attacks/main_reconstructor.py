@@ -11,7 +11,7 @@ from omegaconf.errors import MissingMandatoryValue
 import wandb
 
 from utils import set_seed, setup_device
-from unlearning.importmodel import ImportModel  #TODO: change once importmodel is refactored
+from importmodel import ImportModel
 from attacks.utils import safe_dataclass_load, SaveImage, calculate_metrics, load_from_directory
 from datasets import DATASETS_TO_PARAMS
 from attacks.config_validation import ReconstructorValidator
@@ -63,27 +63,27 @@ class ReconstructorApp(ReconstructorValidator):
         """ Initialize the correct unlearner from user specification."""
 
         loss_fn = nn.CrossEntropyLoss()
-        if self.reconstructor_name == 'ggl':
+        if self.attack_name == 'ggl':
             reconstructor = GGLReconstructor(
                 labels = self.labels,
-                lr = self.reconstructor_lr,
+                lr = self.attack_lr,
                 exp_name = self.experiment_name,
                 original_model = original_model,
                 target_model=unlearned_model, 
                 loss_fn = loss_fn,
-                **self.reconstructor_params
+                **self.attack_params
             )
 
-        elif self.reconstructor_name == 'invertgrad':
+        elif self.attack_name == 'invertgrad':
             reconstructor = InvertGradReconstructor(
                 device = self.device,
                 original_model = original_model,
                 unlearned_model = unlearned_model,
-                config = safe_dataclass_load(InvertGradConfig, self.reconstructor_params),
+                config = safe_dataclass_load(InvertGradConfig, self.attack_params),
                 seed = self.seed
             )
         else:
-            raise ValueError(f'reconstructor {self.reconstructor_name}'
+            raise ValueError(f'reconstructor {self.attack_name}'
                              ' not supported.')
         self.reconstructor = reconstructor
         return reconstructor
@@ -91,7 +91,7 @@ class ReconstructorApp(ReconstructorValidator):
 
 
     def save_results(self):
-        saver = SaveImage(self.reconstructor_name,
+        saver = SaveImage(self.attack_name,
                           self.seed,
                           self.experiment_name,
                           self.image_mean,
@@ -109,9 +109,9 @@ class ReconstructorApp(ReconstructorValidator):
 
         # Step 3: Initialize wandb
         if self.wandb_enabled:
-            config = self.reconstructor_params.copy()
-            config['type'] = self.reconstructor_name
-            config['reconstructor_lr'] = self.reconstructor_lr
+            config = self.attack_params.copy()
+            config['type'] = self.attack_name
+            config['reconstructor_lr'] = self.attack_lr
             config.update(self.extra_config)
 
             if self.run_id is None:
@@ -132,15 +132,15 @@ class ReconstructorApp(ReconstructorValidator):
         print('Reconstructor initialized')
 
         start_time = time.time()
-        if self.reconstructor_name == 'ggl':
+        if self.attack_name == 'ggl':
             z_res, reconstruction, losses = reconstructor.reconstruct(**self.unlearner_params)
-        elif self.reconstructor_name == 'invertgrad':
+        elif self.attack_name == 'invertgrad':
             reconstruction, losses = reconstructor.reconstruct(labels = self.labels,
-                                                               num_images = self.reconstructor_params['num_images'],
+                                                               num_images = self.attack_params['num_images'],
                                                             image_size= self.image_size,
                                                             image_mean= self.image_mean,
                                                             image_std=self.image_std,
-                                                            lr= self.reconstructor_lr,
+                                                            lr= self.attack_lr,
                                                             verbose=self.verbose)
         total_time = time.time() - start_time
 
@@ -183,8 +183,8 @@ class ReconstructorApp(ReconstructorValidator):
             wandb.finish()
         
 @hydra.main(version_base=None,
-            config_path="config",
-            config_name="config")
+            config_path="../../configs",
+            config_name="attacks")
 def main(cfg: DictConfig):
     # Print the config for the user first
     print('============ Run Configuration ============')

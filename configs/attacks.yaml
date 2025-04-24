@@ -1,0 +1,12 @@
+defaults:
+  - dataset: ???
+  - model: ???
+  - attack: ???
+  - trainer:
+  - unlearner:
+  - _self_
+
+experiment_name: ???
+output_dir: artifacts/attacks/${experiment_name}
+seed: 42
+verbose: true

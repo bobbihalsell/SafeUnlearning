@@ -1,0 +1,12 @@
+name: cifar10
+num_classes: 10
+save_path: ./datatest
+val_ratio: 0.05
+forget_ratio: 0.1
+background_ratio: 0.1
+cfg:
+  batch_sizes:
+    retain: 64
+    forget: 64
+    val: 64
+  num_workers: 4

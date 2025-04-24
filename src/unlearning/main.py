@@ -183,8 +183,8 @@ class UnlearnApp(UnlearningValidator):
 
 
 @hydra.main(version_base=None,
-            config_path="config",
-            config_name="config")
+            config_path="../../configs",
+            config_name="unlearn")
 def main(cfg: DictConfig):
     # Print the config for the user first
     print('============ Run Configuration ============')
@@ -197,7 +197,7 @@ def main(cfg: DictConfig):
             f'{missing_keys}. \n'
             'Hint: python file.py key=value sets the appropriate value.')
     app = UnlearnApp(cfg)
-    if app.wandb_enabled is not None:
+    if app.wandb_enabled:
         wandb.init(
             project=app.project_name,
             id=app.run_id,
