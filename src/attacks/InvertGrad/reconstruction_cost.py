@@ -112,7 +112,7 @@ def reconstruction_costs(gradients,
                 pnorm[1] += input_gradient[i].pow(2).sum() * weights[i]
             elif cost_fn == 'simlocal':
                 costs += (
-                    1 - torch.nn.functional.cosine_similarity(
+                    1 - F.cosine_similarity(
                         trial_gradient[i].flatten(),
                         input_gradient[i].flatten(),
                         dim=0,

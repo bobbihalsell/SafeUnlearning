@@ -1,7 +1,0 @@
-name: lira
-num_splits: 32
-num_forgets: 10
-
-# cfg:
-#   num_splits: 32
-#   num_forgets: 10

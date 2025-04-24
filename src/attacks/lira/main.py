@@ -111,8 +111,8 @@ class LiRAApp(LiRAValidator):
 
 
 @hydra.main(version_base=None,
-            config_path="config",
-            config_name="config")
+            config_path="../../../configs",
+            config_name="attacks")
 def main(cfg: DictConfig):
     # Print the config for the user first
     print('============ Run Configuration ============')
