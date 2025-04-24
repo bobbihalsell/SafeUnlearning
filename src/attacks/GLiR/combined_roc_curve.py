@@ -3,6 +3,19 @@ import json
 import matplotlib.pyplot as plt
 
 def load_roc_data(directory):
+    """
+    Load all ROC data stored in 'roc_data.json' files within a directory tree.
+
+    This function searches recursively under the given directory for files named
+    'roc_data.json', loads them, and aggregates their contents.
+
+    Args:
+        directory (str): Path to the root directory to search for ROC JSON files.
+
+    Returns:
+        List[dict]: A list of dictionaries, each containing ROC data with keys like
+                    'fpr', 'tpr', 'auc', and 'label'.
+    """
     results = []
     for root, _, files in os.walk(directory):
         for file in files:
@@ -13,6 +26,20 @@ def load_roc_data(directory):
     return results
 
 def plot_all_rocs(roc_data_list, savepath=None):
+    """
+    Plot multiple ROC curves on a single plot and optionally save it.
+
+    Each curve corresponds to one item in the provided ROC data list. Curves include
+    AUC scores in their labels. A diagonal reference line is also included.
+
+    Args:
+        roc_data_list (List[dict]): A list of ROC data dictionaries, each containing
+                                    'fpr', 'tpr', 'auc', and 'label'.
+        savepath (Optional[str]): Directory to save the plot. If None, the plot is not saved.
+
+    Returns:
+        None
+    """
     plt.figure(figsize=(10, 6))
     for d in roc_data_list:
         plt.plot(d["fpr"], d["tpr"], lw=2, label=f'{d["label"]} (AUC = {d["auc"]:.2f})')

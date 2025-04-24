@@ -7,9 +7,25 @@ import os
 
 class RobustImageFolder(ImageFolder):
     def __init__(self, root, transform=None):
+        """
+        Initializes the dataset from the root directory.
+
+        Args:
+            root (str): Root directory path where images are stored in subdirectories by class.
+            transform (callable, optional): A function/transform to apply to the images.
+        """
         super().__init__(root, transform)
 
     def __getitem__(self, index):
+        """
+        Retrieves the image and label at the specified index, skipping corrupted images.
+
+        Args:
+            index (int): Index of the image to retrieve.
+
+        Returns:
+            tuple: (transformed image, target class index)
+        """
         path, target = self.samples[index]
 
         try:
@@ -27,10 +43,21 @@ class RobustImageFolder(ImageFolder):
         return sample, target
 
     def find_classes(self, directory: Union[str, Path]):
-        """Finds the class folders in a dataset.
-
+        """
+        Finds the class folders in a dataset.
         Override of the default ImageFolder find_classes method to literally
         transcribe folder names into labels.
+        Args:
+            directory (str or Path): Root directory path.
+
+        Returns:
+            tuple: (classes, class_to_idx)
+                - classes (List[str]): Sorted list of class names.
+                - class_to_idx (Dict[str, int]): Mapping from class name to integer label.
+
+        Raises:
+            FileNotFoundError: If no class folders are found.
+            RuntimeError: If folder names are not valid integers.
         """
         classes = sorted(entry.name for entry in
                          os.scandir(directory) if

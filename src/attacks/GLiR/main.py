@@ -15,8 +15,17 @@ from sklearn.metrics import roc_curve, auc
 
 class GLiRApp(GLiRValidator):
     """
-    Implement the white-box mia described in 
-    https://arxiv.org/abs/2306.07273
+    GLiRApp orchestrates the full pipeline for running the GLiR white-box 
+    membership inference attack, as described in:
+    "Gradient Likelihood Ratio: A Test Statistic for Membership Inference" 
+    (https://arxiv.org/abs/2306.07273).
+
+    This includes data preparation, model loading, baseline gradient 
+    distribution construction, and executing the attack on query points.
+
+    Args:
+        config (DictConfig): Hydra/OmegaConf configuration object 
+                             containing all required parameters.
     """
     def __init__(self, config: DictConfig):
         # Perform input validation first
@@ -38,6 +47,11 @@ class GLiRApp(GLiRValidator):
         self.plot_combined_roc = config["plot_combined_roc"]
 
     def initialise_data(self):
+        """
+        Initializes and prepares the dataset for attack:
+        - Loads background data for baseline creation.
+        - Loads query points for testing membership inference.
+        """
         self.data = DataHandler(
             self.dataset_name,
             self.dataset_save_dir,
@@ -49,6 +63,10 @@ class GLiRApp(GLiRValidator):
         return
 
     def initialise_attack(self):
+        """
+        Loads the original and unlearned models and initializes the GLiR 
+        attack object using both models.
+        """
         original_import = ImportModel(self.load_method,
                                       self.model_name, 
                                       self.num_classes,
@@ -75,6 +93,10 @@ class GLiRApp(GLiRValidator):
                         )
         
     def initialise_baseline(self):
+        """
+        Uses background data to compute the baseline gradient distribution 
+        (mean and covariance) for the likelihood ratio test.
+        """
         print(f'creating baseline with method: {self.method}')
         self.attack.establish_baseline(self.background)
         return
@@ -178,6 +200,14 @@ class GLiRApp(GLiRValidator):
 
 
     def run(self):
+        """
+        Runs the complete GLiR attack pipeline in sequence:
+        1. Data preparation
+        2. Model import and attack setup
+        3. Baseline gradient computation
+        4. Attack execution and visualization
+        
+        """
         print("Peparing query points and background points...")
         self.initialise_data()
         

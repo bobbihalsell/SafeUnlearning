@@ -2,7 +2,15 @@ from cfg_validator import InputValidator
 
 
 class UnlearningValidator(InputValidator):
-    """ Validator specifically for unlearning configurations."""
+    """ 
+    Validator specifically for unlearning configurations.
+    Inherits from `InputValidator` and ensures that the configuration file contains
+    all necessary fields related to the model, dataset, and unlearning method.
+
+    Attributes:
+        wandb_config (Optional[dict]): Weights & Biases configuration, if provided.
+    
+    """
     def __init__(self, config):
         super().__init__(config)
         self._validate_required_sections(['model', 'dataset', 'unlearner'])

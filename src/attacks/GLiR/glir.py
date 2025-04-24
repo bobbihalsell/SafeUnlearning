@@ -95,6 +95,9 @@ class GLiR:
     def establish_baseline(self, points):
         """
         Establish baseline distributions using points from a specific set
+        Args:
+        points (list of tuples): List of (x, y) data points used to 
+        establish the baseline.
         """        
         print(f"Establishing baseline using {len(points)} points with method '{self.method}'")
         # Standard approach for non-separate methods
@@ -140,6 +143,17 @@ class GLiR:
             print("Standard inverse successful")
 
     def compute_feature_vector(self, x, y):
+        """
+        Compute a feature vector for a single data point using gradients 
+        from the before and after models.
+
+        Args:
+            x (Tensor): Input sample.
+            y (Tensor): Corresponding label.
+
+        Returns:
+            Tensor: A feature vector (e.g., difference or ratio of gradients).
+        """
         grad_before = self.compute_gradient(self.model_before, x, y)
         grad_after = self.compute_gradient(self.model_after, x, y)
         grad_diff = grad_before - grad_after
@@ -159,6 +173,12 @@ class GLiR:
     def compute_test_statistic(self, x, y):
         """
         Compute test statistic for a data point
+        Args:
+            x (Tensor): Input sample.
+            y (Tensor): Corresponding label.
+
+        Returns:
+            float: Likelihood ratio test statistic.
         """
         feature_vector = self.compute_feature_vector(x, y)
         
@@ -182,6 +202,11 @@ class GLiR:
     def compute_p_value(self, lrt_statistic):
         """
         Compute the p-value using the chi-squared distribution
+        Args:
+            lrt_statistic (float): Likelihood ratio test statistic.
+
+        Returns:
+            float: Corresponding p-value.
         """
         lrt_value = lrt_statistic.item()
         self.df = self.sigma_inv.shape[0]
@@ -192,7 +217,17 @@ class GLiR:
 
     def classify_point(self, x, y, threshold, teststatistic=False):
         """
-        Classify a point as in forget set or not using statistical deviation
+        Classify a data point as forgotten or retained based on its 
+        p-value and a significance threshold.
+
+        Args:
+            x (Tensor): Input sample.
+            y (Tensor): Corresponding label.
+            threshold (float): Significance level for classification.
+            teststatistic (bool): Whether to return test statistic as well.
+
+        Returns:
+            tuple: (is_forgotten, p_value) or (is_forgotten, p_value, lrt_statistic)
         """
         if not hasattr(self, 'mean_vector'):
             raise ValueError("Must establish baseline before classification")
@@ -238,6 +273,11 @@ class GLiR:
     def plot_roc_curve(self, classifications, labels, savepath=None):
         """
         Plots the ROC curve by varying the classification threshold.
+
+        Args:
+            classifications (list): Predicted classifications (probabilities or scores).
+            labels (list): Ground-truth binary labels (0 or 1).
+            savepath (str, optional): Path to save the ROC plot.
         """
         # Calculate the FPR and TPR for various thresholds
         fpr, tpr, thresholds = roc_curve(labels, classifications)

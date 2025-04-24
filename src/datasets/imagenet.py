@@ -6,6 +6,9 @@ IMAGENET_STD = (0.229, 0.224, 0.225)
 
 
 def get_imagenet_train_transform():
+    """
+    Returns the standard preprocessing transform for ImageNet training images
+    """
     return transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
@@ -14,6 +17,9 @@ def get_imagenet_train_transform():
 
 
 def get_imagenet_test_transform():
+    """
+    Returns the standard preprocessing transform for ImageNet testing images
+    """
     return transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),

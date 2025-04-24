@@ -19,6 +19,10 @@ class LiRAApp(LiRAValidator):
 
     This class handles the complete pipeline for LiRA including data splitting,
     shadow models training, unlearning, and score computation.
+    This attack was originally introduced in:
+    https://ieeexplore.ieee.org/document/9833649
+    U-LiRA adapts this approach for the machine unlearning setting.The unlearning variant is based on:
+    https://arxiv.org/abs/2302.09880
 
     Args:
         config (DictConfig): Configuration object containing all experiment parameters.
@@ -29,7 +33,6 @@ class LiRAApp(LiRAValidator):
         seed (int): Random seed for reproducibility.
         output_dir (Path): Directory for storing experiment outputs.
     """
-
     def __init__(self, config: DictConfig):
         # Perform input validation first
         self.config = config
@@ -106,8 +109,11 @@ class LiRAApp(LiRAValidator):
         1. Generating data splits
         2. Training original models
         3. Unlearning models
-        4. Computing LiRA scores
+        4. Computing LiRA scores as described in https://arxiv.org/abs/2410.01276
+   
         """
+
+
         print('Generating splits...')
         generate_splits(
             self.dataset_name,
