@@ -4,9 +4,9 @@ import numpy as np
 # import os
 import tempfile
 from unittest.mock import MagicMock, patch
-
-# import sys
-# sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
+import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 
 from attacks.GGL.reconstructor import GGLReconstructor
 
