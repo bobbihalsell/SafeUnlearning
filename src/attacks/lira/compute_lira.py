@@ -12,6 +12,13 @@ from datasets.load_datasets import load_train_val_test_datasets
 
 
 class NeverAndForgotten:
+    """A class to store indices of samples that were in test and forget set.
+
+    Args:
+        never: List of tuples containing (split_index, forget_index) for test samples.
+        forgotten: List of tuples containing (split_index, forget_index) for forgotten samples.
+    """
+
     def __init__(
         self,
         never: Optional[List[Tuple[int, int]]] = None,
@@ -32,6 +39,13 @@ class NeverAndForgotten:
 
 
 class ProbasNeverAndForgotten:
+    """A class to store probabilities for test and forgotten samples.
+
+    Args:
+        never: List of probabilities for test samples.
+        forgotten: List of probabilities for forgotten samples.
+    """
+
     def __init__(
         self,
         never: Optional[List[float]] = None,
@@ -56,6 +70,18 @@ def predicted_membership_probability(
     never_mean: float,
     never_sigma: float,
 ) -> float:
+    """Computes the membership probability using gaussian distributions.
+
+    Args:
+        z: The input value to compute probability for.
+        forget_mean: Mean of the forgotten samples distribution.
+        forget_sigma: Standard deviation of the forgotten samples distribution.
+        never_mean: Mean of the test samples distribution.
+        never_sigma: Standard deviation of the test samples distribution.
+
+    Returns:
+        float: The computed membership probability.
+    """
     numerator = norm.pdf(z, forget_mean, forget_sigma)
     denominator = norm.pdf(z, forget_mean, forget_sigma) + norm.pdf(
         z, never_mean, never_sigma
@@ -66,23 +92,22 @@ def predicted_membership_probability(
 def compute_membership_probabilities(
     id_to_correct_probas: Dict[int, ProbasNeverAndForgotten],
 ) -> Dict[int, List[float]]:
+    """Computes membership probabilities for all samples in forget set.
+
+    Args:
+        id_to_correct_probas: Dictionary mapping sample IDs to their probabilities.
+
+    Returns:
+        Dictionary mapping sample IDs to their membership probabilities.
+    """
     ndx_to_membership = defaultdict(list)
 
-    # For every sample ndx in the dataset, we have computed the
-    # confidence of the correct label
     for ndx in id_to_correct_probas:
-        # Obtain the mean (mu1) and standard deviation (sigma1) for
-        # the 'forgotten' vector (A)
         forget_mean = np.mean(id_to_correct_probas[ndx].forgotten)
         forget_std = np.std(id_to_correct_probas[ndx].forgotten)
-
-        # Obtain the mean (mu0) and standard deviation (sigma0) for the
-        # 'never' vector (B)
         never_mean = np.mean(id_to_correct_probas[ndx].never)
         never_std = np.std(id_to_correct_probas[ndx].never)
 
-        # For each predicted probability in the 'forgotten' vector (A),
-        # compute the membership probability
         for proba in id_to_correct_probas[ndx].forgotten:
             membership_prob = predicted_membership_probability(
                 proba, forget_mean, forget_std, never_mean, never_std
@@ -92,8 +117,20 @@ def compute_membership_probabilities(
 
 
 def extract_correct_probabilities(
-    probas: Array, targets: Array, indices: Dict[int, NeverAndForgotten]
+    probas: Array,
+    targets: Array,
+    indices: Dict[int, NeverAndForgotten]
 ) -> Dict[int, ProbasNeverAndForgotten]:
+    """Extracts correct class probabilities for test seen and forgotten samples.
+
+    Args:
+        probas: Array of probabilities.
+        targets: Array of target labels.
+        indices: Dictionary mapping sample IDs to their never/forgotten status.
+
+    Returns:
+        Dictionary mapping sample IDs to their correct class probabilities.
+    """
     indices_to_correct_probas_nvr_and_fgtn = {}
     for ndx in sorted(indices):
         indices_to_correct_probas_nvr_and_fgtn[ndx] = ProbasNeverAndForgotten()
@@ -114,6 +151,15 @@ def extract_correct_probabilities(
 
 
 def reconstruct_split_and_forget(root: Path, num_splits: int) -> Array:
+    """Reconstructs the split and forget data from saved files.
+
+    Args:
+        root: Root directory containing the splits.
+        num_splits: Number of splits used for the attack.
+
+    Returns:
+        Array containing reconstructed split and forget data.
+    """
     reconstructed = []
     for split_ndx in range(num_splits):
         forgets = root / "splits" / str(split_ndx) / "forgets.npy"
@@ -129,6 +175,18 @@ def get_preds(
     num_splits: int,
     num_forgets: int,
 ) -> Array:
+    """Retrieves probabilities from saved files.
+
+    Args:
+        root: Root directory containing probabilities.
+        model: Model name.
+        unlearner: Unlearning method used.
+        num_splits: Number of splits.
+        num_forgets: Number of forgets per split.
+
+    Returns:
+        Array containing all probabilities.
+    """
     storage = []
     for split_ndx in range(num_splits):
         forgets = []
@@ -151,6 +209,20 @@ def lira_score(
     save_path: str,
     output_dir: Path,
 ) -> None:
+    """Computes LiRA scores for predicting membership inference.
+
+    Args:
+        dataset_name: Name of the dataset.
+        model_name: Name of the model.
+        unlearner: Name of the unlearning method.
+        num_splits: Number of splits.
+        num_forgets: Number of forgets per split.
+        save_path: Path to load data from.
+        output_dir: Directory to store output files.
+
+    Raises:
+        ValueError: If a forgotten index is not found in test indices.
+    """
     test_indices = np.load(output_dir / "splits" / "test_matrices.npy")
 
     train, _, test = load_train_val_test_datasets(dataset_name, 1, 0, 

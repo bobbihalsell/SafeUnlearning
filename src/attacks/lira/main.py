@@ -8,13 +8,28 @@ from omegaconf.errors import MissingMandatoryValue
 
 from compute_lira import lira_score
 from config_validation import LiRAValidator
-from generate_predictions import  generate_predictions
+from generate_predictions import generate_predictions
 from generate_splits import generate_splits
 from train_lira import train_models
 from utils import set_seed, setup_device
 
 
 class LiRAApp(LiRAValidator):
+    """Main application class for running LiRA (Likelihood Ratio Attack).
+
+    This class handles the complete pipeline for LiRA including data splitting,
+    shadow models training, unlearning, and score computation.
+
+    Args:
+        config (DictConfig): Configuration object containing all experiment parameters.
+
+    Attributes:
+        config (DictConfig): Stored configuration object.
+        device (str): Device to run computations on ('cuda' or 'cpu').
+        seed (int): Random seed for reproducibility.
+        output_dir (Path): Directory for storing experiment outputs.
+    """
+
     def __init__(self, config: DictConfig):
         # Perform input validation first
         self.config = config
@@ -29,6 +44,7 @@ class LiRAApp(LiRAValidator):
         os.makedirs(self.output_dir, exist_ok=True)
             
     def train_original_models(self):
+        """Trains the original shadow models and stores their predictions."""
         original_config = deepcopy(self.config)
         original_config["unlearner"] = original_config["trainer"]
 
@@ -58,6 +74,7 @@ class LiRAApp(LiRAValidator):
         )
 
     def unlearn_models(self):
+        """Performs shadow model unlearning and stores their predictions."""
         train_models(
             self.config,
             self.model_name,
@@ -83,6 +100,14 @@ class LiRAApp(LiRAValidator):
         )
 
     def run(self):
+        """Executes the complete LiRA experiment pipeline.
+
+        This method orchestrates the entire experiment process including:
+        1. Generating data splits
+        2. Training original models
+        3. Unlearning models
+        4. Computing LiRA scores
+        """
         print('Generating splits...')
         generate_splits(
             self.dataset_name,
@@ -98,7 +123,7 @@ class LiRAApp(LiRAValidator):
         self.train_original_models()
         print('Unlearning models...')
         self.unlearn_models()
-        print('Generating predictions and LIRA scores...')
+        print('Generating LiRA scores...')
         lira_score(
             self.dataset_name,
             self.model_name,
