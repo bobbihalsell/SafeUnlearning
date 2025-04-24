@@ -1,1 +1,1 @@
-python src/unlearning/main.py model=torchvision model.model_name=resnet18 unlearner=neggrad dataset=cifar10 dataset.save_path=./data output_dir=artifacts/models +wandb_cfg=default wandb_cfg.run_id=resnet18-cifar10 unlearner.cfg.momentum=0.9 wandb_cfg.run_id=resnet18-cifar10-neggrad
+python src/unlearning/main.py model=torchvision model.model_name=resnet18 unlearner=neggrad dataset=cifar10 dataset.save_path=./data output_dir=artifacts/models +wandb=default wandb.run_id=resnet18-cifar10 unlearner.cfg.momentum=0.9 wandb.run_id=resnet18-cifar10-neggrad

@@ -72,7 +72,7 @@ class TestTrainApp(unittest.TestCase):
                 'epochs': 2,
                 'weight_decay': 0.0001
             },
-            'wandb_cfg': {
+            'wandb': {
                 'run_id': 'test-run',
                 'project_name': 'test-project'
             }
