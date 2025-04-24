@@ -1,12 +1,11 @@
 import os
 import unittest
 import tempfile
-from attacks.config_validation import ReconstructorValidator
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 
 
-
+from attacks.config_validation import ReconstructorValidator
 from cfg_validator import ConfigError
 
 class TestGGLValidation(unittest.TestCase):
