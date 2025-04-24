@@ -1,0 +1,1 @@
+python src/datasets/main.py forget=filename forget.forget_filenames="[n01443537_0.JPEG, n01443537_1.JPEG, n01641577_4.JPEG, rubbish.JPEG]" dataset=imagenet dataset.load_method=local dataset.init_path=./trial-local_2 dataset.save_path=./imagenet experiment_name=test

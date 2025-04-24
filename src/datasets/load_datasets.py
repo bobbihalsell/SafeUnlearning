@@ -1,114 +1,113 @@
 from torch.utils.data import Subset
 import torchvision.datasets as datasets
 from torchvision.transforms import ToPILImage
-from train.image_loading import RobustImageFolder
+from PIL import Image
 import numpy as np
+import shutil
 import os
 import torch
 import torchvision
 
 
-def _get_stratified_split(dataset: torch.utils.data.Dataset,
-                          proportion: float):
-    """ Get a stratified split of a dataset into 2 subsets.
-
-    This will retain class distributions.
-
-    Works with both regular Datasets with 'targets' attribute
-    and Subset objects.
+def get_filenames_and_labels(dataset_dir: str):
     """
-    if not 0 <= proportion <= 1:
-        raise ValueError(
-            f"Proportion must be between 0 and 1, got {proportion}"
-        )
+    Traverse ImageFolder-style directory and collect image paths and labels.
 
-    if hasattr(dataset, 'targets'):
-        # Standard dataset with targets attribute
-        targets = np.array(dataset.targets)
-    elif isinstance(dataset, torch.utils.data.Subset):
-        # Handle Subset objects
-        # Method 1: Extract from the original dataset if indices match
-        if hasattr(dataset.dataset, 'targets'):
-            if isinstance(dataset.dataset.targets, torch.Tensor):
-                # For tensor targets, we can use indexing
-                targets = np.array(dataset.dataset.targets[dataset.indices])
-            else:
-                # For list targets, we need to extract manually
-                targets = np.array([dataset.dataset.targets[i]
-                                    for i in dataset.indices])
-        else:
-            # Method 2: Extract targets by iterating through the subset
-            targets = []
-            for i in range(len(dataset)):
-                _, label = dataset[i]
-                targets.append(label)
-            targets = np.array(targets)
-    else:
-        raise TypeError(
-            "Input must be a Dataset with 'targets' attribute or a Subset"
-        )
+    The class folders must correspond to the label index of the class.
+    E.g.
+        train/ <-- dataset_dir
+        ├── 0/
+        ├── 1/
+        ...
 
-    unique_classes = np.unique(targets)
-    indices = []
-    remainder_indices = []
+    Args:
+        dataset_dir (str): The parent directory of the class folders.
 
-    for cls in unique_classes:
-        cls_indices = np.where(targets == cls)[0]
+    """
+    image_paths = []
+    labels = []
+    for class_name in sorted(os.listdir(dataset_dir)):
+        class_dir = os.path.join(dataset_dir, class_name)
+        if not os.path.isdir(class_dir):
+            # Skip over accidental files left at the class folder level
+            continue
+        for fname in sorted(os.listdir(class_dir)):
+            fpath = os.path.join(class_dir, fname)
+            try:
+                with Image.open(fpath) as img:
+                    img.verify()  # Verify that it's an image
+                image_paths.append(fpath)
+                labels.append(int(class_name))
+            except Exception:
+                print(f'Detected invalid image at {fpath}. Skipping...')
+                continue
+
+    return image_paths, labels
+
+
+def stratified_split_filenames(filenames, labels, proportion):
+    """
+    Perform stratified sampling on image filenames.
+    """
+    filenames = np.array(filenames)
+    labels = np.array(labels)
+
+    selected, remainder = [], []
+    for cls in np.unique(labels):
+        cls_indices = np.where(labels == cls)[0]
         np.random.shuffle(cls_indices)
-        num_samples = int(len(cls_indices) * proportion)
-
-        indices.extend(cls_indices[:num_samples])
-        remainder_indices.extend(cls_indices[num_samples:])
-
-    # For Subset, we need to map through the original indices
-    if isinstance(dataset, torch.utils.data.Subset):
-        # Map the indices through the subset's indices
-        mapped_indices = [dataset.indices[i] for i in indices]
-        mapped_remainder = [dataset.indices[i] for i in remainder_indices]
-
-        # Create new Subsets from the original dataset, not the subset
-        return (Subset(dataset.dataset, mapped_indices),
-                Subset(dataset.dataset, mapped_remainder))
-    else:
-        # For regular datasets, proceed as before
-        return Subset(dataset, indices), Subset(dataset, remainder_indices)
+        split = int(len(cls_indices) * proportion)
+        selected.extend(cls_indices[:split])
+        remainder.extend(cls_indices[split:])
+    return filenames[selected], filenames[remainder]
 
 
-def load_train_val_test_datasets(dataset_name: str,
-                                 proportion: float,
-                                 val_ratio: float,
-                                 dataset_load_dir: str,
-                                 dataset_save_dir: str = "",
-                                 transform: torchvision.transforms = None):
-    """ Load, optionally filter, and save dataset in ImageFolder format. """
+def create_symlinks(file_list, split_dir):
+    for src in file_list:
+        label = os.path.basename(os.path.dirname(src))
+        dst_dir = os.path.join(split_dir, label)
+        os.makedirs(dst_dir, exist_ok=True)
+        dst = os.path.join(dst_dir, os.path.basename(src))
+        if not os.path.exists(dst):
+            os.symlink(os.path.abspath(src), dst)
 
+
+def download_cifar_datasets(dataset_name: str,
+                            download_root: str,
+                            save_dir: str,
+                            transform: torchvision.transforms = None):
+    """ Load and save CIFAR datasets in ImageFolder format. """
     # For CIFAR datasets, download if necessary and filter
     if dataset_name == 'cifar10':
-        raw_train = datasets.CIFAR10(root=dataset_load_dir,
+        raw_train = datasets.CIFAR10(root=download_root,
                                      train=True,
                                      download=True,
                                      transform=transform)
-        raw_test = datasets.CIFAR10(root=dataset_load_dir,
+        raw_test = datasets.CIFAR10(root=download_root,
                                     train=False,
                                     download=True,
                                     transform=transform)
 
+        save_cifar_as_imagefolder(raw_train, raw_test, download_root, save_dir)
+
     elif dataset_name == 'cifar100':
-        raw_train = datasets.CIFAR100(root=dataset_load_dir,
+        raw_train = datasets.CIFAR100(root=download_root,
                                       train=True,
                                       download=True,
                                       transform=transform)
-        raw_test = datasets.CIFAR100(root=dataset_load_dir,
+        raw_test = datasets.CIFAR100(root=download_root,
                                      train=False,
                                      download=True,
                                      transform=transform)
 
+        save_cifar_as_imagefolder(raw_train, raw_test, download_root, save_dir)
+
     elif dataset_name == 'cifar5':
-        raw_train = datasets.CIFAR10(root=dataset_load_dir,
+        raw_train = datasets.CIFAR10(root=download_root,
                                      train=True,
                                      download=True,
                                      transform=transform)
-        raw_test = datasets.CIFAR10(root=dataset_load_dir,
+        raw_test = datasets.CIFAR10(root=download_root,
                                     train=False,
                                     download=True,
                                     transform=transform)
@@ -121,61 +120,37 @@ def load_train_val_test_datasets(dataset_name: str,
         raw_train = Subset(raw_train, train_indices)
         raw_test = Subset(raw_test, test_indices)
 
-    elif dataset_name == 'imagenet':
-        # Load in the dataset for filtering by proportion
-        raw_train = RobustImageFolder(
-            root=os.path.join(dataset_load_dir, "train"),
-            transform=transform
-        )
-        # If val path does not exist, then do not save a test set
-        if os.path.exists(os.path.join(dataset_load_dir, "val")):
-            raw_test = RobustImageFolder(
-                root=os.path.join(dataset_load_dir, "val"),
-                transform=transform
-            )
-        else:
-            raw_test = None
+        save_cifar_as_imagefolder(raw_train, raw_test, download_root, save_dir)
 
     else:
         raise Exception(f'{dataset_name} is an unsupported dataset.')
 
-    if proportion < 1:
-        raw_train, _ = _get_stratified_split(raw_train, proportion)
-        if raw_test is not None:
-            raw_test, _ = _get_stratified_split(raw_test, proportion=1)
 
-    # Perform train/val split
-    raw_train_subset, raw_val_subset = _get_stratified_split(raw_train,
-                                                             1 - val_ratio)
+def save_cifar_as_imagefolder(raw_train,
+                              raw_test,
+                              download_root,
+                              dataset_save_dir):
+    """ Save a CIFAR dataset as ImageFolder.
 
-    # Save datasets to ImageFolder format
-    if dataset_save_dir:
-        _save_as_imagefolder(raw_train_subset,
-                            root_path=dataset_save_dir,
-                            name='train')
-        _save_as_imagefolder(raw_val_subset,
-                            root_path=dataset_save_dir,
-                            name='val')
-        if raw_test is not None:
-            _save_as_imagefolder(raw_test,
-                                root_path=dataset_save_dir,
-                                name='test')
-
-    return raw_train_subset, raw_val_subset, raw_test
-
-
-def _save_as_imagefolder(dataset, root_path, name="train"):
+    Create unique file names for each image file.
     """
-    Converts a dataset into ImageFolder-style format.
-    Saves images under: root_path/name/class_x/*.png
-    """
+    if os.path.exists(dataset_save_dir):
+        print("Clearing existing dataset "
+              f"save directory: {dataset_save_dir}")
+        shutil.rmtree(dataset_save_dir)
     to_pil = ToPILImage()
-    for idx, (image, label) in enumerate(dataset):
-        class_dir = os.path.join(root_path, name, str(label))
-        os.makedirs(class_dir, exist_ok=True)
+    os.makedirs(download_root, exist_ok=True)
+    os.makedirs(dataset_save_dir, exist_ok=True)
 
-        # If image is a tensor, convert to PIL
-        if isinstance(image, torch.Tensor):
-            image = to_pil(image)
-
-        image.save(os.path.join(class_dir, f"{idx}.png"))
+    counter = 0
+    for split_name, dataset in [("train", raw_train), ("test", raw_test)]:
+        for img, label in dataset:
+            if isinstance(img, torch.Tensor):
+                img = to_pil(img)
+            # Path: <dataset_save_dir>/<split_name>/<class>/
+            class_dir = os.path.join(dataset_save_dir, split_name, str(label))
+            os.makedirs(class_dir, exist_ok=True)
+            img.save(os.path.join(class_dir, f"{counter:05}.png"))
+            counter += 1
+    print(f"Saved {counter} images to {dataset_save_dir} "
+          "in ImageFolder format.")

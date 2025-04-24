@@ -1,1 +1,0 @@
-python src/datasets/main.py forget=class dataset=imagenet forget.forget_idx="[1]" dataset.init_dir=./tiny-imagenet-200 dataset.save_dir=./imagenet

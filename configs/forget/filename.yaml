@@ -1,0 +1,3 @@
+method: filename
+forget_filenames: ???  # filenames to forget e.g. [50000.jpg, 01231.jpg]
+retain_filenames:  # Leave empty to use all remaining filenames as the retain set
