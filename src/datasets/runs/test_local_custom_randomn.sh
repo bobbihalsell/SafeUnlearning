@@ -1,0 +1,1 @@
+python src/datasets/main.py forget=random_n forget.retain_size=15 forget.forget_size=10 dataset=imagenet dataset.load_method=local dataset.init_path=./trial-local_2 dataset.save_path=./imagenet experiment_name=test
