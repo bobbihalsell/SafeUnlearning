@@ -161,15 +161,15 @@ def run_exp(cfg: Config):
              f"reconstructor.cfg.recon_iterations={iterations}",
              f"reconstructor.cfg.init={cfg.init}",
              f"experiment_name={experiment_name}",
-             "+wandb_cfg=default",
-             f"wandb_cfg.extra_config.unlearning_method={cfg.method}",
-             f"wandb_cfg.extra_config.epochs={cfg.epochs}",
-             f"+wandb_cfg.extra_config.seed={cfg.seed}",
-             f"+wandb_cfg.extra_config.beta={cfg.beta}",
-             f"+wandb_cfg.extra_config.retain={cfg.retain}",
-             f"+wandb_cfg.extra_config.min_epochs={cfg.min_epochs}",
-             f"+wandb_cfg.extra_config.gamma={cfg.gamma}",
-             f"+wandb_cfg.extra_config.alpha={cfg.alpha}"
+             "+wandb=default",
+             f"wandb.extra_config.unlearning_method={cfg.method}",
+             f"wandb.extra_config.epochs={cfg.epochs}",
+             f"+wandb.extra_config.seed={cfg.seed}",
+             f"+wandb.extra_config.beta={cfg.beta}",
+             f"+wandb.extra_config.retain={cfg.retain}",
+             f"+wandb.extra_config.min_epochs={cfg.min_epochs}",
+             f"+wandb.extra_config.gamma={cfg.gamma}",
+             f"+wandb.extra_config.alpha={cfg.alpha}"
              ],
             check=True
         )

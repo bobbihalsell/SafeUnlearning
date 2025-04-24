@@ -89,7 +89,7 @@ You can override defaults and specify necessary commands from the CLI. Before tr
 
 Keys with a non-empty value have that non-empty value as a default. A default or optionally empty value can be overridden from the CLI with `path.to.key=<new_value>`.
 
-WandB is an optional but powerful add-on. To enable WandB logging during your experiment run, add on `+wandb_cfg=default` to your CLI command. 
+WandB is an optional but powerful add-on. To enable WandB logging during your experiment run, add on `+wandb=default` to your CLI command. 
 
 Note: WandB is only available for the model training, model unlearning and privacy attack mini-apps.
 
@@ -128,11 +128,11 @@ To solve this issue, you should specify `python src/unlearning/main.py unlearner
 ### `MissingMandatoryValue` error when running `main.py`.
 This is a common error you will encounter when you have not provided a necessary default value for your experiment configurations. For example, running 
 ```bash
-python src/unlearning/main.py dataset=cifar10 model=torchhub unlearner=neggradplus dataset.save_path=./data output_dir=./artifacts/models +wandb_cfg=default
+python src/unlearning/main.py dataset=cifar10 model=torchhub unlearner=neggradplus dataset.save_path=./data output_dir=./artifacts/models +wandb=default
 ```
 will yield the following error:
 ```bash
-Error executing job with overrides: ['dataset=cifar10', 'model=torchhub', 'unlearner=neggradplus', 'dataset.save_path=./data', 'output_dir=./artifacts/models', '+wandb_cfg=default']
+Error executing job with overrides: ['dataset=cifar10', 'model=torchhub', 'unlearner=neggradplus', 'dataset.save_path=./data', 'output_dir=./artifacts/models', '+wandb=default']
 Traceback (most recent call last):
   File ".../src/unlearning/main.py", line 212, in main
     raise MissingMandatoryValue(
@@ -175,7 +175,7 @@ unlearner:
     use_l2_penalty: false
     epochs: 5
     beta: 0.99
-wandb_cfg:
+wandb:
   project_name: machine_unlearning_001
   run_id: null
 
