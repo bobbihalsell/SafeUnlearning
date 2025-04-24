@@ -4,10 +4,10 @@ import numpy as np
 from PIL import Image
 import torchvision.transforms as transforms
 from unittest.mock import patch, MagicMock
-import sys
-import os 
+# import sys
+# import os 
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
+# sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 from attacks.metrics import apply_resizing, apply_normalization, psnr, mse_image_space
 
 class TestImageComparisonFunctions(unittest.TestCase):
