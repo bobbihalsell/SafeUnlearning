@@ -27,7 +27,7 @@ class TestGGLValidation(unittest.TestCase):
                     'num_workers': 4,
                 },
             },
-            'reconstructor': {
+            'attack': {
                 'type': 'ggl',
                 'lr': 0.01,
                 'unlearned_labels': [0, 1],
@@ -48,7 +48,7 @@ class TestGGLValidation(unittest.TestCase):
 
     def test_validate_required_sections(self):
         # Test if required sections are validated correctly
-        required_sections = ['model', 'dataset', 'reconstructor']
+        required_sections = ['model', 'dataset', 'attack']
         for section in required_sections:
             with self.assertRaises(ConfigError):
                 del self.config[section]
@@ -56,7 +56,7 @@ class TestGGLValidation(unittest.TestCase):
     
     def test_validate_reconstructor_params(self):
         # Test if reconstructor parameters are validated correctly
-        recon_config = self.config['reconstructor']
+        recon_config = self.config['attack']
         recon_config['type'] = 'ggl'
         validator = ReconstructorValidator(self.config)
         
@@ -77,7 +77,7 @@ class TestGGLValidation(unittest.TestCase):
         with self.assertRaises(ConfigError):
             ReconstructorValidator(self.config)
 
-        # Test with missing reconstructor name
+        # Test with missing attack name
         del recon_config['type']
         with self.assertRaises(ConfigError):
             ReconstructorValidator(self.config)
@@ -106,7 +106,7 @@ class TestInverseGradValidation(unittest.TestCase):
                     'num_workers': 4,
                 },
             },
-            'reconstructor': {
+            'attack': {
                 'type': 'invertgrad',
                 'lr': 0.01,
                 'unlearned_labels': [0, 1],
@@ -131,14 +131,14 @@ class TestInverseGradValidation(unittest.TestCase):
         }}
     def test_validate_required_sections(self):
         # Test if required sections are validated correctly
-        required_sections = ['model', 'dataset', 'reconstructor']
+        required_sections = ['model', 'dataset', 'attack']
         for section in required_sections:
             with self.assertRaises(ConfigError):
                 del self.config[section]
                 ReconstructorValidator(self.config)
     
     def test_validate_reconstructor_params(self):
-        test_config = self.config['reconstructor']
+        test_config = self.config['attack']
         test_config['type'] = 'invertgrad'
         validator = ReconstructorValidator(self.config)
 
@@ -152,27 +152,27 @@ class TestInverseGradValidation(unittest.TestCase):
 
     def test_no_labels_and_num_images(self):
         # Test if the config raises an error when both labels and num_images are None
-        self.config['reconstructor']['unlearned_labels'] = None
-        self.config['reconstructor']['num_images'] = None
+        self.config['attack']['unlearned_labels'] = None
+        self.config['attack']['num_images'] = None
         with self.assertRaises(ConfigError):
             ReconstructorValidator(self.config)
 
     def test_num_images_only(self):
-        self.config['reconstructor']['unlearned_labels'] = None
-        self.config['reconstructor']['num_images'] = 10
+        self.config['attack']['unlearned_labels'] = None
+        self.config['attack']['num_images'] = 10
         validator = ReconstructorValidator(self.config)
         self.assertEqual(validator.num_images, 10)
         self.assertIsNone(validator.labels)
 
     def test_missing_required_params(self):
         # Test if the config raises an error when required parameters are missing
-        del self.config['reconstructor']['cfg']['grad_diff_lr']
+        del self.config['attack']['cfg']['grad_diff_lr']
         with self.assertRaises(ConfigError):
             ReconstructorValidator(self.config)
 
     def test_load_labels_from_list(self):
         labels = [0, 1, 2]
-        self.config['reconstructor']['unlearned_labels'] = [0, 1, 2]
+        self.config['attack']['unlearned_labels'] = [0, 1, 2]
         validator = ReconstructorValidator(self.config)
         self.assertEqual(validator.labels, labels)
 
@@ -183,7 +183,7 @@ class TestInverseGradValidation(unittest.TestCase):
             tmp_path = tmp_file.name
 
         try:
-            self.config['reconstructor']['unlearned_labels'] = tmp_path
+            self.config['attack']['unlearned_labels'] = tmp_path
             validator = ReconstructorValidator(self.config)
             self.assertEqual(validator.labels, [0, 1, 2])
         finally:
@@ -196,7 +196,7 @@ class TestInverseGradValidation(unittest.TestCase):
             tmp_path = tmp_file.name
 
         try:
-            self.config['reconstructor']['unlearned_labels'] = tmp_path
+            self.config['attack']['unlearned_labels'] = tmp_path
             with self.assertRaises(ConfigError):
                 ReconstructorValidator(self.config)
         finally:
@@ -208,7 +208,7 @@ class TestInverseGradValidation(unittest.TestCase):
             tmp_path = tmp_file.name
 
         try:
-            self.config['reconstructor']['unlearned_labels'] = tmp_path
+            self.config['attack']['unlearned_labels'] = tmp_path
             with self.assertRaises(ConfigError):
                 ReconstructorValidator(self.config)
         finally:
@@ -216,7 +216,7 @@ class TestInverseGradValidation(unittest.TestCase):
     
     def test_load_labels_invalid_input(self):
         # Test with invalid input 
-        self.config['reconstructor']['unlearned_labels'] = 12345
+        self.config['attack']['unlearned_labels'] = 12345
         with self.assertRaises(ConfigError):
             ReconstructorValidator(self.config)
 
