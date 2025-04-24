@@ -9,7 +9,27 @@ import timm
 
 
 class ImportModel:
-    """ Perform pretraining, or model loading and saving, for a model."""
+    """
+    A class that handles the loading, saving, and pretraining of machine learning models.
+
+    The class supports multiple model loading methods, including:
+    - Class-based model import
+    - Torch Hub
+    - torchvision
+    - timm
+
+    Attributes:
+        device (str): The device to use for model inference (e.g., 'cuda', 'cpu').
+        load_method (str): The method to use for model loading.
+        init_path (str): Path to the model initialization module.
+        model_name (str): The name of the model to load.
+        model_ckpt_path (str, optional): Path to a pre-trained model checkpoint.
+        model_kwargs (dict): Additional keyword arguments to initialize the model.
+        num_classes (int): The number of output classes for the model.
+        from_pretrained (bool): Flag indicating whether to load a pre-trained model.
+        model (nn.Module): The loaded model object.
+    """
+    
     def __init__(
                     self,
                     load_method: str,
@@ -32,13 +52,19 @@ class ImportModel:
 
     def load_model(self):
         """
-        Load the model based on the specified loading method from config.
+        Loads the model based on the specified loading method.
 
         Supported methods:
-        - class: Load by importing a class from a module
-        - torchhub: Load from torch hub
-        - torchvision: Load model from torchvision.models
-        - timm: Load model from timm.create_model
+            - class: Load by importing a class from a module
+            - torchhub: Load from torch hub
+            - torchvision: Load model from torchvision.models
+            - timm: Load model from timm.create_model
+
+        Returns:
+            nn.Module: The loaded model.
+
+        Raises:
+            ConfigError: If the model fails to load using the specified method.
         """
         try:
             # Load the model based on the specified method

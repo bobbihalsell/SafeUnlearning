@@ -8,6 +8,9 @@ CIFAR10_STD = (0.2023, 0.1994, 0.2010)
 
 
 def get_cifar10_train_transform():
+    """
+    Returns the standard preprocessing transform for Cifar10 training images
+    """
     transform = transforms.Compose(
         [
             transforms.RandomCrop(CIFAR10_IMAGE_SIZE, padding=CIFAR10_PADDING),
@@ -20,6 +23,9 @@ def get_cifar10_train_transform():
 
 
 def get_cifar10_test_transform():
+    """
+    Returns the standard preprocessing transform for Cifar10 testing images
+    """
     transform = transforms.Compose(
         [
             transforms.Resize(size=(CIFAR10_IMAGE_SIZE, CIFAR10_IMAGE_SIZE)),

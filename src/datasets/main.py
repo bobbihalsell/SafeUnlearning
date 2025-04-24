@@ -16,6 +16,14 @@ import hydra
 
 
 class DatasetInitializer(DatasetValidator):
+    """
+    Initializes and prepares datasets for experiments, including downloading,
+    preprocessing, splitting into train/val sets, and generating forget/retain subsets.
+    This class extends DatasetValidator to support structured dataset initialization.
+
+    Attributes:
+        config (dict): Configuration dictionary loaded from OmegaConf.
+    """
     def __init__(self, config: DictConfig):
         config = OmegaConf.to_container(config, resolve=True)
         super().__init__(config)
@@ -23,9 +31,12 @@ class DatasetInitializer(DatasetValidator):
         set_seed(seed)
 
     def load_datasets(self):
-        """ Download and save benchmark datasets with name support.
-
+        """ 
+        Download and save benchmark datasets with name support.
         This will download dataset splits in the save directory.
+
+        Raises:
+          ConfigError: If an unsupported dataset or forget method is specified.
         """
         if 'cifar' in self.dataset_name:
             if self.dataset_load_method == 'torchvision':
@@ -97,7 +108,8 @@ class DatasetInitializer(DatasetValidator):
                               f'received {self.forget_method}.')
 
     def _reinitialize_splits_dir(self):
-        """ Remove and recreate an empty split directory.
+        """ 
+        Remove and recreate an empty split directory.
 
         Prevents unintended errors across different experiment runs,
         if different splits are intended.
@@ -113,9 +125,15 @@ class DatasetInitializer(DatasetValidator):
         os.makedirs(self.save_path, exist_ok=True)
 
     def _retrieve_label_from_filepath(self, fp: str):
-        """ Retrieve the label from a filepath from ImageFolder format.
-
+        """
+        Retrieve the label from a filepath from ImageFolder format.
         e.g. retrieve '1' from ./cifar10/train/1/xyz.png
+
+        Args:
+           fp (str): Full path to the image file.
+
+        Returns:
+            str: The class label as a string.
         """
         return fp.split('/train/')[1][0]
 
@@ -126,7 +144,20 @@ class DatasetInitializer(DatasetValidator):
             forget_size: int,
             retain_size: int = None
     ):
-        """ Create symlink forget and retain subsets"""
+        """ 
+        Create symlink forget and retain subsets
+        
+        Args:
+        train_dir (str): Path to the training data directory.
+        output_dir (str): Directory where symlinks will be created.
+        forget_size (int): Number of samples to forget.
+        retain_size (int, optional): Number of samples to retain. If None, uses the rest.
+
+        Raises:
+        ConfigError: If forget_size is larger than the dataset size.
+        
+        
+        """
         train_dataset = RobustImageFolder(root=train_dir)
         if forget_size > len(train_dataset):
             raise ConfigError("forget_size is larger than dataset size")
@@ -169,7 +200,14 @@ class DatasetInitializer(DatasetValidator):
             output_dir: str,
             forget_classes: list
     ):
-        """ Create symlinks if the user wanted to forget an entire class."""
+        """ 
+        Create symlinks if the user wanted to forget an entire class.
+        Args:
+            train_dir (str): Path to the training data directory.
+            output_dir (str): Directory to store symlinks.
+            forget_classes (list): List of class labels to forget.
+        
+        """
         subdirs = [name for name in os.listdir(train_dir) if
                    os.path.isdir(os.path.join(train_dir, name))]
         forget_classes = [str(label) for label in forget_classes]
@@ -198,7 +236,16 @@ class DatasetInitializer(DatasetValidator):
             output_dir: str,
             forget_classes: dict
     ):
-        """ Create symlinks for n samples from each class to forget."""
+        """ 
+        Create symlinks for n samples from each class to forget.
+        
+        Args:
+            train_dir (str): Path to the training data directory.
+            output_dir (str): Directory to store symlinks.
+            forget_classes (dict): Dictionary mapping class labels to number of
+                                   samples to forget.
+        
+        """
         subdirs = [name for name in os.listdir(train_dir) if
                    os.path.isdir(os.path.join(train_dir, name))]
         forget_classes = {
@@ -269,10 +316,15 @@ class DatasetInitializer(DatasetValidator):
             train_dir: str,
             output_dir: str,
     ):
-        """ Create forget/retain symlinks by user-defined filenames.
+        """ 
+        Create forget/retain symlinks by user-defined filenames.
 
         Uses self.forget_filenames and self.retain_filenames and creates
         symlinks based on the user-provided values in the config.
+
+        Args:
+            train_dir (str): Path to training directory.
+            output_dir (str): Directory to store symlinks.
         """
         found = []
         for label in os.listdir(train_dir):

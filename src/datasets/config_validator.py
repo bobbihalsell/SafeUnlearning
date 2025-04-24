@@ -41,12 +41,24 @@ class DatasetValidator:
                 setattr(self, key, value)
 
     def _validate_torchvision_args(self):
+        """
+        Validate that torchvision-related arguments are of correct types.
+
+        Raises:
+            ConfigError: If `dataset_name` or `binaries_download_dir` is not a string.
+        """
         if not isinstance(self.dataset_name, str):
             raise ConfigError("dataset_name must be a string")
         if not isinstance(self.binaries_download_dir, str):
             raise ConfigError("binaries_download_dir must be a string")
 
     def _validate_dataset_args(self):
+        """
+        Validate dataset-related configuration arguments.
+
+        Raises:
+            ConfigError: If any value is of the wrong type or out of the expected range.
+        """
         if not isinstance(self.proportion, (float, int)):
             raise ConfigError("proportion must be a float or int")
         if not (0 <= self.proportion <= 1):
@@ -61,6 +73,12 @@ class DatasetValidator:
             raise ConfigError("save_path must be a string")
 
     def _validate_forget_args(self):
+        """
+        Validate forgetting method arguments based on the selected method.
+        
+        Raises:
+            ConfigError: If types do not match expectations or if method is unknown.
+        """
         if self.forget_method == 'class':
             if not isinstance(self.forget_idx, list):
                 raise ConfigError(

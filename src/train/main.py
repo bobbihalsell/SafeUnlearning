@@ -20,7 +20,11 @@ class TrainApp(TrainValidator):
         set_seed(self.seed)
 
     def initialize_model(self):
-        """Initialize the model based on model name from user configuration."""
+        """
+        Initialize the model based on model name from user configuration.
+        Returns:
+            torch.nn.Module: Instantiated model with the final classification head adjusted to `num_classes`.
+        """
         if hasattr(torchvision.models, self.model_name):
             model = torchvision.models.get_model(
                 self.model_name,
@@ -68,7 +72,15 @@ class TrainApp(TrainValidator):
         return model
 
     def freeze_all_except_classifier(self, model):
-        """Unfreeze only the last (classifier) layer."""
+        """
+        Unfreeze only the last (classifier) layer.
+
+        Args:
+            model (torch.nn.Module): The model to modify.
+
+        Returns:
+            torch.nn.Module: Model with only the classifier layer unfrozen.
+        """
         for name, param in model.named_parameters():
             if "classifier" in name or "fc" in name:
                 param.requires_grad = True
@@ -77,7 +89,12 @@ class TrainApp(TrainValidator):
         return model
 
     def initialize_dataloaders(self):
-        """ Initialize dataloaders from the dataset folder."""
+        """ 
+        Initialize dataloaders from the dataset folder.
+
+        Returns: 
+            dict: Dictionary with 'train' and 'val' DataLoader objects.
+        """
         dataloaders = init_dataloaders(splits=['train', 'val'],
                                        batch_sizes=self.batch_sizes,
                                        num_workers=self.num_workers,
@@ -86,7 +103,17 @@ class TrainApp(TrainValidator):
         return dataloaders
     
     def reinitialize_checkpoints(self, model, optimizer):
-        """ Load in model and optimizer state dict from a checkpoint."""
+        """ 
+        Load in model and optimizer state dict from a checkpoint.
+
+        Args:
+            model (torch.nn.Module): The model to load weights into.
+            optimizer (torch.optim.Optimizer): The optimizer to load state into.
+
+        Returns:
+            model, optimizer, start_epoch with loaded weights and epoch count
+        
+        """
         if self.from_checkpoint:
             # Load the checkpoint state_dict
             checkpoint = torch.load(self.checkpoint_path)
@@ -230,6 +257,18 @@ class TrainApp(TrainValidator):
         print("Training complete.")
 
     def eval_model(self, criterion, model, val_dl):
+
+        """
+        Evaluates the model on the validation set.
+
+        Args:
+            criterion: The loss function (e.g., CrossEntropyLoss).
+            model (torch.nn.Module): The model to evaluate.
+            val_dl (DataLoader): DataLoader for the validation set.
+
+        Returns:
+            validation_loss, validation_accuracy
+        """
         model.eval()
         device = setup_device()
         val_loss = 0.0

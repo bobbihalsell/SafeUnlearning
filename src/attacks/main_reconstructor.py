@@ -21,7 +21,27 @@ from attacks.InvertGrad.reconstructor import InvertGradReconstructor,InvertGradC
 DEFAULT_SEED = 42
 
 class ReconstructorApp(ReconstructorValidator):
+    """
+    ReconstructorApp class for performing model reconstruction in unlearning attacks.
+    """
     def __init__(self, config: DictConfig):
+        """
+    
+        Initializes the ReconstructorApp by performing input validation, setting up the device,
+        initializing seeds, and preparing directories for storing results.
+
+        Args:
+            config (DictConfig): Configuration dictionary containing settings for the reconstruction.
+        
+        Attributes:
+            device (torch.device): Device to use for computation (e.g., 'cpu' or 'cuda').
+            output_dir (str): Directory where results will be saved.
+            forget_root (str): Directory for evaluation metrics during unlearning.
+            original_model (nn.Module): The original model before unlearning.
+            unlearned_model (nn.Module): The model after unlearning.
+            reconstructor (object): The reconstructor instance to perform the attack (e.g., GGL or InvertGrad).
+        
+        """
         # Perform input validation first
         config = OmegaConf.to_container(config, resolve=True)
         super().__init__(config)
@@ -38,6 +58,16 @@ class ReconstructorApp(ReconstructorValidator):
         self.forget_root = f"{self.dataset_save_dir}/forget"
     
     def initialise_model(self):
+        """
+        Loads the original and unlearned models from the specified checkpoints.
+
+        The method utilizes the ImportModel class to load both the original and unlearned models
+        based on the specified parameters.
+
+        Raises:
+            ValueError: If the model type or checkpoint paths are not correctly specified.
+        """
+        
         original_import = ImportModel(self.load_method,
                                       self.model_name,
                                       self.num_classes,
@@ -56,11 +86,34 @@ class ReconstructorApp(ReconstructorValidator):
         self.unlearned_model = unlearned_import.load_model()
     
     def initalise_image_params(self):
+        """
+        Initializes the image parameters (mean, std, and size) based on the dataset being used.
+
+        The method retrieves dataset-specific parameters from the DATASETS_TO_PARAMS mapping.
+
+        Attributes set:
+            image_mean (tuple): Mean of the dataset images for normalization.
+            image_std (tuple): Standard deviation of the dataset images for normalization.
+            image_size (list): Image size (channels, height, width) for processing.
+        """
+       
         self.image_mean, self.image_std, self.image_size = DATASETS_TO_PARAMS[self.dataset_name]
         self.image_size = [3, self.image_size, self.image_size]
 
     def initialize_reconstructor(self, unlearned_model, original_model):
-        """ Initialize the correct unlearner from user specification."""
+        """ Initialize the correct unlearner from user specification.
+        
+        Args:
+            unlearned_model (nn.Module): The model after unlearning.
+            original_model (nn.Module): The original model before unlearning.
+        
+        Returns:
+            reconstructor (object): The reconstructor object initialized for the specified attack.
+        
+        Raises:
+            ValueError: If an unsupported attack type is specified.
+        
+        """
 
         loss_fn = nn.CrossEntropyLoss()
         if self.attack_name == 'ggl':
@@ -91,6 +144,12 @@ class ReconstructorApp(ReconstructorValidator):
 
 
     def save_results(self):
+        """
+        Creates a SaveImage instance for saving the reconstructed image and logging results.
+
+        Returns:
+            SaveImage: The image saver instance that handles saving and logging.
+        """
         saver = SaveImage(self.attack_name,
                           self.seed,
                           self.experiment_name,
@@ -102,6 +161,12 @@ class ReconstructorApp(ReconstructorValidator):
 
 
     def run(self):
+        """
+        Runs the reconstruction process by loading models, performing the attack, saving results, and calculating metrics.
+
+        Raises:
+            ValueError: If any error occurs during the model reconstruction process.
+        """
         print('Running reconstruction...')
         # Step 1 : read yaml files
         # Step 2 : Load models model 

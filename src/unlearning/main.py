@@ -20,8 +20,25 @@ import wandb
 
 
 class UnlearnApp(UnlearningValidator):
+    """
+    Main application class for running unlearning algorithms.
+
+    This class validates the user-provided configuration, sets up the model,
+    loads the appropriate datasets, and performs the selected unlearning method.
+
+    Attributes:
+        device (torch.device): The device (CPU/GPU) used for computation.
+        seed (int): Random seed for reproducibility.
+        output_dir (str): Directory where model outputs will be saved.
+    """
     def __init__(self, config: DictConfig):
         # Perform input validation first
+        """
+        Initializes the UnlearnApp by validating configuration and setting up environment.
+
+        Args:
+            config (DictConfig): User-provided configuration in Hydra/OmegaConf format.
+        """
         config = OmegaConf.to_container(config, resolve=True)
         super().__init__(config)
 
@@ -39,7 +56,12 @@ class UnlearnApp(UnlearningValidator):
         print(f' num_classes: {self.num_classes}')
 
     def load_model(self):
-        """Initialize the model based on model name from user configuration."""
+        """
+        Initialize the model based on model name from user configuration.
+        
+        Returns:
+           object: An instance of the selected unlearning class.
+        """
         importer = ImportModel(
             load_method=self.load_method,
             model_name=self.model_name,
@@ -109,7 +131,15 @@ class UnlearnApp(UnlearningValidator):
         return unlearner
     
     def initialize_dataloaders(self):
-        """ Initialize dataloaders from the dataset folder."""
+        """ 
+        Initialize dataloaders from the dataset folder.
+        
+        Raises:
+            ValueError: If required data directories are missing.
+
+        Returns:
+            dict: A dictionary of DataLoaders for each dataset split
+        """
         # Load datasets for each split, exclude train and test data
         if not os.path.exists(self.dataset_save_dir):
             raise ValueError('Data directory not found.')
@@ -142,6 +172,13 @@ class UnlearnApp(UnlearningValidator):
         return dataloaders
 
     def run(self):
+        """
+        Runs the full unlearning pipeline:
+        1. Loads dataloaders.
+        2. Loads the pretrained model.
+        3. Performs unlearning.
+        4. Saves the unlearned model and logs runtime.
+        """
         # Step 1: Load retain/val/forget datalaoders
         dataloaders = self.initialize_dataloaders()
         print('Loaders loaded')

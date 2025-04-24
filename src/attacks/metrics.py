@@ -11,7 +11,15 @@ from torchvision import transforms
 
 def apply_resizing(img_batch, ref_batch, dataset_size):
     """
-    Resize both img_batch and ref_batch to a common size based on the dataset.
+    Resize both image and reference batches to a common target size based on the dataset.
+    
+    Args:
+        img_batch (torch.Tensor): Batch of images to be resized.
+        ref_batch (torch.Tensor): Batch of reference images to be resized.
+        dataset_size (tuple): Target size for resizing (height, width).
+    
+    Returns:
+        torch.Tensor, torch.Tensor: Resized image and reference batches.
     """
     # Define default size based on dataset
     target_size = (dataset_size[1], dataset_size[2])
@@ -26,7 +34,16 @@ def apply_resizing(img_batch, ref_batch, dataset_size):
 
 def apply_normalization(img_batch, ref_batch, dataset_mean, dataset_std):
     """
-    Normalize img_batch and ref_batch according to dataset_name.
+    Normalize image and reference batches based on dataset-specific mean and standard deviation.
+    
+    Args:
+        img_batch (torch.Tensor): Batch of images to be normalized.
+        ref_batch (torch.Tensor): Batch of reference images to be normalized.
+        dataset_mean (list or tuple): Mean values for normalization.
+        dataset_std (list or tuple): Standard deviation values for normalization.
+    
+    Returns:
+        torch.Tensor, torch.Tensor: Normalized image and reference batches.
     """
     mean = dataset_mean
     std = dataset_std
@@ -44,8 +61,17 @@ def apply_normalization(img_batch, ref_batch, dataset_mean, dataset_std):
 
 def psnr(img_batch, ref_batch, dataset_size, factor=1.0):
     """
-    For each image in img_batch, find the reference image in ref_batch with the highest PSNR.
-    Returns: list of (best_psnr, best_index) tuples, one per image in img_batch.
+    Compute the Peak Signal-to-Noise Ratio (PSNR) for each image in img_batch against the most similar 
+    reference image in ref_batch based on the highest PSNR value.
+    
+    Args:
+        img_batch (torch.Tensor): Batch of images to evaluate.
+        ref_batch (torch.Tensor): Batch of reference images to compare against.
+        dataset_size (tuple): Size to which the images should be resized.
+        factor (float, optional): Scaling factor for PSNR calculation. Defaults to 1.0.
+    
+    Returns:
+        list of tuples: Each tuple contains the best PSNR and the index of the reference image.
     """
     img_batch, ref_batch = apply_resizing(img_batch, ref_batch, dataset_size)
     def get_psnr(img_in, img_ref, factor):
@@ -78,8 +104,16 @@ def psnr(img_batch, ref_batch, dataset_size, factor=1.0):
 
 def mse_image_space(img_batch, ref_batch, dataset_size):
     """
-    For each image in img_batch, find the reference image in ref_batch with the lowest MSE.
-    Returns: list of (best_mse, best_index) tuples, one per image in img_batch.
+    Compute the Mean Squared Error (MSE) for each image in img_batch against the most similar 
+    reference image in ref_batch based on the lowest MSE value.
+    
+    Args:
+        img_batch (torch.Tensor): Batch of images to evaluate.
+        ref_batch (torch.Tensor): Batch of reference images to compare against.
+        dataset_size (tuple): Size to which the images should be resized.
+    
+    Returns:
+        list of tuples: Each tuple contains the best MSE and the index of the reference image.
     """
     img_batch, ref_batch = apply_resizing(img_batch, ref_batch, dataset_size)
 

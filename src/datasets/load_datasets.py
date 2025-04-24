@@ -48,6 +48,14 @@ def get_filenames_and_labels(dataset_dir: str):
 def stratified_split_filenames(filenames, labels, proportion):
     """
     Perform stratified sampling on image filenames.
+
+     Args:
+        filenames (list[str]): List of image file paths.
+        labels (list[int]): List of integer labels corresponding to each image.
+        proportion (float): Proportion of each class to include in the selected split (between 0 and 1).
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: Arrays of selected and remaining file paths after the split.
     """
     filenames = np.array(filenames)
     labels = np.array(labels)
@@ -63,6 +71,15 @@ def stratified_split_filenames(filenames, labels, proportion):
 
 
 def create_symlinks(file_list, split_dir):
+    """
+
+     Create symlinks for a list of image files organized by class label.
+
+    Args:
+        file_list (list[str]): List of image file paths.
+        split_dir (str): Target root directory where symlinks will be created.
+    
+    """
     for src in file_list:
         label = os.path.basename(os.path.dirname(src))
         dst_dir = os.path.join(split_dir, label)
@@ -76,7 +93,18 @@ def download_cifar_datasets(dataset_name: str,
                             download_root: str,
                             save_dir: str,
                             transform: torchvision.transforms = None):
-    """ Load and save CIFAR datasets in ImageFolder format. """
+    """ 
+    Load and save CIFAR datasets in ImageFolder format.
+
+    Args:
+        dataset_name (str): Name of the CIFAR dataset ('cifar10', 'cifar100', or 'cifar5').
+        download_root (str): Directory to download the raw CIFAR data.
+        save_dir (str): Directory to save the converted ImageFolder-format data.
+        transform (torchvision.transforms, optional): Optional transform to apply on download.
+
+    Raises:
+        Exception: If an unsupported dataset name is provided.
+     """
     # For CIFAR datasets, download if necessary and filter
     if dataset_name == 'cifar10':
         raw_train = datasets.CIFAR10(root=download_root,
@@ -130,9 +158,15 @@ def save_cifar_as_imagefolder(raw_train,
                               raw_test,
                               download_root,
                               dataset_save_dir):
-    """ Save a CIFAR dataset as ImageFolder.
-
+    """
+    Save a CIFAR dataset as ImageFolder.
     Create unique file names for each image file.
+
+    Args:
+        raw_train (Dataset or Subset): Training dataset.
+        raw_test (Dataset or Subset): Test dataset.
+        download_root (str): Directory where raw data is downloaded.
+        dataset_save_dir (str): Directory to save the converted ImageFolder dataset.
     """
     if os.path.exists(dataset_save_dir):
         print("Clearing existing dataset "
