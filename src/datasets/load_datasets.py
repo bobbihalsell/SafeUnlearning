@@ -57,6 +57,9 @@ def stratified_split_filenames(filenames, labels, proportion):
     Returns:
         tuple[np.ndarray, np.ndarray]: Arrays of selected and remaining file paths after the split.
     """
+    if proportion == 1:
+        return np.array(filenames), np.array([])
+    
     filenames = np.array(filenames)
     labels = np.array(labels)
 

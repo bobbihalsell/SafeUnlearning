@@ -56,6 +56,10 @@ class DatasetInitializer(DatasetValidator):
         # Filter a proportion of the train dataset filenames
         filenames, labels = get_filenames_and_labels(self.parent_path +
                                                      '/train')
+                                                     
+        test_filenames, test_labels = get_filenames_and_labels(
+                                   self.parent_path + '/test')
+        
         remaining_filenames, _ = stratified_split_filenames(
             filenames,
             labels,
@@ -77,6 +81,7 @@ class DatasetInitializer(DatasetValidator):
         # Create train/val symlinks from self.save_path
         create_symlinks(train_filenames, self.save_path + '/train')
         create_symlinks(val_filenames, self.save_path + '/val')
+        create_symlinks(val_filenames, self.save_path + '/test')
 
         # Create symlinks for desired retain and forget set images
         if self.forget_method == 'random_n':
@@ -391,6 +396,12 @@ class DatasetInitializer(DatasetValidator):
         if missing:
             print('Warning: Failed to find the following filenames you have '
                   f'specified as forget/retain in the dataset: {missing}')
+            
+    def del_parent_dir(self):
+        if self.parent_path == 'tmp_dir':
+            # Remove the tmp_dir directory
+            shutil.rmtree(self.parent_path, ignore_errors=True)
+            print(f"Deleted the temporaty directory holding the original training and test data")
 
 
 @hydra.main(version_base=None,
@@ -409,6 +420,7 @@ def main(cfg: DictConfig):
             'Hint: python file.py key=value sets the appropriate value.')
     app = DatasetInitializer(cfg)
     app.load_datasets()
+    app.del_parent_dir()
 
 
 if __name__ == '__main__':

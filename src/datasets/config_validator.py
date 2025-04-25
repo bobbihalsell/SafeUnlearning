@@ -59,6 +59,8 @@ class DatasetValidator:
         Raises:
             ConfigError: If any value is of the wrong type or out of the expected range.
         """
+        if self.parent_path is None:
+            self.parent_path = 'tmp_dir'
         if not isinstance(self.proportion, (float, int)):
             raise ConfigError("proportion must be a float or int")
         if not (0 <= self.proportion <= 1):
