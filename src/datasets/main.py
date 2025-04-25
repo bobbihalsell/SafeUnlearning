@@ -1,78 +1,122 @@
-from datasets.load_datasets import load_train_val_test_datasets
-import numpy as np
-import os
-import shutil
+from datasets.load_datasets import (download_cifar_datasets,
+                                    get_filenames_and_labels,
+                                    stratified_split_filenames,
+                                    create_symlinks)
 from train.image_loading import RobustImageFolder
+from datasets.config_validator import DatasetValidator
 from utils import ConfigError
-import hydra
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.errors import MissingMandatoryValue
-import json
-from datasets.config_validator import DatasetValidator
+from PIL import Image
+from utils import set_seed
+import os
+import numpy as np
+import shutil
+import hydra
 
 
 class DatasetInitializer(DatasetValidator):
+    """
+    Initializes and prepares datasets for experiments, including downloading,
+    preprocessing, splitting into train/val sets, and generating forget/retain subsets.
+    This class extends DatasetValidator to support structured dataset initialization.
+
+    Attributes:
+        config (dict): Configuration dictionary loaded from OmegaConf.
+    """
     def __init__(self, config: DictConfig):
-        super().__init__(config)
         config = OmegaConf.to_container(config, resolve=True)
-        np.random.seed(self.seed)
-
-    def rename_imagenet_folders(self):
-        """Create a copy of the ImageNet subset with folder names
-        mapped to label indices, preserving the original dataset.
-        """
-        base_dir = os.path.dirname(__file__)
-        mapping_path = os.path.join(base_dir,
-                                    'imagenet',
-                                    'imagenet_1k_mappings.json')
-
-        with open(mapping_path, 'r') as f:
-            default_imagenet_mapping = json.load(f)
-
-        source_root = self.init_path
-        target_root = self.init_path.rstrip('/') + '_renamed'
-
-        os.makedirs(target_root, exist_ok=True)
-
-        split_names = ['train', 'val']
-        for split in split_names:
-            src_split = os.path.join(source_root, split)
-            tgt_split = os.path.join(target_root, split)
-
-            if not os.path.exists(src_split):
-                continue
-
-            os.makedirs(tgt_split, exist_ok=True)
-
-            folder_names = [i for i in
-                            sorted(os.listdir(src_split)) if
-                            not i.startswith('.')]
-            for folder in folder_names:
-                try:
-                    label_index = default_imagenet_mapping[folder]
-                except KeyError:
-                    raise KeyError(
-                        "Folder name not found in "
-                        f"ImageNet-1K Class IDs: {folder}"
-                    )
-
-                src_dir = os.path.join(src_split, folder)
-                tgt_dir = os.path.join(tgt_split, str(label_index))
-
-                if os.path.exists(tgt_dir):
-                    raise FileExistsError(
-                        f"Target directory already exists: {tgt_dir}")
-
-                shutil.copytree(src_dir, tgt_dir)
-
-        print(f"Renamed dataset created at: {target_root}")
+        super().__init__(config)
+        seed = config['seed']
+        set_seed(seed)
 
     def load_datasets(self):
-        """ Download and save benchmark datasets with name support.
-
+        """ 
+        Download and save benchmark datasets with name support.
         This will download dataset splits in the save directory.
+
+        Raises:
+          ConfigError: If an unsupported dataset or forget method is specified.
         """
-        # Check if the save path is filled from a previous run and clear it
+        if 'cifar' in self.dataset_name:
+            if self.dataset_load_method == 'torchvision':
+                download_cifar_datasets(
+                    dataset_name=self.dataset_name,
+                    download_root=self.binaries_download_dir,
+                    save_dir=self.init_path,
+                )
+
+        else:
+            if self.dataset_load_method == 'torchvision':
+                raise ConfigError(
+                    "Sorry, torchvision download is not enabled yet for "
+                    "non-CIFAR datasets."
+                )
+
+        # Filter a proportion of the train dataset filenames
+        filenames, labels = get_filenames_and_labels(self.init_path +
+                                                     '/train')
+        remaining_filenames, _ = stratified_split_filenames(
+            filenames,
+            labels,
+            proportion=self.proportion)
+
+        # Retrieve the labels from the remaining portion of the train dataset
+        remaining_labels = [self._retrieve_label_from_filepath(fp) for
+                            fp in remaining_filenames]
+
+        # Perform a train/val split from the remaining filenames
+        train_filenames, val_filenames = stratified_split_filenames(
+            remaining_filenames,
+            remaining_labels,
+            proportion=1-self.val_ratio
+        )
+        # Check if the splits path is filled from a previous run and clear it
+        self._reinitialize_splits_dir()
+
+        # Create train/val symlinks from self.save_path
+        create_symlinks(train_filenames, self.save_path + '/train')
+        create_symlinks(val_filenames, self.save_path + '/val')
+
+        # Create symlinks for desired retain and forget set images
+        if self.forget_method == 'random_n':
+            self.create_forget_retain_symlinks_by_random_n(
+                train_dir=self.save_path + '/train',
+                output_dir=self.save_path,
+                forget_size=self.forget_size,
+                retain_size=self.retain_size
+            )
+        elif self.forget_method == 'class':
+            self.create_forget_retain_symlinks_by_classes(
+                train_dir=self.save_path + '/train',
+                output_dir=self.save_path,
+                forget_classes=self.forget_idx
+            )
+        elif self.forget_method == 'classnum':
+            self.create_forget_retain_symlinks_by_class_number(
+                train_dir=self.save_path + '/train',
+                output_dir=self.save_path,
+                forget_classes=self.forget_idx
+            )
+        elif self.forget_method == 'filename':
+            self.create_forget_retain_symlinks_by_filename(
+                train_dir=self.save_path + '/train',
+                output_dir=self.save_path
+            )
+        else:
+            raise ConfigError('Unsupported forget_method, '
+                              f'received {self.forget_method}.')
+
+    def _reinitialize_splits_dir(self):
+        """ 
+        Remove and recreate an empty split directory.
+
+        Prevents unintended errors across different experiment runs,
+        if different splits are intended.
+
+        Returns:
+            None
+        """
         if os.path.exists(self.save_path):
             print("Clearing existing dataset "
                   f"split directory: {self.save_path}")
@@ -80,68 +124,55 @@ class DatasetInitializer(DatasetValidator):
 
         os.makedirs(self.save_path, exist_ok=True)
 
-        init_path = self.init_path
-        if self.dataset_name == 'imagenet':
-            # Rename the folders to match label indices
-            self.rename_imagenet_folders()
-            init_path = self.init_path.rstrip('/') + '_renamed'
+    def _retrieve_label_from_filepath(self, fp: str):
+        """
+        Retrieve the label from a filepath from ImageFolder format.
+        e.g. retrieve '1' from ./cifar10/train/1/xyz.png
 
-        load_train_val_test_datasets(
-            dataset_name=self.dataset_name,
-            proportion=self.proportion,
-            val_ratio=self.val_ratio,
-            dataset_load_dir=init_path,
-            dataset_save_dir=self.save_path,
-        )
+        Args:
+           fp (str): Full path to the image file.
 
-        # Create symlinks for desired retain and forget set images
-        if self.forget_method == 'instance':
-            self.create_symlink_subsets_by_indices(
-                train_dir=self.save_path + '/train',
-                output_dir=self.save_path,
-                forget_indices=self.forget_idx,
-                retain_size=self.retain_size
-            )
-        elif self.forget_method == 'class':
-            self.create_symlink_subsets_by_classes(
-                train_dir=self.save_path + '/train',
-                output_dir=self.save_path,
-                forget_classes=self.forget_idx
-            )
-        elif self.forget_method == 'classnum':
-            self.create_symlink_subsets_by_class_number(
-                train_dir=self.save_path + '/train',
-                output_dir=self.save_path,
-                forget_classes=self.forget_idx
-            )
-        else:
-            raise ConfigError('Unsupported forget_method, '
-                              f'received {self.forget_method}.')
+        Returns:
+            str: The class label as a string.
+        """
+        return fp.split('/train/')[1][0]
 
-        if self.dataset_name == 'imagenet':
-            # Remove the interim directory created to avoid mutating original
-            renamed_dir = self.init_path.rstrip('/') + '_renamed'
-            if os.path.exists(renamed_dir):
-                shutil.rmtree(renamed_dir)
+    def create_forget_retain_symlinks_by_random_n(
+            self,
+            train_dir: str,
+            output_dir: str,
+            forget_size: int,
+            retain_size: int = None
+    ):
+        """ 
+        Create symlink forget and retain subsets
+        
+        Args:
+        train_dir (str): Path to the training data directory.
+        output_dir (str): Directory where symlinks will be created.
+        forget_size (int): Number of samples to forget.
+        retain_size (int, optional): Number of samples to retain. If None, uses the rest.
 
-    def create_symlink_subsets_by_indices(self,
-                                          train_dir: str,
-                                          output_dir: str,
-                                          forget_indices: list,
-                                          retain_size: int = None,
-                                          ):
-        """ Create symlink forget and retain subsets"""
+        Raises:
+        ConfigError: If forget_size is larger than the dataset size.
+        
+        
+        """
         train_dataset = RobustImageFolder(root=train_dir)
-
-        # If retain_size is None, use all indices except the forget_indices
+        if forget_size > len(train_dataset):
+            raise ConfigError("forget_size is larger than dataset size")
+        forget_indices = np.random.choice(range(len(train_dataset)),
+                                          size=forget_size,
+                                          replace=False)
         all_indices = set(range(len(train_dataset)))
+        # If retain_size is None, use all indices except the forget_indices
         retain_indices = list(all_indices - set(forget_indices))
-
         if retain_size is not None:
             retain_indices = list(
                 np.random.choice(
                     retain_indices,
-                    min(retain_size, len(retain_indices))
+                    min(retain_size, len(retain_indices)),
+                    replace=False
                     )
                 )
 
@@ -151,7 +182,6 @@ class DatasetInitializer(DatasetValidator):
 
             for idx in subset_indices:
                 img_path, label = train_dataset.samples[idx]
-                # class_name = train_dataset.classes[label]
                 class_name = str(label)
                 target_dir = os.path.join(subset_dir, class_name)
                 os.makedirs(target_dir, exist_ok=True)
@@ -159,19 +189,25 @@ class DatasetInitializer(DatasetValidator):
                 filename = os.path.basename(img_path)
                 link_path = os.path.join(target_dir, filename)
 
-                # Create symlink
-                if not os.path.exists(link_path):
-                    os.symlink(os.path.abspath(img_path), link_path)
+                os.symlink(os.path.abspath(img_path), link_path)
 
         symlink_subset('forget', forget_indices)
         symlink_subset('retain', retain_indices)
 
-    def create_symlink_subsets_by_classes(self,
-                                          train_dir: str,
-                                          output_dir: str,
-                                          forget_classes: list
-                                          ):
-        """ Create symlinks if the user wanted to forget an entire class."""
+    def create_forget_retain_symlinks_by_classes(
+            self,
+            train_dir: str,
+            output_dir: str,
+            forget_classes: list
+    ):
+        """ 
+        Create symlinks if the user wanted to forget an entire class.
+        Args:
+            train_dir (str): Path to the training data directory.
+            output_dir (str): Directory to store symlinks.
+            forget_classes (list): List of class labels to forget.
+        
+        """
         subdirs = [name for name in os.listdir(train_dir) if
                    os.path.isdir(os.path.join(train_dir, name))]
         forget_classes = [str(label) for label in forget_classes]
@@ -181,12 +217,6 @@ class DatasetInitializer(DatasetValidator):
                 label = str(label)
             subset_dir = os.path.join(output_dir, subset_name, label)
             origin_dir = os.path.join(train_dir, label)
-            # Remove existing directory/symlink if it exists
-            if os.path.exists(subset_dir):
-                if os.path.islink(subset_dir):
-                    os.unlink(subset_dir)  # Remove existing symlink
-                else:
-                    os.rmdir(subset_dir)  # Remove empty directory
             # Ensure parent directory exists
             os.makedirs(os.path.dirname(subset_dir), exist_ok=True)
             abs_origin_dir = os.path.abspath(origin_dir)
@@ -200,13 +230,22 @@ class DatasetInitializer(DatasetValidator):
         for label in retain_classes:
             create_class_symlink('retain', label)
 
-    def create_symlink_subsets_by_class_number(
+    def create_forget_retain_symlinks_by_class_number(
             self,
             train_dir: str,
             output_dir: str,
             forget_classes: dict
     ):
-        """ Create symlinks for n samples from each class to forget."""
+        """ 
+        Create symlinks for n samples from each class to forget.
+        
+        Args:
+            train_dir (str): Path to the training data directory.
+            output_dir (str): Directory to store symlinks.
+            forget_classes (dict): Dictionary mapping class labels to number of
+                                   samples to forget.
+        
+        """
         subdirs = [name for name in os.listdir(train_dir) if
                    os.path.isdir(os.path.join(train_dir, name))]
         forget_classes = {
@@ -224,12 +263,6 @@ class DatasetInitializer(DatasetValidator):
                                                         file))
                 dst_file = os.path.join(target_dir, file)
 
-                # Remove existing symlink if it exists
-                if os.path.exists(dst_file):
-                    if os.path.islink(dst_file):
-                        os.unlink(dst_file)  # Remove existing symlink
-                    else:
-                        os.remove(dst_file)  # Remove existing file
                 # Create the symlink
                 os.symlink(src_file, dst_file)
 
@@ -237,13 +270,6 @@ class DatasetInitializer(DatasetValidator):
             # Create the target directory (retain classes)
             subset_dir = os.path.join(output_dir, subset_name, class_label)
             origin_dir = os.path.join(train_dir, class_label)
-
-            # Remove existing directory/symlink if it exists
-            if os.path.exists(subset_dir):
-                if os.path.islink(subset_dir):
-                    os.unlink(subset_dir)  # Remove existing symlink
-                else:
-                    os.rmdir(subset_dir)  # Remove empty directory
 
             os.makedirs(os.path.dirname(subset_dir), exist_ok=True)
             abs_origin_dir = os.path.abspath(origin_dir)
@@ -255,12 +281,19 @@ class DatasetInitializer(DatasetValidator):
                 num_samples_to_forget = int(forget_classes[class_label])
                 class_dir = os.path.join(train_dir, class_label)
 
-                all_files = [f for f in os.listdir(class_dir) if
-                             os.path.isfile(os.path.join(class_dir, f))]
+                all_files = []
+                for file in os.listdir(class_dir):
+                    try:
+                        with Image.open(os.path.join(class_dir, file)) as img:
+                            img.verify()  # Verify that it's an image
+                        all_files.append(file)
+                    except Exception:
+                        print(f'Encountered invalid image file {file}. '
+                              'Skipping...')
+                        continue
 
                 num_samples_to_forget = min(num_samples_to_forget,
                                             len(all_files))
-
                 if num_samples_to_forget > 0:
                     # Randomly select files to forget
                     forget_files = list(np.random.choice(
@@ -268,7 +301,6 @@ class DatasetInitializer(DatasetValidator):
                         size=num_samples_to_forget,
                         replace=False
                     ))
-
                     create_file_symlinks('forget', class_label, forget_files)
                     retain_files = list(set(all_files) - set(forget_files))
                     create_file_symlinks('retain', class_label, retain_files)
@@ -279,10 +311,91 @@ class DatasetInitializer(DatasetValidator):
                 # For classes not in forget, link the whole directory to retain
                 create_dir_symlink('retain', class_label)
 
+    def create_forget_retain_symlinks_by_filename(
+            self,
+            train_dir: str,
+            output_dir: str,
+    ):
+        """ 
+        Create forget/retain symlinks by user-defined filenames.
+
+        Uses self.forget_filenames and self.retain_filenames and creates
+        symlinks based on the user-provided values in the config.
+
+        Args:
+            train_dir (str): Path to training directory.
+            output_dir (str): Directory to store symlinks.
+        """
+        found = []
+        for label in os.listdir(train_dir):
+            forget_dir = os.path.join(output_dir, 'forget', label)
+            retain_dir = os.path.join(output_dir, 'retain', label)
+
+            label_dir = os.path.join(train_dir, label)
+            if not os.path.isdir(label_dir):
+                # Ignore unexpected files at class folder level
+                continue
+            for fp in os.listdir(label_dir):
+                try:
+                    with Image.open(os.path.join(label_dir, fp)) as img:
+                        img.verify()  # Verify that it's an image
+                except Exception:
+                    print(f'Encountered invalid image file {fp}. Skipping...')
+                    continue
+
+                if self.retain_filenames is None:
+                    # All files not in forget_filenames are in retain
+                    src_file = os.path.abspath(os.path.join(train_dir,
+                                                            label,
+                                                            fp))
+                    if os.path.basename(fp) in self.forget_filenames:
+                        found.append(fp)
+                        os.makedirs(forget_dir, exist_ok=True)
+                        # Create symlink to forget set
+                        dst_file = os.path.join(forget_dir, fp)
+                        os.symlink(src_file, dst_file)
+                    else:
+                        os.makedirs(retain_dir, exist_ok=True)
+                        # Create symlink to retain set
+                        dst_file = os.path.join(retain_dir, fp)
+                        os.symlink(src_file, dst_file)
+
+                else:
+                    # Only specified files to be in retain_filenames
+                    if os.path.basename(fp) in self.forget_filenames:
+                        found.append(fp)
+                        # Create symlink to forget set
+                        os.makedirs(forget_dir, exist_ok=True)
+                        src_file = os.path.abspath(os.path.join(train_dir,
+                                                                label,
+                                                                fp))
+                        dst_file = os.path.join(forget_dir, fp)
+                        os.symlink(src_file, dst_file)
+                    if os.path.basename(fp) in self.retain_filenames:
+                        found.append(fp)
+                        os.makedirs(retain_dir, exist_ok=True)
+                        src_file = os.path.abspath(os.path.join(train_dir,
+                                                                label,
+                                                                fp))
+                        dst_file = os.path.join(retain_dir, fp)
+                        os.symlink(src_file, dst_file)
+
+        # Check to see the set difference between found and retain + forget
+        if self.retain_filenames is None:
+            forget_retain_filenames = self.forget_filenames
+        else:
+            forget_retain_filenames = (self.forget_filenames +
+                                       self.retain_filenames)
+
+        missing = set(forget_retain_filenames) - set(found)
+        if missing:
+            print('Warning: Failed to find the following filenames you have '
+                  f'specified as forget/retain in the dataset: {missing}')
+
 
 @hydra.main(version_base=None,
-            config_path="config",
-            config_name="config")
+            config_path="../../configs",
+            config_name="datasets")
 def main(cfg: DictConfig):
     # Print the config for the user first
     print('============ Run Configuration ============')

@@ -11,6 +11,9 @@ CIFAR100_STD = (0.2673, 0.2564, 0.2762)
 
 
 def get_cifar100_train_transform():
+    """
+    Returns the standard preprocessing transform for Cifar100 training images
+    """
     transform = transforms.Compose(
         [
             transforms.RandomCrop(CIFAR100_IMAGE_SIZE,
@@ -24,6 +27,9 @@ def get_cifar100_train_transform():
 
 
 def get_cifar100_test_transform():
+    """
+    Returns the standard preprocessing transform for Cifar100 testing images
+    """
     transform = transforms.Compose(
         [
             transforms.Resize(size=(CIFAR100_IMAGE_SIZE, CIFAR100_IMAGE_SIZE)),

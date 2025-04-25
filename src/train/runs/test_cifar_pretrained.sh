@@ -1,1 +1,0 @@
-python src/train/main.py dataset=cifar10 dataset.save_path=./data model=torchvision model.model_name=resnet18 model.pretrained=true model.save_dir=./artifacts/models/cifar10 trainer=default trainer.epochs=1 

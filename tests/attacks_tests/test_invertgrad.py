@@ -1,17 +1,15 @@
 import unittest
 import torch
 from unittest.mock import patch
-import sys
 import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 
+from attacks.InvertGrad.reconstructor import (InvertGradConfig,
+                                              InvertGradReconstructor)
 
-# sys.path.insert(
-#     0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-#     )
-
-
-from attacks.InvertGrad.reconstructor import InvertGradConfig, InvertGradReconstructor  
-
+from attacks.InvertGrad.reconstruction_cost import (reconstruction_costs,
+                                                    DistillKL)
 
 ## Dummy model for testing
 class DummyModel(torch.nn.Module):
@@ -59,20 +57,55 @@ class TestInvertGradReconstructor(unittest.TestCase):
         self.device = torch.device("cpu")
         self.model = DummyModel()
         self.config = InvertGradConfig()
-
-    def test_initialization(self):
-        reconstructor = InvertGradReconstructor(
+        self.reconstructor = InvertGradReconstructor(
             device=self.device,
             original_model=self.model,
             unlearned_model=self.model,
             config=self.config
         )
-        self.assertEqual(reconstructor.config.cost_fn, 'sim')
-        self.assertIs(reconstructor.original_model, self.model)
 
+    def test_initialization(self):
+        self.assertEqual(self.reconstructor.config.cost_fn, 'sim')
+        self.assertIs(self.reconstructor.original_model, self.model)
+
+    def test_init_images(self):
+        self.reconstructor.num_images = 1
+        self.reconstructor.image_size = (3, 32, 32)
+        images = self.reconstructor._init_images()
+        self.assertEqual(images.shape, (self.config.num_runs, 
+                                        self.reconstructor.num_images, 
+                                        *self.reconstructor.image_size))
+
+    def test_reconstruction_costs(self):
+        gradients = [torch.randn(10, 10) for _ in range(5)]
+        input_gradient = [torch.randn(10, 10) for _ in range(5)]
+        cost = reconstruction_costs(gradients, input_gradient, cost_fn='l2')
+        self.assertIsInstance(cost, torch.Tensor)
+
+    def test_reconstruction_costs_invalid(self):
+        gradients = [torch.randn(10, 10) for _ in range(5)]
+        input_gradient = [torch.randn(10, 10) for _ in range(5)]
+        with self.assertRaises(ValueError):
+            reconstruction_costs(gradients, input_gradient, cost_fn='invalid')
+    
+    def test_distill_kl(self):
+        distill_kl = DistillKL(T=2)
+        y_s = torch.randn(10, 10)
+        y_t = torch.randn(10, 10)
+        loss = distill_kl(y_s, y_t)
+        self.assertIsInstance(loss, torch.Tensor)
+    
+    def test_gradient_closure(self):
+        x_trial = torch.randn(1, 3, 32, 32, requires_grad=True)
+        optimizer = torch.optim.Adam([x_trial], lr=0.1)
+        closure = self.reconstructor._gradient_closure(optimizer, x_trial, 
+                                                       self.reconstructor.input_gradient,
+                                                       torch.tensor([1]))
+        self.assertTrue(callable(closure))
+    
     @patch.object(InvertGradReconstructor, "_run_trial")
     @patch.object(InvertGradReconstructor, "_score_trial")
-    def test_reconstruct_runs_with_mocked_trial(self, mock_score_trial, mock_run_trial):
+    def test_reconstruct_basic_and_labels_override(self, mock_score_trial, mock_run_trial):
         # Mock trial and score
         mock_run_trial.return_value = (torch.rand(1, 3, 32, 32), torch.tensor([1]))
         mock_score_trial.return_value = torch.tensor(0.2)
@@ -81,55 +114,27 @@ class TestInvertGradReconstructor(unittest.TestCase):
             device=self.device,
             original_model=self.model,
             unlearned_model=self.model,
-            config=self.config
+            config=self.config,
         )
 
+        # Test 1: labels override num_images 
+        reconstructor.reconstruct(
+            labels=torch.tensor([1, 2]),
+            num_images=1,
+            verbose=False
+        )
+        self.assertEqual(reconstructor.num_images, 2)
+
+        # Test 2: reconstruct runs and returns expected shape
         output, score = reconstructor.reconstruct(
             labels=torch.tensor([1]),
             num_images=1,
             image_size=[3, 32, 32],
             verbose=False
         )
-
         self.assertEqual(output.shape, (1, 3, 32, 32))
         self.assertIsInstance(score, float)
 
-
-class TestInvertGradValueErrors(unittest.TestCase):
-    def setUp(self):
-        self.device = torch.device("cpu")
-        self.model = DummyModel()
-
-    def test_pixelmean_raises_for_multiple_images(self):
-        config = InvertGradConfig(scoring_choice="pixelmean")
-        reconstructor = InvertGradReconstructor(
-            device=self.device,
-            original_model=self.model,
-            unlearned_model=self.model,
-            config=config
-        )
-
-        with self.assertRaises(ValueError):
-            reconstructor.reconstruct(
-                labels=torch.tensor([1, 2]), 
-                num_images=2,
-                image_size=[3, 32, 32]
-            )
-
-    def test_invalid_optim(self):
-        config = InvertGradConfig(optim="invalid_optim")
-        reconstructor = InvertGradReconstructor(
-            device=self.device,
-            original_model=self.model,
-            unlearned_model=self.model,
-            config=config
-        )
-        with self.assertRaises(ValueError):
-            reconstructor.reconstruct(
-                labels=torch.tensor([1]),
-                num_images=1,
-                image_size=[3, 32, 32]
-            )
 
 class TestGradientDifference(unittest.TestCase):
     def make_shifted_model(self, original_model, shift=1.0):

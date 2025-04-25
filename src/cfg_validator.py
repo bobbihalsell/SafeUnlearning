@@ -2,8 +2,29 @@ from utils import ConfigError
 
 
 class InputValidator:
-    """ Base validator for configuration YAML files."""
+    """ 
+    Base validator for configuration YAML files.
+    This class is used to validate and process configuration parameters 
+    from a YAML file for training and unlearning models.
+
+    Attributes:
+        config (dict): The dictionary representation of the configuration file.
+        wandb_enabled (bool): A flag indicating whether wandb is enabled.
+        wandb_extra_config (dict): Extra configuration for wandb if available.
+        dataset_name (str): The name of the dataset to be used.
+        model_ckpt_path (str): Path to model checkpoint.
+        pretrained (bool): Whether to use pretrained weights.
+    """
     def __init__(self, config):
+        """
+        Initializes the InputValidator with the given configuration.
+
+        Args:
+            config (dict): Configuration dictionary, typically loaded from a YAML file.
+        
+        Raises:
+            ConfigError: If any required configuration key or section is missing.
+        """
         assert isinstance(config, dict)
         self.config = config
 
@@ -16,16 +37,7 @@ class InputValidator:
                     getattr(self, validate_method)()
             else:
                 setattr(self, key, config[key])
-                
-        if hasattr(self, 'wandb_file'):
-            print('wandb_file')
-            self.wandb_enabled = True
-            print('wandb_enabled')
-            self.wandb_project_name = self.wandb_file['project_name']
-            self.wandb_run_id = self.wandb_file.get('run_id', None)
-            self.wandb_extra_config = self.wandb_file.get('extra_config', {})
-        else:
-            self.wandb_enabled = False
+        self.wandb_enabled = hasattr(self, 'wandb_file')
 
     def _require(self, model_config, key, alias=None):
         if key not in model_config:
@@ -118,7 +130,7 @@ class InputValidator:
         for key in config:
             if key.endswith('_ckpt_path'):
                 setattr(self, key, config[key])
-        self.model_ckpt_path = config.get('model_ckpt_path', None)
+        self.model_ckpt_path = config.get('original_model_ckpt_path', None)
         if not hasattr(self, 'pretrained'):
             setattr(self, 'pretrained', None)
         
@@ -140,3 +152,4 @@ class InputValidator:
     def _validate_wandb_params(self):
         self._require(self.wandb_file, 'project_name')
         self._require(self.wandb_file, 'run_id')
+        self.wandb_extra_config = self.wandb_file.get('extra_config', {})

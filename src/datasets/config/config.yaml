@@ -1,5 +1,0 @@
-defaults:
-  - _self_
-  - dataset: ???
-  - forget: ???
-seed: 42

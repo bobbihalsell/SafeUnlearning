@@ -2,7 +2,15 @@ from cfg_validator import InputValidator, ConfigError
 
 
 class GLiRValidator(InputValidator):
-    """ Validator specifically for unlearning configurations."""
+    """
+    Validator specifically for GLiR-based unlearning configuration files.
+    Ensures that all required fields are present and that parameter values
+    are within valid ranges for a GLiR (Gradient Likelihood Ratio) attack setup.
+
+    Raises:
+        ConfigError: If any required fields are missing or if parameters are
+                     out of acceptable bounds.
+    """
     def __init__(self, config):
         super().__init__(config)
         self._validate_required_sections(['model', 'dataset', 'attack'])
@@ -27,3 +35,4 @@ class GLiRValidator(InputValidator):
            and not (0 <= self.test_size <= 1)):
             raise ConfigError("test_size must be between 0 and 1 "
                               "(inclusive)")
+        self._require(self.attack_file, 'method')

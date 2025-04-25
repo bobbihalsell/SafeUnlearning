@@ -10,8 +10,22 @@ from datasets.load_datasets import load_train_val_test_datasets
 
 
 def generate_lira_train_tests(
-    lira_dev_indices: Array, num_attempts: int, ratio: float = 0.5
+    lira_dev_indices: Array, 
+    num_attempts: int, 
+    ratio: float = 0.5
 ) -> Tuple[Array, Array]:
+    """Generates train and test splits for LiRA.
+
+    Args:
+        lira_dev_indices: Array of indices.
+        num_attempts: Number of different train-test splits to generate.
+        ratio: Ratio of test set size to total size. Defaults to 0.5.
+
+    Returns:
+        Tuple:
+            - train_indices: Array of shape (num_attempts, train_size) with training indices
+            - test_indices: Array of shape (num_attempts, test_size) with test indices
+    """
     test_size = int(len(lira_dev_indices) * ratio)
     train_size = len(lira_dev_indices) - test_size
     indices = np.zeros(shape=(num_attempts, len(lira_dev_indices)), dtype=int)
@@ -23,7 +37,7 @@ def generate_lira_train_tests(
     train_indices = indices[:, :train_size]
     test_indices = indices[:, train_size:]
 
-    # We verify that the indices row by row are different
+    # Verify that indices are disjoint between train and test sets
     for train_row, test_row in zip(train_indices, test_indices):
         assert len(set(train_row) & set(test_row)) == 0
 
@@ -31,16 +45,30 @@ def generate_lira_train_tests(
 
 
 def generate_all_forgets(
-    train_matrices: Array, num_attempts: int, ratio: float
+    train_matrices: Array, 
+    num_attempts: int, 
+    ratio: float
 ) -> Tuple[Array, Array]:
+    """Generates retain and forget splits from training matrices.
+
+    Args:
+        train_matrices: Array of training indices to generate splits from.
+        num_attempts: Number of different retain-forget splits to generate.
+        ratio: Ratio of forget set size to total size.
+
+    Returns:
+        Tuple:
+            - retains: Array of retain set indices
+            - forgets: Array of forget set indices
+    """
     retains, forgets = [], []
     for row in train_matrices:
         retain, forget = generate_lira_train_tests(row, num_attempts, ratio)
         retains.append(retain)
         forgets.append(forget)
-    retains = np.stack(retains)
-    forgets = np.stack(forgets)
-    return retains, forgets
+    retains_array = np.stack(retains)
+    forgets_array = np.stack(forgets)
+    return retains_array, forgets_array
 
 
 def generate_splits(
@@ -53,6 +81,21 @@ def generate_splits(
     output_dir: Path,
     seed: int,
 ) -> None:
+    """Generates and saves retain, forget and validation splits for LiRA.
+
+    Args:
+        dataset_name: Name of the dataset to use.
+        forget_ratio: Ratio of samples to forget in each split.
+        val_ratio: Ratio of validation set size to total training size.
+        num_splits: Number of different train-test splits to generate.
+        num_forgets: Number of different retain-forget splits to generate.
+        save_path: Path to load the dataset.
+        output_dir: Directory to save the generated splits.
+        seed: Random seed for reproducibility.
+
+    Returns:
+        None. Splits are saved to disk at {output_dir}/{unlearner}/splits/.
+    """
     path = output_dir / "splits"
     path.mkdir(parents=True, exist_ok=True)
 
@@ -60,8 +103,7 @@ def generate_splits(
         print("Splits are already generated. Skipping.")
         return
 
-    train, _, test = load_train_val_test_datasets(dataset_name, 1, 0, 
-                                                  save_path, "")
+    train, _, test = load_train_val_test_datasets(dataset_name, 1, 0, save_path, "")
     train_len, test_len = len(train), len(test)
 
     indices = np.arange(train_len + test_len)

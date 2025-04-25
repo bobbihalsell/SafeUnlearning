@@ -1,0 +1,7 @@
+defaults:
+  - dataset: ???
+  - forget: ???
+  - _self_
+
+experiment_name: ???
+seed: 42

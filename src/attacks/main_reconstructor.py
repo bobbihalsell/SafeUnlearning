@@ -11,126 +11,132 @@ from omegaconf.errors import MissingMandatoryValue
 import wandb
 
 from utils import set_seed, setup_device
+from importmodel import ImportModel
 from attacks.utils import safe_dataclass_load, SaveImage, calculate_metrics, load_from_directory
 from datasets import DATASETS_TO_PARAMS
-from attacks.config_validation import InputValidator  
+from attacks.config_validation import ReconstructorValidator
 from attacks.GGL.reconstructor import GGLReconstructor
 from attacks.InvertGrad.reconstructor import InvertGradReconstructor,InvertGradConfig
 
 DEFAULT_SEED = 42
 
-class ReconstructorApp(InputValidator):
+class ReconstructorApp(ReconstructorValidator):
+    """
+    ReconstructorApp class for performing model reconstruction in unlearning attacks.
+    """
     def __init__(self, config: DictConfig):
+        """
+    
+        Initializes the ReconstructorApp by performing input validation, setting up the device,
+        initializing seeds, and preparing directories for storing results.
+
+        Args:
+            config (DictConfig): Configuration dictionary containing settings for the reconstruction.
+        
+        Attributes:
+            device (torch.device): Device to use for computation (e.g., 'cpu' or 'cuda').
+            output_dir (str): Directory where results will be saved.
+            forget_root (str): Directory for evaluation metrics during unlearning.
+            original_model (nn.Module): The original model before unlearning.
+            unlearned_model (nn.Module): The model after unlearning.
+            reconstructor (object): The reconstructor instance to perform the attack (e.g., GGL or InvertGrad).
+        
+        """
         # Perform input validation first
         config = OmegaConf.to_container(config, resolve=True)
         super().__init__(config)
 
         self.device = setup_device()
-        print(config.keys())
         print(f'Using device: {self.device}')
-        self.seed = config['seed']
         set_seed(self.seed)
 
         # Output directory
         self.output_dir = config.get('output_dir', './artifacts/')
         os.makedirs(self.output_dir, exist_ok=True)
 
-    def initialize_model(self):
-        """Initialize the model based on model name from user configuration."""
-        if hasattr(torchvision.models, self.model_name):
-            model = torchvision.models.get_model(
-                self.model_name,
-                weights=None,
-            )
+        # Forget root for eval metrics
+        self.forget_root = f"{self.dataset_save_dir}/forget"
+    
+    def initialise_model(self):
+        """
+        Loads the original and unlearned models from the specified checkpoints.
 
-            # Adjust the last layer based on model type
-            if hasattr(model, "fc"):  # ResNet-style
-                model.fc = torch.nn.Linear(
-                    model.fc.in_features, self.num_classes
-                )
-            elif hasattr(model, "classifier"):  # MobileNet, EfficientNet, VGG, DenseNet
-                if isinstance(model.classifier, torch.nn.Sequential):
-                    # Handle cases like MobileNet where classifier is Sequential
-                    last_layer_idx = len(model.classifier) - 1
-                    model.classifier[last_layer_idx] = torch.nn.Linear(
-                        model.classifier[last_layer_idx].in_features,
-                        self.num_classes
-                    )
-                else:
-                    model.classifier = torch.nn.Linear(
-                        model.classifier.in_features, self.num_classes
-                    )
-            else:
-                raise AttributeError(
-                    f"Unknown classification layer for {self.model_name}"
-                )
+        The method utilizes the ImportModel class to load both the original and unlearned models
+        based on the specified parameters.
 
-        else:
-            print(f"Couldn't find {self.model_name} in torchvision. "
-                  "Looking in timm.")
-            try:
-                model = timm.create_model(
-                    self.model_name,
-                    num_classes=self.num_classes,
-                )
-            except Exception:
-                raise AttributeError(
-                    f"{self.model_name} not found in torchvision or timm."
-                )
-
-        return model
-
-    def load_model_from_disk(self, model_path):
-        """Load model from disk."""
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(f"Model file {model_path} not found.")
-
-        try:
-            # Initialize appropriate model architecture
-            model = self.initialize_model()
-            # Load state dict
-            checkpoint = torch.load(model_path, map_location=self.device)
-            if "model_state_dict" in checkpoint:
-                checkpoint = checkpoint["model_state_dict"] 
-            if "state_dict" in checkpoint:
-                checkpoint = checkpoint["state_dict"] 
-            model.load_state_dict(checkpoint)
-            model = model.to(self.device)
-            print(f"Loaded model from {model_path}")
-            return model
-
-        except Exception as e:
-            raise Exception(f'Error loading model: {e}')
-
+        Raises:
+            ValueError: If the model type or checkpoint paths are not correctly specified.
+        """
+        
+        original_import = ImportModel(self.load_method,
+                                      self.model_name,
+                                      self.num_classes,
+                                      self.init_path,
+                                      self.original_model_ckpt_path,
+                                      self.model_kwargs
+                                     )
+        self.original_model = original_import.load_model()
+        unlearned_import = ImportModel(self.load_method,
+                                      self.model_name,
+                                      self.num_classes,
+                                      self.init_path,
+                                      self.unlearned_model_ckpt_path,
+                                      self.model_kwargs
+                                       )
+        self.unlearned_model = unlearned_import.load_model()
+    
     def initalise_image_params(self):
+        """
+        Initializes the image parameters (mean, std, and size) based on the dataset being used.
+
+        The method retrieves dataset-specific parameters from the DATASETS_TO_PARAMS mapping.
+
+        Attributes set:
+            image_mean (tuple): Mean of the dataset images for normalization.
+            image_std (tuple): Standard deviation of the dataset images for normalization.
+            image_size (list): Image size (channels, height, width) for processing.
+        """
+       
         self.image_mean, self.image_std, self.image_size = DATASETS_TO_PARAMS[self.dataset_name]
         self.image_size = [3, self.image_size, self.image_size]
 
     def initialize_reconstructor(self, unlearned_model, original_model):
-        """ Initialize the correct unlearner from user specification."""
+        """ Initialize the correct unlearner from user specification.
+        
+        Args:
+            unlearned_model (nn.Module): The model after unlearning.
+            original_model (nn.Module): The original model before unlearning.
+        
+        Returns:
+            reconstructor (object): The reconstructor object initialized for the specified attack.
+        
+        Raises:
+            ValueError: If an unsupported attack type is specified.
+        
+        """
 
         loss_fn = nn.CrossEntropyLoss()
-        if self.reconstructor_name == 'ggl':
+        if self.attack_name == 'ggl':
             reconstructor = GGLReconstructor(
                 labels = self.labels,
-                lr = self.reconstructor_lr,
+                lr = self.attack_lr,
                 exp_name = self.experiment_name,
                 original_model = original_model,
                 target_model=unlearned_model, 
                 loss_fn = loss_fn,
-                **self.reconstructor_params
+                **self.attack_params
             )
 
-        elif self.reconstructor_name == 'invertgrad':
+        elif self.attack_name == 'invertgrad':
             reconstructor = InvertGradReconstructor(
                 device = self.device,
                 original_model = original_model,
                 unlearned_model = unlearned_model,
-                config = safe_dataclass_load(InvertGradConfig, self.reconstructor_params),
+                config = safe_dataclass_load(InvertGradConfig, self.attack_params),
                 seed = self.seed
             )
         else:
-            raise ValueError(f'reconstructor {self.reconstructor_name}'
+            raise ValueError(f'reconstructor {self.attack_name}'
                              ' not supported.')
         self.reconstructor = reconstructor
         return reconstructor
@@ -138,7 +144,13 @@ class ReconstructorApp(InputValidator):
 
 
     def save_results(self):
-        saver = SaveImage(self.reconstructor_name,
+        """
+        Creates a SaveImage instance for saving the reconstructed image and logging results.
+
+        Returns:
+            SaveImage: The image saver instance that handles saving and logging.
+        """
+        saver = SaveImage(self.attack_name,
                           self.seed,
                           self.experiment_name,
                           self.image_mean,
@@ -149,44 +161,51 @@ class ReconstructorApp(InputValidator):
 
 
     def run(self):
-        print('running...')
-        # Step 1 : read yaml files
-        # Step 2 : load unlearned model 
-        unlearned_model = self.load_model_from_disk(self.unlearned_weights)
+        """
+        Runs the reconstruction process by loading models, performing the attack, saving results, and calculating metrics.
 
-        # Step 3: Initialize the pretrained model
-        original_model = self.load_model_from_disk(self.original_weights)
+        Raises:
+            ValueError: If any error occurs during the model reconstruction process.
+        """
+        print('Running reconstruction...')
+        # Step 1 : read yaml files
+        # Step 2 : Load models model 
+        self.initialise_model()
 
         # Step 3: Initialize wandb
         if self.wandb_enabled:
-            config = self.reconstructor_params.copy() 
-            config['type'] = self.reconstructor_name
-            config['reconstructor_lr'] = self.reconstructor_lr  
+            config = self.attack_params.copy()
+            config['type'] = self.attack_name
+            config['reconstructor_lr'] = self.attack_lr
             config.update(self.extra_config)
+
+            if self.run_id is None:
+                self.run_id = wandb.util.generate_id()
             
             wandb.init(
-                project = self.wandb_project,
+                project = self.project_name,
+                id = self.run_id,
                 config = config,
                 group = self.experiment_name
                 )
-        
+
 
         # Step 4: Reconstruction
         self.initalise_image_params()
         
-        reconstructor = self.initialize_reconstructor(unlearned_model, original_model)
-        print('reconstructor initialized')
+        reconstructor = self.initialize_reconstructor(self.unlearned_model, self.original_model)
+        print('Reconstructor initialized')
 
         start_time = time.time()
-        if self.reconstructor_name == 'ggl':
+        if self.attack_name == 'ggl':
             z_res, reconstruction, losses = reconstructor.reconstruct(**self.unlearner_params)
-        elif self.reconstructor_name == 'invertgrad':
+        elif self.attack_name == 'invertgrad':
             reconstruction, losses = reconstructor.reconstruct(labels = self.labels,
-                                                               num_images = self.reconstructor_params['num_images'],
+                                                               num_images = self.attack_params['num_images'],
                                                             image_size= self.image_size,
                                                             image_mean= self.image_mean,
                                                             image_std=self.image_std,
-                                                            lr= self.reconstructor_lr,
+                                                            lr= self.attack_lr,
                                                             verbose=self.verbose)
         total_time = time.time() - start_time
 
@@ -200,7 +219,7 @@ class ReconstructorApp(InputValidator):
                              normalize=False)
         
         # # Step 6: Calculate metrics
-        ref_batch = load_from_directory(self.data_root)
+        ref_batch = load_from_directory(self.forget_root)
         psnr_value, mse_value = calculate_metrics(reconstruction, ref_batch, self.image_size, self.verbose)
 
 
@@ -229,8 +248,8 @@ class ReconstructorApp(InputValidator):
             wandb.finish()
         
 @hydra.main(version_base=None,
-            config_path="config",
-            config_name="config")
+            config_path="../../configs",
+            config_name="attacks")
 def main(cfg: DictConfig):
     # Print the config for the user first
     print('============ Run Configuration ============')

@@ -6,6 +6,17 @@ import torch
 
 
 def compute_accuracy(model, dataloader, device):
+    """
+    Computes the classification accuracy of a model on a given dataset.
+
+    Args:
+        model (torch.nn.Module): Trained model to evaluate.
+        dataloader (DataLoader): DataLoader providing the evaluation data.
+        device (torch.device): Device on which to perform computations.
+
+    Returns:
+        float: Accuracy score (correct / total).
+    """
     # device = model.device
     model.eval()
     correct = 0
@@ -23,12 +34,16 @@ def compute_accuracy(model, dataloader, device):
 
 def create_subset(dataset, fraction, return_indices=False):
     """
-    Creates a subloader with the given fraction of data from the original 
-        loader.
+    Creates a subset of a dataset by randomly selecting a fraction of samples.
 
-    :param loader: The original DataLoader
-    :param fraction: Fraction of the dataset to keep (e.g., 0.1 for 10%)
-    :return: New DataLoader with a subset of data
+    Args:
+        dataset (Dataset): The original dataset.
+        fraction (float): Fraction of the dataset to include (e.g., 0.1 for 10%).
+        return_indices (bool): If True, also return the indices used.
+
+    Returns:
+        Subset: A PyTorch Subset of the original dataset.
+        (optional) list of int: Indices of selected samples if return_indices is True.
     """
     total_size = len(dataset)
     subset_size = int(total_size * fraction)
@@ -43,13 +58,16 @@ def create_subset(dataset, fraction, return_indices=False):
 def create_matched_subset(dataset, target_size, 
                           exempt_points=[], test_size=None):
     """
-    Creates a subset from the loader with exactly `target_size` samples.
-    
+    Creates a subset of specified size, excluding certain indices.
+
     Args:
-        loader: Original DataLoader.
-        target_size: Desired number of samples 
-            (must be <= len(loader.dataset)).
-        return_loader: If True, returns a DataLoader; else returns a Subset.
+        dataset (Dataset): The original dataset.
+        target_size (int): Number of samples to select.
+        exempt_points (list, optional): Indices to exclude from selection.
+        test_size (float, optional): If provided, overrides target_size with a fraction.
+
+    Returns:
+        Subset: A PyTorch Subset with selected samples.
     """
     available_test_indices = list(
                                 set(range(len(dataset))) - set(exempt_points)
@@ -68,6 +86,24 @@ def create_matched_subset(dataset, target_size,
 
 
 def calculate_metrics(y_true, y_pred):
+    """
+    Calculates classification performance metrics.
+
+    Args:
+        y_true (array-like): Ground truth labels (binary).
+        y_pred (array-like): Predicted labels (binary).
+
+    Returns:
+        dict: Dictionary containing:
+            - "TP": True Positives
+            - "TN": True Negatives
+            - "FP": False Positives
+            - "FN": False Negatives
+            - "Accuracy": Accuracy score
+            - "Precision": Precision score
+            - "Recall": Recall score
+            - "F1": F1 score
+    """
     # Ensure the inputs are tensors
     y_true = torch.tensor(y_true)
     y_pred = torch.tensor(y_pred)

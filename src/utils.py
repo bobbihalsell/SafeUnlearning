@@ -8,9 +8,10 @@ from torch.utils.data import DataLoader
 
 
 def setup_device():
-    """ Setup a torch device.
+    """
+    Setup a torch device.
     Returns:
-        str
+          str: The selected device type ('cuda', 'mps', or 'cpu').
     """
     if torch.cuda.is_available():
         return 'cuda'
@@ -21,7 +22,12 @@ def setup_device():
 
 
 def set_seed(seed: int = 42):
-    """Set the random seed for reproducibility."""
+    """
+    Set the random seed for reproducibility.
+
+    Args:
+        seed (int, optional): The seed value to set. Defaults to 4
+    """
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -31,17 +37,30 @@ def set_seed(seed: int = 42):
 
 
 class ConfigError(Exception):
+    """
+    Custom exception raised for configuration errors in YAML specifications.
+
+    """
     def __init__(self, message='Configuration .YAML specification error.'):
         super().__init__(message)
 
 
-def initialize_dataloaders(splits, 
-                           batch_sizes, 
-                           num_workers, 
-                           dataset_name, 
+def initialize_dataloaders(splits,
+                           batch_sizes,
+                           num_workers,
+                           dataset_name,
                            dataset_save_dir):
-    """ Initialize dataloaders from the dataset folder in ImageFolder format.
-    Returns a dictionary of dataloaders for retain, forget, and val splits.
+    """ 
+    Initialize dataloaders from the dataset folder in ImageFolder format.
+    Args:
+        splits (list): List of splits to initialize (e.g., 'retain', 'forget', 'val').
+        batch_sizes (dict): Dictionary mapping splits to their respective batch sizes.
+        num_workers (int): Number of workers to load data in parallel.
+        dataset_name (str): Name of the dataset.
+        dataset_save_dir (str): Directory where the dataset is stored.
+
+    Returns:
+        dict: A dictionary of DataLoader objects indexed by split names.
     """
     dataloaders = {}
     datasets = initialize_datasets(splits, dataset_name, dataset_save_dir)
@@ -49,7 +68,7 @@ def initialize_dataloaders(splits,
         dataloaders[dataset] = DataLoader(
             datasets[dataset],
             batch_size=batch_sizes[dataset],
-            shuffle=(dataset in ['retain', 'forget']),
+            shuffle=(dataset in ['train', 'retain', 'forget']),
             num_workers=num_workers,
             pin_memory=True
         )
@@ -57,9 +76,18 @@ def initialize_dataloaders(splits,
 
 
 def initialize_datasets(splits, dataset_name, dataset_save_dir):
-    """ 
+    """
     Initialize dataloaders from the dataset folder.
-    Returns a dictionary of dataloaders for retain, forget, and val splits.
+     Args:
+        splits (list): List of dataset splits (e.g., 'retain', 'forget', 'val').
+        dataset_name (str): Name of the dataset.
+        dataset_save_dir (str): Directory where the dataset is stored.
+
+    Returns:
+        dict: A dictionary of datasets indexed by split names.
+
+    Raises:
+        Exception: If any dataset directory is missing or incorrectly formatted.
     """
     transform = DATASETS_TO_TRANSFORM[dataset_name]()
 

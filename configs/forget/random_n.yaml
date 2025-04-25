@@ -1,0 +1,3 @@
+method: random_n
+forget_size: ??? # An integer
+retain_size: # Number of instances to use in retain set or leave empty for all remaining instances 

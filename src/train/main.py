@@ -8,6 +8,7 @@ from importmodel import ImportModel
 from utils import setup_device, set_seed
 from utils import initialize_dataloaders as init_dataloaders
 from train.config_validation import TrainValidator
+import time
 
 
 class TrainApp(TrainValidator):
@@ -16,6 +17,7 @@ class TrainApp(TrainValidator):
         super().__init__(config)
         config = OmegaConf.to_container(config, resolve=True)
         self.seed = config['seed']
+        self.verbose = config['verbose']
         set_seed(self.seed)
 
     def load_model(self):
@@ -33,7 +35,15 @@ class TrainApp(TrainValidator):
         return model
 
     def freeze_all_except_classifier(self, model):
-        """Unfreeze only the last (classifier) layer."""
+        """
+        Unfreeze only the last (classifier) layer.
+
+        Args:
+            model (torch.nn.Module): The model to modify.
+
+        Returns:
+            torch.nn.Module: Model with only the classifier layer unfrozen.
+        """
         for name, param in model.named_parameters():
             if "classifier" in name or "fc" in name:
                 param.requires_grad = True
@@ -42,7 +52,12 @@ class TrainApp(TrainValidator):
         return model
 
     def initialize_dataloaders(self):
-        """ Initialize dataloaders from the dataset folder."""
+        """ 
+        Initialize dataloaders from the dataset folder.
+
+        Returns: 
+            dict: Dictionary with 'train' and 'val' DataLoader objects.
+        """
         dataloaders = init_dataloaders(splits=['train', 'val'],
                                        batch_sizes=self.batch_sizes,
                                        num_workers=self.num_workers,
@@ -51,7 +66,17 @@ class TrainApp(TrainValidator):
         return dataloaders
 
     def reinitialize_checkpoints(self, model, optimizer):
-        """ Load in model and optimizer state dict from a checkpoint."""
+        """ 
+        Load in model and optimizer state dict from a checkpoint.
+
+        Args:
+            model (torch.nn.Module): The model to load weights into.
+            optimizer (torch.optim.Optimizer): The optimizer to load state into.
+
+        Returns:
+            model, optimizer, start_epoch with loaded weights and epoch count
+        
+        """
         if self.from_checkpoint:
             # Load the checkpoint state_dict
             checkpoint = torch.load(self.checkpoint_path)
@@ -144,8 +169,8 @@ class TrainApp(TrainValidator):
             train_loss = 0.0
             correct, total = 0, 0
 
+            start_time = time.time()
             for i, batch in enumerate(train_dl):
-                print(f'Training Batch {i}...')
                 inputs, labels = batch
                 inputs, labels = inputs.to(device), labels.to(device)
 
@@ -162,28 +187,34 @@ class TrainApp(TrainValidator):
 
             train_loss /= len(train_dl.dataset)
             train_acc = 100.0 * correct / total
+            train_time = time.time() - start_time
 
             if self.wandb_enabled:
                 wandb.log({
                     "train_loss": train_loss,
                     "train_accuracy": train_acc,
+                    "train_time": train_time,
                     "epoch": start_epoch + epoch + 1
                 })
 
             # Validation phase
-            val_loss, val_acc = self.eval_model(criterion, model, val_dl)
+            val_loss, val_acc, eval_time = self.eval_model(criterion, model, val_dl)
 
             if self.wandb_enabled:
                 wandb.log({
                     "val_loss": val_loss,
                     "val_accuracy": val_acc,
+                    "eval_time": eval_time,
                     "epoch": start_epoch + epoch + 1
                 })
-
-            print(f"Epoch {start_epoch+epoch+1}/{start_epoch+self.epochs} - "
-                  f"Train Loss: {train_loss:.4f}, "
-                  f"Train Acc: {train_acc:.2f}% - "
-                  f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%")
+            if self.verbose:
+                print(f"Epoch {start_epoch+epoch+1}/{start_epoch+self.epochs} ")
+                print(f'Train Loss: {train_loss:.4f} '
+                      f'Acc: {train_acc:.2f}%. '
+                      f'Time: {train_time:.1f} s', end=' || ')
+                print(f'Val Loss: {val_loss:.4f} '
+                      f'Acc: {val_acc:.2f}%. '
+                      f'Time: {eval_time:.1f} s', end=' || ')            
 
             # Save the best model based on validation loss
             if val_loss < best_val_loss:
@@ -203,11 +234,24 @@ class TrainApp(TrainValidator):
         print("Training complete.")
 
     def eval_model(self, criterion, model, val_dl):
+
+        """
+        Evaluates the model on the validation set.
+
+        Args:
+            criterion: The loss function (e.g., CrossEntropyLoss).
+            model (torch.nn.Module): The model to evaluate.
+            val_dl (DataLoader): DataLoader for the validation set.
+
+        Returns:
+            validation_loss, validation_accuracy
+        """
         model.eval()
         device = setup_device()
         val_loss = 0.0
         correct, total = 0, 0
 
+        start_time = time.time()
         with torch.no_grad():
             for batch in val_dl:
                 inputs, labels = batch
@@ -223,8 +267,33 @@ class TrainApp(TrainValidator):
 
         val_loss /= len(val_dl.dataset)
         val_acc = 100.0 * correct / total
+        time_taken = time.time() - start_time
 
-        return val_loss, val_acc
+        return val_loss, val_acc, time_taken
+
+    def _eval_initial_model(self, criterion, model, train_dl, val_dl):
+        initial_train_loss, initial_train_acc = self.eval_model(criterion,
+                                                                model,
+                                                                train_dl)
+        initial_val_loss, initial_val_acc = self.eval_model(criterion,
+                                                            model,
+                                                            val_dl)
+        if self.verbose:
+            print(f'Initial Train Loss: '
+                  f'{initial_train_loss:.4f}. '
+                  f'Acc: {initial_train_acc:.2f}%.', end=' || ')
+            print(f'Initial Val Loss: '
+                  f'{initial_val_loss:.4f}. '
+                  f'Acc: {initial_val_acc:.2f}%.', end=' || ')
+        if self.wandb_enabled:
+            wandb.log({
+                'Initial Train Loss': initial_train_loss,
+                'Initial Train Acc': initial_train_acc
+            })
+            wandb.log({
+                'Initial Val Loss': initial_val_loss,
+                'Initial Val Acc': initial_val_acc
+            })
 
     def _eval_initial_model(self, criterion, model, train_dl, val_dl):
         initial_train_loss, initial_train_acc = self.eval_model(criterion,
@@ -257,8 +326,8 @@ def main(cfg: DictConfig):
     trainer = TrainApp(config=cfg)
     if trainer.wandb_enabled:
         wandb.init(
-            project=trainer.wandb_project_name,
-            id=trainer.wandb_run_id,
+            project=trainer.project_name,
+            id=trainer.run_id,
             config=OmegaConf.to_container(cfg, resolve=True),
             resume='allow'  # Allow to resume training from checkpoint
         )
