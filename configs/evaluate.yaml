@@ -1,9 +1,0 @@
-defaults:
-  - dataset: ???
-  - model: ???
-  - _self_
-
-experiment_name: ???
-output_dir: artifacts/evaluations/${experiment_name}
-seed: 42
-verbose: true
