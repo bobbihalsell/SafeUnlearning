@@ -56,10 +56,10 @@ class DatasetInitializer(DatasetValidator):
         # Filter a proportion of the train dataset filenames
         filenames, labels = get_filenames_and_labels(self.init_path +
                                                      '/train')
-        if os.path.exists(self.init_path + '/test'):           
+        if os.path.exists(self.init_path + '/test'):
             test_filenames, test_labels = get_filenames_and_labels(
                                     self.init_path + '/test')
-        
+
         remaining_filenames, _ = stratified_split_filenames(
             filenames,
             labels,
@@ -81,7 +81,8 @@ class DatasetInitializer(DatasetValidator):
         # Create train/val symlinks from self.save_path
         create_symlinks(train_filenames, self.save_path + '/train')
         create_symlinks(val_filenames, self.save_path + '/val')
-        create_symlinks(test_filenames, self.save_path + '/test')
+        if os.path.exists(self.init_path + '/test'):
+            create_symlinks(test_filenames, self.save_path + '/test')
 
         # Create symlinks for desired retain and forget set images
         if self.forget_method == 'random_n':
@@ -113,7 +114,7 @@ class DatasetInitializer(DatasetValidator):
                               f'received {self.forget_method}.')
 
     def _reinitialize_splits_dir(self):
-        """ 
+        """
         Remove and recreate an empty split directory.
 
         Prevents unintended errors across different experiment runs,
@@ -149,9 +150,9 @@ class DatasetInitializer(DatasetValidator):
             forget_size: int,
             retain_size: int = None
     ):
-        """ 
+        """
         Create symlink forget and retain subsets
-        
+
         Args:
         train_dir (str): Path to the training data directory.
         output_dir (str): Directory where symlinks will be created.
@@ -160,8 +161,6 @@ class DatasetInitializer(DatasetValidator):
 
         Raises:
         ConfigError: If forget_size is larger than the dataset size.
-        
-        
         """
         train_dataset = RobustImageFolder(root=train_dir)
         if forget_size > len(train_dataset):
@@ -205,13 +204,13 @@ class DatasetInitializer(DatasetValidator):
             output_dir: str,
             forget_classes: list
     ):
-        """ 
+        """
         Create symlinks if the user wanted to forget an entire class.
         Args:
             train_dir (str): Path to the training data directory.
             output_dir (str): Directory to store symlinks.
             forget_classes (list): List of class labels to forget.
-        
+
         """
         subdirs = [name for name in os.listdir(train_dir) if
                    os.path.isdir(os.path.join(train_dir, name))]
@@ -241,15 +240,15 @@ class DatasetInitializer(DatasetValidator):
             output_dir: str,
             forget_classes: dict
     ):
-        """ 
+        """
         Create symlinks for n samples from each class to forget.
-        
+
         Args:
             train_dir (str): Path to the training data directory.
             output_dir (str): Directory to store symlinks.
             forget_classes (dict): Dictionary mapping class labels to number of
                                    samples to forget.
-        
+
         """
         subdirs = [name for name in os.listdir(train_dir) if
                    os.path.isdir(os.path.join(train_dir, name))]
@@ -321,7 +320,7 @@ class DatasetInitializer(DatasetValidator):
             train_dir: str,
             output_dir: str,
     ):
-        """ 
+        """
         Create forget/retain symlinks by user-defined filenames.
 
         Uses self.forget_filenames and self.retain_filenames and creates
@@ -396,12 +395,13 @@ class DatasetInitializer(DatasetValidator):
         if missing:
             print('Warning: Failed to find the following filenames you have '
                   f'specified as forget/retain in the dataset: {missing}')
-            
+
     def del_parent_dir(self):
         if self.init_path == 'tmp_dir':
             # Remove the tmp_dir directory
             shutil.rmtree(self.init_path, ignore_errors=True)
-            print(f"Deleted the temporaty directory holding the original training and test data")
+            print("Deleted the temporary directory holding the "
+                  "original training and test data.")
 
 
 @hydra.main(version_base=None,
