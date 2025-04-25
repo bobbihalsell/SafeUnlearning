@@ -13,4 +13,6 @@ cfg:
     retain: 64
     forget: 64
     val: 64
+    train: 64
+    test: 1
   num_workers: 4

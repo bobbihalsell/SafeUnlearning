@@ -1,4 +1,5 @@
 evaluate: true
+model_save_dir: # Model save dir. Empty – save to ./artifacts
 cfg:
   optimizer: sgd
   lr: 0.01

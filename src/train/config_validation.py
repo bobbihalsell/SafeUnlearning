@@ -7,9 +7,9 @@ class TrainValidator(InputValidator):
     def __init__(self, config: DictConfig):
         config = OmegaConf.to_container(config, resolve=True)
         super().__init__(config)
-        self._validate_required_sections(['model', 'dataset', 
+        self._validate_required_sections(['model', 'dataset',
                                           'trainer'])
-        
+
     def _validate_dataset_params(self):
         super()._validate_dataset_params()
         cfg = self._require(self.dataset_file, 'cfg', 'dataset_cfg')
@@ -17,20 +17,17 @@ class TrainValidator(InputValidator):
             setattr(self, key, value)
 
     def _validate_model_params(self):
-        self._require(self.model_file, 'name', 'model_name')
-        self._require(self.model_file, 'pretrained')
-        self._require(self.model_file, 'save_dir', 'model_save_dir')
-        self._require(self.model_file, 'freeze_all_except_classifier', 
-                      'freeze_all_except_last')
-        self.checkpoint_path = self.model_file.get('checkpoint_path', None)
+        super()._validate_model_params()
+        self.pretrained = self.model_file.get('pretrained', None)
+        self.checkpoint_path = self.model_file.get('original_model_ckpt_path',
+                                                   None)
         self.from_checkpoint = (self.checkpoint_path is not None)
 
     def _validate_trainer_params(self):
-        self._require(self.trainer_file, 'epochs')
-        self._require(self.trainer_file, 'lr')
-        self._require(self.trainer_file, 'weight_decay')
-    
+        self._require(self.trainer_file, 'model_save_dir')
+        for key, _ in self.trainer_file['cfg'].items():
+            self._require(self.trainer_file['cfg'], key)
+
     def _validate_wandb_params(self):
         self._require(self.wandb_file, 'project_name')
         self._require(self.wandb_file, 'run_id')
-

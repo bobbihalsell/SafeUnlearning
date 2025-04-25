@@ -13,8 +13,8 @@ outputs/**
 **/artifacts/**
 **/artifactstest/**
 **/output/**
-**/wandb/**
-
+**/wandb/
+!**/configs/wandb/
 # C extensions
 *.so
 

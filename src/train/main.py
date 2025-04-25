@@ -1,14 +1,15 @@
-import torchvision
 import torch
-import timm
 import wandb
 import os
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.errors import MissingMandatoryValue
+from importmodel import ImportModel
+import torch.nn as nn
 from utils import setup_device, set_seed
 from utils import initialize_dataloaders as init_dataloaders
 from train.config_validation import TrainValidator
+import time
 
 
 class TrainApp(TrainValidator):
@@ -16,76 +17,23 @@ class TrainApp(TrainValidator):
     def __init__(self, config: DictConfig):
         super().__init__(config)
         config = OmegaConf.to_container(config, resolve=True)
+        self.config = config
         self.seed = config['seed']
+        self.verbose = config['verbose']
         set_seed(self.seed)
 
-    def initialize_model(self):
-        """
-        Initialize the model based on model name from user configuration.
-        Returns:
-            torch.nn.Module: Instantiated model with the final classification head adjusted to `num_classes`.
-        """
-        if hasattr(torchvision.models, self.model_name):
-            model = torchvision.models.get_model(
-                self.model_name,
-                weights="DEFAULT" if self.pretrained else None,
+    def load_model(self):
+        """Initialize the model based on model name from user configuration."""
+        importer = ImportModel(
+            load_method=self.load_method,
+            model_name=self.model_name,
+            num_classes=self.num_classes,
+            init_path=self.init_path,
+            model_ckpt_path=self.original_model_ckpt_path,
+            model_kwargs=self.model_kwargs,
+            from_pretrained=self.pretrained,
             )
-
-            if self.num_classes != 1000:  # Imagenet-1k
-                print('Replacing default classification head...')
-                # Adjust the last layer to match number of classes
-                if hasattr(model, "fc"):  # ResNet-style
-                    model.fc = torch.nn.Linear(
-                        model.fc.in_features,
-                        self.num_classes
-                    )
-                elif hasattr(model, "classifier"):
-                    # MobileNet, EfficientNet, VGG, DenseNet
-                    if isinstance(model.classifier, torch.nn.Sequential):
-                        # Handle cases where classifier is Sequential
-                        last_layer_idx = len(model.classifier) - 1
-                        model.classifier[last_layer_idx] = torch.nn.Linear(
-                            model.classifier[last_layer_idx].in_features,
-                            self.num_classes
-                        )
-                    else:
-                        model.classifier = torch.nn.Linear(
-                            model.classifier.in_features,
-                            self.num_classes
-                        )
-                else:
-                    raise AttributeError("Unknown classification layer "
-                                         f'for {self.model_name}')
-
-        else:
-            print(f'Could not find {self.model_name} in torchvision.'
-                  ' Looking in timm.')
-            try:
-                model = timm.create_model(
-                    self.model_name,
-                    pretrained=self.pretrained,
-                    num_classes=self.num_classes,
-                )
-            except Exception:
-                raise AttributeError(f"{self.model_name} not found.")
-
-        return model
-
-    def freeze_all_except_classifier(self, model):
-        """
-        Unfreeze only the last (classifier) layer.
-
-        Args:
-            model (torch.nn.Module): The model to modify.
-
-        Returns:
-            torch.nn.Module: Model with only the classifier layer unfrozen.
-        """
-        for name, param in model.named_parameters():
-            if "classifier" in name or "fc" in name:
-                param.requires_grad = True
-            else:
-                param.requires_grad = False
+        model = importer.model
         return model
 
     def initialize_dataloaders(self):
@@ -101,7 +49,7 @@ class TrainApp(TrainValidator):
                                        dataset_name=self.dataset_name,
                                        dataset_save_dir=self.dataset_save_dir)
         return dataloaders
-    
+
     def reinitialize_checkpoints(self, model, optimizer):
         """ 
         Load in model and optimizer state dict from a checkpoint.
@@ -112,7 +60,6 @@ class TrainApp(TrainValidator):
 
         Returns:
             model, optimizer, start_epoch with loaded weights and epoch count
-        
         """
         if self.from_checkpoint:
             # Load the checkpoint state_dict
@@ -136,10 +83,17 @@ class TrainApp(TrainValidator):
 
     def pretrain(self):
         """ Perform pretraining of a model on a dataset."""
-        # Step 1: Initialize the model
-        model = self.initialize_model()
+        # Step 1: Initialize the model and WandB configs
+        model = self.load_model()
         device = setup_device()
         model.to(device)
+        if self.wandb_enabled:
+            wandb.init(
+                project=self.project_name,
+                id=self.run_id,
+                config=self.config,
+                resume='allow'  # Allow to resume training from checkpoint
+            )
 
         # Step 2: Load datasets and dataloaders
         dataloaders = self.initialize_dataloaders()
@@ -148,9 +102,7 @@ class TrainApp(TrainValidator):
 
         # Step 3: Set up loss function and optimizer
         criterion = torch.nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(model.parameters(),
-                                     lr=self.lr,
-                                     weight_decay=self.weight_decay)
+        optimizer = self.initialize_optimizer(model, self.optimizer)
 
         # Create the save directory
         os.makedirs(self.model_save_dir, exist_ok=True)
@@ -165,28 +117,20 @@ class TrainApp(TrainValidator):
             torch.save(checkpoint, save_path)
             print(f'Model downloaded without training at {save_path}.')
             return None
-        if self.wandb_enabled:
-            wandb.init(
-                project=self.project_name,
-                config={
-                    "epochs": self.epochs,
-                    "batch_size": self.batch_sizes['train'],
-                    "learning_rate": self.lr,
-                    "weight_decay": self.weight_decay,
-                    "model_name": self.model_name,
-                    "num_classes": self.num_classes,
-                },
-                id=str(self.run_id),
-                resume="allow"
-            )
+
         start_epoch = 0
         if self.from_checkpoint:
             model, optimizer, start_epoch = self.reinitialize_checkpoints(
                 model=model,
                 optimizer=optimizer)
 
-        if self.freeze_all_except_last:
-            model = self.freeze_all_except_classifier(model)
+        # Evaluate initial model performance
+        self._eval_initial_model(
+            criterion,
+            model,
+            train_dl,
+            val_dl
+        )
 
         # Training configuration
         best_val_loss = float("inf")
@@ -198,8 +142,8 @@ class TrainApp(TrainValidator):
             train_loss = 0.0
             correct, total = 0, 0
 
+            start_time = time.time()
             for i, batch in enumerate(train_dl):
-                print(f'Training Batch {i}...')
                 inputs, labels = batch
                 inputs, labels = inputs.to(device), labels.to(device)
 
@@ -216,28 +160,34 @@ class TrainApp(TrainValidator):
 
             train_loss /= len(train_dl.dataset)
             train_acc = 100.0 * correct / total
+            train_time = time.time() - start_time
 
             if self.wandb_enabled:
                 wandb.log({
                     "train_loss": train_loss,
                     "train_accuracy": train_acc,
+                    "train_time": train_time,
                     "epoch": start_epoch + epoch + 1
                 })
-
             # Validation phase
-            val_loss, val_acc = self.eval_model(criterion, model, val_dl)
-
+            val_loss, val_acc, eval_time = self.eval_model(criterion,
+                                                           model,
+                                                           val_dl)
             if self.wandb_enabled:
                 wandb.log({
                     "val_loss": val_loss,
                     "val_accuracy": val_acc,
+                    "eval_time": eval_time,
                     "epoch": start_epoch + epoch + 1
                 })
-
-            print(f"Epoch {start_epoch+epoch+1}/{start_epoch+self.epochs} - "
-                  f"Train Loss: {train_loss:.4f}, "
-                  f"Train Acc: {train_acc:.2f}% - "
-                  f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%")
+            if self.verbose:
+                print(f"Epoch {start_epoch+epoch+1}/{start_epoch+self.epochs} ")
+                print(f'Train Loss: {train_loss:.4f} '
+                      f'Acc: {train_acc:.2f}%. '
+                      f'Time: {train_time:.1f} s', end=' || ')
+                print(f'Val Loss: {val_loss:.4f} '
+                      f'Acc: {val_acc:.2f}%. '
+                      f'Time: {eval_time:.1f} s', end=' || ')            
 
             # Save the best model based on validation loss
             if val_loss < best_val_loss:
@@ -274,6 +224,7 @@ class TrainApp(TrainValidator):
         val_loss = 0.0
         correct, total = 0, 0
 
+        start_time = time.time()
         with torch.no_grad():
             for batch in val_dl:
                 inputs, labels = batch
@@ -289,11 +240,61 @@ class TrainApp(TrainValidator):
 
         val_loss /= len(val_dl.dataset)
         val_acc = 100.0 * correct / total
+        time_taken = time.time() - start_time
 
-        return val_loss, val_acc
+        return val_loss, val_acc, time_taken
+
+    def _eval_initial_model(self, criterion, model, train_dl, val_dl):
+        initial_train_loss, initial_train_acc, time_train = self.eval_model(
+            criterion,
+            model,
+            train_dl)
+        initial_val_loss, initial_val_acc, time_val = self.eval_model(
+            criterion,
+            model,
+            val_dl)
+        if self.verbose:
+            print(f'Initial Train Loss: '
+                  f'{initial_train_loss:.4f}. '
+                  f'Acc: {initial_train_acc:.2f}%. '
+                  f'Time: {time_train:2f}s.', end=' || ')
+            print(f'Initial Val Loss: '
+                  f'{initial_val_loss:.4f}. '
+                  f'Acc: {initial_val_acc:.2f}%. '
+                  f'Time: {time_val:2f}s ', end=' || ')
+        if self.wandb_enabled:
+            wandb.log({
+                'Initial Train Loss': initial_train_loss,
+                'Initial Train Acc': initial_train_acc
+            })
+            wandb.log({
+                'Initial Val Loss': initial_val_loss,
+                'Initial Val Acc': initial_val_acc
+            })
+
+    def initialize_optimizer(self, model: nn.Module, optimizer_name: str):
+        """ Initialize an optimizer."""
+        if optimizer_name == 'adam':
+            optimizer = torch.optim.Adam(model.parameters(),
+                                         lr=self.lr,
+                                         weight_decay=self.weight_decay)
+        elif optimizer_name == 'sgd':
+            momentum = getattr(self, "momentum", None)
+            if momentum is None:
+                momentum = 0
+            optimizer = torch.optim.SGD(model.parameters(),
+                                        lr=self.lr,
+                                        momentum=momentum,
+                                        weight_decay=self.weight_decay)
+        else:
+            raise ValueError(
+                'Only adam and sgd optimizers supported. '
+                f'Received {optimizer_name}.')
+
+        return optimizer
 
 
-@hydra.main(version_base=None, config_path="config", config_name="config")
+@hydra.main(version_base=None, config_path="../../configs", config_name="train")
 def main(cfg: DictConfig):
     print('============ Run Configuration ============')
     print(OmegaConf.to_yaml(cfg))
@@ -306,13 +307,6 @@ def main(cfg: DictConfig):
             'Hint: python file.py key=value sets the appropriate value.')
 
     trainer = TrainApp(config=cfg)
-    if trainer.wandb_enabled:
-        wandb.init(
-            project=trainer.project_name,
-            id=trainer.run_id,
-            config=OmegaConf.to_container(cfg, resolve=True),
-            resume='allow'  # Allow to resume training from checkpoint
-        )
     trainer.pretrain()
     if trainer.wandb_enabled:
         wandb.finish()

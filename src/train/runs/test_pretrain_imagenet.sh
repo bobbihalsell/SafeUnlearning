@@ -1,1 +1,0 @@
-python src/train/main.py dataset=imagenet model=resnet18 wandb=default train=default dataset.save_path=./data model.pretrained=true model.save_dir=./artifacts/models/imagenet_test trainer.epochs=0

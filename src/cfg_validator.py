@@ -93,6 +93,7 @@ class InputValidator:
             required_gradproj_params = ['recalc_freq', 
                                         'num_components', 
                                         'redirection_strength', 
+                                        'retain_strength',
                                         'max_grad_norm']
             for param in required_gradproj_params:
                 self._require(cfg, param)
@@ -100,11 +101,8 @@ class InputValidator:
     def _validate_dataset_params(self):
         config = self.dataset_file
         self._require(config, 'name', 'dataset_name')
-        valid_dataset_names = {'cifar5', 'cifar10', 'cifar100', 'imagenet'}        
-        if self.dataset_name not in valid_dataset_names:
-            raise ConfigError(f'Dataset support only for '
-                              f'{", ".join(valid_dataset_names)}. '
-                              f'Received {self.dataset_name}')
+        if not isinstance(self.dataset_name, str):
+            raise ConfigError("dataset_name must be a string")
         self._require(self.dataset_file, 'num_classes')
         self._require(config, 'save_path', 'dataset_save_dir')
 
@@ -130,9 +128,9 @@ class InputValidator:
         for key in config:
             if key.endswith('_ckpt_path'):
                 setattr(self, key, config[key])
-        self.model_ckpt_path = config.get('model_ckpt_path', None)
+        self.model_ckpt_path = config.get('original_model_ckpt_path', None)
         if not hasattr(self, 'pretrained'):
-            setattr(self, 'pretrained', True)
+            setattr(self, 'pretrained', None)
         
     def _validate_class_params(self, config):
         self._require(config, 'class_path', 'init_path')

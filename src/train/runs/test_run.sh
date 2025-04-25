@@ -1,1 +1,0 @@
-python src/train/main.py dataset=cifar10 model=mobilenet_v2 trainer=default wandb=default dataset.save_path=./data model.pretrained=true model.save_dir=./artifacts/models/cifar_test trainer.epochs=1
