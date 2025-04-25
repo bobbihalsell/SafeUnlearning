@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 
 
 def setup_device():
-    """ 
+    """
     Setup a torch device.
     Returns:
           str: The selected device type ('cuda', 'mps', or 'cpu').
@@ -39,16 +39,16 @@ def set_seed(seed: int = 42):
 class ConfigError(Exception):
     """
     Custom exception raised for configuration errors in YAML specifications.
-    
+
     """
     def __init__(self, message='Configuration .YAML specification error.'):
         super().__init__(message)
 
 
-def initialize_dataloaders(splits, 
-                           batch_sizes, 
-                           num_workers, 
-                           dataset_name, 
+def initialize_dataloaders(splits,
+                           batch_sizes,
+                           num_workers,
+                           dataset_name,
                            dataset_save_dir):
     """ 
     Initialize dataloaders from the dataset folder in ImageFolder format.
@@ -68,7 +68,7 @@ def initialize_dataloaders(splits,
         dataloaders[dataset] = DataLoader(
             datasets[dataset],
             batch_size=batch_sizes[dataset],
-            shuffle=(dataset in ['retain', 'forget']),
+            shuffle=(dataset in ['train', 'retain', 'forget']),
             num_workers=num_workers,
             pin_memory=True
         )
@@ -76,7 +76,7 @@ def initialize_dataloaders(splits,
 
 
 def initialize_datasets(splits, dataset_name, dataset_save_dir):
-    """ 
+    """
     Initialize dataloaders from the dataset folder.
      Args:
         splits (list): List of dataset splits (e.g., 'retain', 'forget', 'val').
@@ -85,7 +85,7 @@ def initialize_datasets(splits, dataset_name, dataset_save_dir):
 
     Returns:
         dict: A dictionary of datasets indexed by split names.
-    
+
     Raises:
         Exception: If any dataset directory is missing or incorrectly formatted.
     """
