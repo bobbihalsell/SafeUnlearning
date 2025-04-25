@@ -241,6 +241,7 @@ class TrainApp(TrainValidator):
               f'{initial_val_loss:.4f}. '
               f'Acc: {initial_val_acc:.2f}%.', end=' || ')
 
+
 @hydra.main(version_base=None, config_path="config", config_name="config")
 def main(cfg: DictConfig):
     print('============ Run Configuration ============')
