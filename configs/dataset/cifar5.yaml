@@ -2,7 +2,7 @@ name: cifar5
 num_classes: 5
 load_method: # The loading method of the dataset. Choices: torchvision/local
 binaries_download_dir: # The directory to download the dataset binaries to
-init_dir: # the directory path where the original train or train/test dataset images can be found
+init_path: # the directory path where the original train or train/test dataset images can be found
 save_path: ??? # the parent directory path for the train/val/test/forget/retain folders.
 proportion: 1
 val_ratio: 0.2

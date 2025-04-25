@@ -43,7 +43,7 @@ class DatasetInitializer(DatasetValidator):
                 download_cifar_datasets(
                     dataset_name=self.dataset_name,
                     download_root=self.binaries_download_dir,
-                    save_dir=self.init_dir,
+                    save_dir=self.init_path,
                 )
 
         else:
@@ -54,11 +54,11 @@ class DatasetInitializer(DatasetValidator):
                 )
 
         # Filter a proportion of the train dataset filenames
-        filenames, labels = get_filenames_and_labels(self.init_dir +
+        filenames, labels = get_filenames_and_labels(self.init_path +
                                                      '/train')
-                                                     
-        test_filenames, test_labels = get_filenames_and_labels(
-                                   self.init_dir + '/test')
+        if os.path.exists(self.init_path + '/test'):           
+            test_filenames, test_labels = get_filenames_and_labels(
+                                    self.init_path + '/test')
         
         remaining_filenames, _ = stratified_split_filenames(
             filenames,
@@ -398,9 +398,9 @@ class DatasetInitializer(DatasetValidator):
                   f'specified as forget/retain in the dataset: {missing}')
             
     def del_parent_dir(self):
-        if self.init_dir == 'tmp_dir':
+        if self.init_path == 'tmp_dir':
             # Remove the tmp_dir directory
-            shutil.rmtree(self.init_dir, ignore_errors=True)
+            shutil.rmtree(self.init_path, ignore_errors=True)
             print(f"Deleted the temporaty directory holding the original training and test data")
 
 

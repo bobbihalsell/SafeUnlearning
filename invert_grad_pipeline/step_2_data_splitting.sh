@@ -12,7 +12,7 @@ INDICES=$(cat "${DIR}/forget_indices.json" | tr -d ' \n')
 # Run data splitting app
 python src/datasets/main.py \
     dataset=cifar10 forget=instance \
-    dataset.init_dir=./raw \
+    dataset.init_path=./raw \
     dataset.save_dir=$DATASET_SAVE_PATH \
     forget.forget_idx="${INDICES}" \
     forget.retain_size=50
