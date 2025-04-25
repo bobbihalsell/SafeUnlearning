@@ -101,11 +101,8 @@ class InputValidator:
     def _validate_dataset_params(self):
         config = self.dataset_file
         self._require(config, 'name', 'dataset_name')
-        valid_dataset_names = {'cifar5', 'cifar10', 'cifar100', 'imagenet'}        
-        if self.dataset_name not in valid_dataset_names:
-            raise ConfigError(f'Dataset support only for '
-                              f'{", ".join(valid_dataset_names)}. '
-                              f'Received {self.dataset_name}')
+        if not isinstance(self.dataset_name, str):
+            raise ConfigError("dataset_name must be a string")
         self._require(self.dataset_file, 'num_classes')
         self._require(config, 'save_path', 'dataset_save_dir')
 
