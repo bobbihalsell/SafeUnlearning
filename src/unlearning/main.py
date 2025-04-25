@@ -51,8 +51,6 @@ class UnlearnApp(UnlearningValidator):
         # Output directory
         self.output_dir = config['output_dir']
         os.makedirs(self.output_dir, exist_ok=True)
-        # Set to true in main() if user provided wandb_config
-        # self.wandb_enabled = False
         print(f' num_classes: {self.num_classes}')
 
     def load_model(self):

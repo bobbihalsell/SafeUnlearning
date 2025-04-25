@@ -1,7 +1,0 @@
-defaults:
-  - _self_
-  - model: ???
-  - dataset: ???
-  - trainer: ???
-  - wandb: 
-seed: 42
