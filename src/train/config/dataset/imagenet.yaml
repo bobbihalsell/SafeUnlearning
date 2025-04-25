@@ -1,8 +1,0 @@
-name: imagenet
-num_classes: 1000
-save_path: ??? # directory to the ImageFolder-format dataset
-cfg:
-  batch_sizes:
-    train: 64
-    val: 64
-  num_workers: 4
