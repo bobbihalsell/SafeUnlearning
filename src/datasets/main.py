@@ -43,7 +43,7 @@ class DatasetInitializer(DatasetValidator):
                 download_cifar_datasets(
                     dataset_name=self.dataset_name,
                     download_root=self.binaries_download_dir,
-                    save_dir=self.init_path,
+                    save_dir=self.parent_path,
                 )
 
         else:
@@ -54,7 +54,7 @@ class DatasetInitializer(DatasetValidator):
                 )
 
         # Filter a proportion of the train dataset filenames
-        filenames, labels = get_filenames_and_labels(self.init_path +
+        filenames, labels = get_filenames_and_labels(self.parent_path +
                                                      '/train')
         remaining_filenames, _ = stratified_split_filenames(
             filenames,

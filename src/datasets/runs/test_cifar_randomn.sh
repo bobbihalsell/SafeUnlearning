@@ -1,1 +1,1 @@
-python src/datasets/main.py forget=random_n dataset=cifar10 dataset.load_method=torchvision forget.forget_size=500 dataset.init_path=./cifar10 dataset.save_path=./data experiment_name=test dataset.binaries_download_dir=./artifacts
+python src/datasets/main.py forget=random_n dataset=cifar10 dataset.load_method=torchvision forget.forget_size=500 dataset.parent_path=./cifar10 dataset.save_path=./data experiment_name=test dataset.binaries_download_dir=./artifacts
