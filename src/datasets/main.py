@@ -43,7 +43,7 @@ class DatasetInitializer(DatasetValidator):
                 download_cifar_datasets(
                     dataset_name=self.dataset_name,
                     download_root=self.binaries_download_dir,
-                    save_dir=self.parent_path,
+                    save_dir=self.init_dir,
                 )
 
         else:
@@ -54,11 +54,11 @@ class DatasetInitializer(DatasetValidator):
                 )
 
         # Filter a proportion of the train dataset filenames
-        filenames, labels = get_filenames_and_labels(self.parent_path +
+        filenames, labels = get_filenames_and_labels(self.init_dir +
                                                      '/train')
                                                      
         test_filenames, test_labels = get_filenames_and_labels(
-                                   self.parent_path + '/test')
+                                   self.init_dir + '/test')
         
         remaining_filenames, _ = stratified_split_filenames(
             filenames,
@@ -81,7 +81,7 @@ class DatasetInitializer(DatasetValidator):
         # Create train/val symlinks from self.save_path
         create_symlinks(train_filenames, self.save_path + '/train')
         create_symlinks(val_filenames, self.save_path + '/val')
-        create_symlinks(val_filenames, self.save_path + '/test')
+        create_symlinks(test_filenames, self.save_path + '/test')
 
         # Create symlinks for desired retain and forget set images
         if self.forget_method == 'random_n':
@@ -398,9 +398,9 @@ class DatasetInitializer(DatasetValidator):
                   f'specified as forget/retain in the dataset: {missing}')
             
     def del_parent_dir(self):
-        if self.parent_path == 'tmp_dir':
+        if self.init_dir == 'tmp_dir':
             # Remove the tmp_dir directory
-            shutil.rmtree(self.parent_path, ignore_errors=True)
+            shutil.rmtree(self.init_dir, ignore_errors=True)
             print(f"Deleted the temporaty directory holding the original training and test data")
 
 

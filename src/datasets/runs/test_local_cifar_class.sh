@@ -1,1 +1,1 @@
-python src/datasets/main.py forget=class forget.forget_idx="[5, 6]" dataset=cifar5 dataset.name=cifar10 dataset.load_method=local dataset.parent_path=./cifar10 dataset.save_path=./data experiment_name=test
+python src/datasets/main.py forget=class forget.forget_idx="[5, 6]" dataset=cifar5 dataset.name=cifar10 dataset.load_method=local dataset.init_dir=./cifar10 dataset.save_path=./data experiment_name=test
