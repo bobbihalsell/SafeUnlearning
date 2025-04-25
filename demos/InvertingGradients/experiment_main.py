@@ -15,7 +15,7 @@ DATASET_SAVE_PATH = "./data"
 NUM_CLASSES = 10
 TRAINING_EPOCHS = 15
 TRAINING_LR = 0.01
-MODEL_SAVE_PATH = "./model"
+ORIGINAL_MODEL_SAVE_PATH = "./model"
 
 
 @dataclass
@@ -49,7 +49,7 @@ def run_exp(cfg: Config):
     forget_size = len(forget_labels)
 
     # Set unique experiment name and model directory based on the method
-    if cfg.method == "neggrad":
+    if cfg.method == "neggrad" or cfg.method == "sgru":
         exp_params = f"{forget_size}s_{cfg.epochs}e"
 
     elif cfg.method == "neggradplus":
@@ -62,8 +62,8 @@ def run_exp(cfg: Config):
     model_dir = f"model/{experiment_name}"
 
     # Trained model is saved here:
-    model_save_path = f"{MODEL_SAVE_PATH}/{MODEL_NAME}_{SEED}_original.pt"
-
+    # model_save_path = f"{ORIGINAL_MODEL_SAVE_PATH}/{MODEL_NAME}_{SEED}_original.pt"
+    model_save_path = "vol/bitbucket/vb524/v3_safee/safe-unlearning/model/resnet18_42_original.pt"
     # After unlearning, the model will be saved in the following paths
     original_weights = f"{model_dir}/unlearn/{cfg.method}/{MODEL_NAME}_{SEED}_original.pt"
     unlearned_weights = f"{model_dir}/unlearn/{cfg.method}/{MODEL_NAME}_{SEED}_unlearned.pt"
@@ -132,15 +132,36 @@ def run_exp(cfg: Config):
                  ],
                 check=True
             )
+        elif cfg.method == "sgru":
+            subprocess.run(
+                ["python", "src/unlearning/main.py",
+                 f"dataset={DATASET}",
+                 f"model={MODEL}",
+                 f"seed={SEED}",
+                 "unlearner=sgru",
+                 "experiment_name=InvertGradExp",
+                 f"verbose={cfg.verbose}",
+                 f"output_dir={model_dir}",
+                 f"dataset.save_path={DATASET_SAVE_PATH}",
+                 f"model.model_name={MODEL_NAME}",
+                 f"model.original_model_ckpt_path=/vol/bitbucket/vb524/v3_safee/safe-unlearning/model/resnet18_42_original.pt",
+                 f"unlearner.cfg.epochs={cfg.epochs}",
+                 f"unlearner.cfg.lr={LR}",
+                 "unlearner.cfg.weight_decay=0",
+                 f"unlearner.cfg.momentum={MOMENTUM}",
+                 "unlearner.cfg.lr_decay_factor=null"
+                 ],
+                check=True
+            )
     except subprocess.CalledProcessError as e:
         print(f"Error during main.py execution: {e}")
         sys.exit(1)
 
     # Step 3: run reconstruction
     if forget_size == 1:
-        num_runs = 3
+        num_runs = 1
         scoring_choice = "pixelmean"
-        iterations = 7_500
+        iterations = 5000
     else:
         num_runs = 1
         scoring_choice = "loss"
