@@ -75,7 +75,7 @@ class ReconstructorApp(ReconstructorValidator):
                                       self.original_model_ckpt_path,
                                       self.model_kwargs
                                      )
-        self.original_model = original_import.load_model()
+        self.original_model = original_import.model
         unlearned_import = ImportModel(self.load_method,
                                       self.model_name,
                                       self.num_classes,
@@ -83,7 +83,7 @@ class ReconstructorApp(ReconstructorValidator):
                                       self.unlearned_model_ckpt_path,
                                       self.model_kwargs
                                        )
-        self.unlearned_model = unlearned_import.load_model()
+        self.unlearned_model = unlearned_import.model
     
     def initalise_image_params(self):
         """
