@@ -252,19 +252,23 @@ class TrainApp(TrainValidator):
         return val_loss, val_acc, time_taken
 
     def _eval_initial_model(self, criterion, model, train_dl, val_dl):
-        initial_train_loss, initial_train_acc = self.eval_model(criterion,
-                                                                model,
-                                                                train_dl)
-        initial_val_loss, initial_val_acc = self.eval_model(criterion,
-                                                            model,
-                                                            val_dl)
+        initial_train_loss, initial_train_acc, time_train = self.eval_model(
+            criterion,
+            model,
+            train_dl)
+        initial_val_loss, initial_val_acc, time_val = self.eval_model(
+            criterion,
+            model,
+            val_dl)
         if self.verbose:
             print(f'Initial Train Loss: '
                   f'{initial_train_loss:.4f}. '
-                  f'Acc: {initial_train_acc:.2f}%.', end=' || ')
+                  f'Acc: {initial_train_acc:.2f}%. '
+                  f'Time: {time_train:2f}s.', end=' || ')
             print(f'Initial Val Loss: '
                   f'{initial_val_loss:.4f}. '
-                  f'Acc: {initial_val_acc:.2f}%.', end=' || ')
+                  f'Acc: {initial_val_acc:.2f}%. '
+                  f'Time: {time_val:2f}s ', end=' || ')
         if self.wandb_enabled:
             wandb.log({
                 'Initial Train Loss': initial_train_loss,
