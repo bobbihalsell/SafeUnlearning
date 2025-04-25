@@ -2,7 +2,7 @@ name: cifar10
 num_classes: 10
 load_method: # The loading method of the dataset. Choices: torchvision/local
 binaries_download_dir: # The directory to download the dataset binaries to
-init_path: # the directory path where the original train or train/test dataset images can be found if empty it will not save
+init_path: # the directory path where the original train or train/test dataset images can be found
 save_path: ??? # the parent directory path for the train/val/test/forget/retain folders.
 proportion: 1
 val_ratio: 0.2
@@ -14,31 +14,3 @@ cfg:
     forget: 64
     val: 64
   num_workers: 4
-
-# # EXAMPLE IDEA
-# name: cifar10
-# num_classes: 10
-
-# # saving paths
-# binaries_download_dir: # The directory to download the dataset binaries to
-# init_path: # the directory path where the original train or train/test dataset images can be found
-# save_path: ??? # the parent directory path for the train/val/test/forget/retain folders.
-
-# # datasets
-# load_method: # The loading method of the dataset. Choices: torchvision/local
-# proportion: 1
-# val_ratio: 0.2
-
-# # lira
-# forget_ratio: 0.1
-
-# # glir
-# background_ratio: 0.1
-
-# # training / unlearning / evaluation batching
-# cfg:
-#   batch_sizes:
-#     # retain: 128
-#     forget: 128
-#     val: 128
-#   num_workers: 4
