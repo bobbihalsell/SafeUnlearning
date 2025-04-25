@@ -18,15 +18,13 @@ class TrainValidator(InputValidator):
 
     def _validate_model_params(self):
         super()._validate_model_params()
-        self._require(self.model_file, 'save_dir', 'model_save_dir')
-        self._require(self.model_file,
-                      'freeze_all_except_classifier',
-                      'freeze_all_except_last')
         self.pretrained = self.model_file.get('pretrained', None)
-        self.checkpoint_path = self.model_file.get('model_ckpt_path', None)
+        self.checkpoint_path = self.model_file.get('original_model_ckpt_path',
+                                                   None)
         self.from_checkpoint = (self.checkpoint_path is not None)
 
     def _validate_trainer_params(self):
+        self._require(self.trainer_file, 'model_save_dir')
         self._require(self.trainer_file, 'epochs')
         self._require(self.trainer_file, 'lr')
         self._require(self.trainer_file, 'weight_decay')

@@ -27,28 +27,11 @@ class TrainApp(TrainValidator):
             model_name=self.model_name,
             num_classes=self.num_classes,
             init_path=self.init_path,
-            model_ckpt_path=self.model_ckpt_path,
+            model_ckpt_path=self.original_model_ckpt_path,
             model_kwargs=self.model_kwargs,
             from_pretrained=self.pretrained,
             )
         model = importer.model
-        return model
-
-    def freeze_all_except_classifier(self, model):
-        """
-        Unfreeze only the last (classifier) layer.
-
-        Args:
-            model (torch.nn.Module): The model to modify.
-
-        Returns:
-            torch.nn.Module: Model with only the classifier layer unfrozen.
-        """
-        for name, param in model.named_parameters():
-            if "classifier" in name or "fc" in name:
-                param.requires_grad = True
-            else:
-                param.requires_grad = False
         return model
 
     def initialize_dataloaders(self):
@@ -147,9 +130,6 @@ class TrainApp(TrainValidator):
             model, optimizer, start_epoch = self.reinitialize_checkpoints(
                 model=model,
                 optimizer=optimizer)
-
-        if self.freeze_all_except_last:
-            model = self.freeze_all_except_classifier(model)
 
         # Evaluate initial model performance
         self._eval_initial_model(
@@ -296,7 +276,7 @@ class TrainApp(TrainValidator):
             })
 
 
-@hydra.main(version_base=None, config_path="config", config_name="config")
+@hydra.main(version_base=None, config_path="../../configs", config_name="train")
 def main(cfg: DictConfig):
     print('============ Run Configuration ============')
     print(OmegaConf.to_yaml(cfg))
