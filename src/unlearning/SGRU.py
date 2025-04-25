@@ -66,6 +66,7 @@ class SGRU(BaseUnlearner):
                 - recalc_freq: Frequency to recalculate forget subspace
                 - num_components: Number of principal components to use
                 - redirection_strength: Lambda value for gradient deflection
+                - retain_strength: Value for gradient retention
                 - max_grad_norm: Maximum gradient norm for clipping
 
         Returns:
@@ -87,6 +88,8 @@ class SGRU(BaseUnlearner):
             raise TypeError("num_components must an integer.")
         if self.redirection_strength < 0:
             raise ValueError("redirection_strength must be non-negative.")
+        if self.retain_strencth < 0:
+            raise ValueError("retain_strength must be non-negative.")
         if self.max_grad_norm < 0:
             raise ValueError("max_grad_norm must be non-negative.")
 
@@ -246,8 +249,9 @@ class SGRU(BaseUnlearner):
                                 max_proj = 10.0
                                 proj = torch.clamp(proj, -max_proj, max_proj)
                                 # Apply the deflection with strength
-                                flat_grad = (flat_grad - proj * direction
-                                             * self.redirection_strength)
+                                flat_grad = (flat_grad * self.retain_strength
+                                             - (proj * direction 
+                                                * self.redirection_strength))
 
                             # DEBUGGING
                             if torch.isnan(flat_grad).any():
