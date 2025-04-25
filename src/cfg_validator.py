@@ -93,6 +93,7 @@ class InputValidator:
             required_gradproj_params = ['recalc_freq', 
                                         'num_components', 
                                         'redirection_strength', 
+                                        'retain_strength',
                                         'max_grad_norm']
             for param in required_gradproj_params:
                 self._require(cfg, param)
@@ -127,7 +128,7 @@ class InputValidator:
         for key in config:
             if key.endswith('_ckpt_path'):
                 setattr(self, key, config[key])
-        self.model_ckpt_path = config.get('model_ckpt_path', None)
+        self.model_ckpt_path = config.get('original_model_ckpt_path', None)
         if not hasattr(self, 'pretrained'):
             setattr(self, 'pretrained', True)
         
