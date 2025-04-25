@@ -25,9 +25,8 @@ class TrainValidator(InputValidator):
 
     def _validate_trainer_params(self):
         self._require(self.trainer_file, 'model_save_dir')
-        self._require(self.trainer_file['cfg'], 'epochs')
-        self._require(self.trainer_file['cfg'], 'lr')
-        self._require(self.trainer_file['cfg'], 'weight_decay')
+        for key, _ in self.trainer_file['cfg'].items():
+            self._require(self.trainer_file['cfg'], key)
 
     def _validate_wandb_params(self):
         self._require(self.wandb_file, 'project_name')

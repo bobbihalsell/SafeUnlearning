@@ -5,6 +5,7 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.errors import MissingMandatoryValue
 from importmodel import ImportModel
+import torch.nn as nn
 from utils import setup_device, set_seed
 from utils import initialize_dataloaders as init_dataloaders
 from train.config_validation import TrainValidator
@@ -59,7 +60,6 @@ class TrainApp(TrainValidator):
 
         Returns:
             model, optimizer, start_epoch with loaded weights and epoch count
-        
         """
         if self.from_checkpoint:
             # Load the checkpoint state_dict
@@ -102,9 +102,7 @@ class TrainApp(TrainValidator):
 
         # Step 3: Set up loss function and optimizer
         criterion = torch.nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(model.parameters(),
-                                     lr=self.lr,
-                                     weight_decay=self.weight_decay)
+        optimizer = self.initialize_optimizer(model, self.optimizer)
 
         # Create the save directory
         os.makedirs(self.model_save_dir, exist_ok=True)
@@ -273,6 +271,27 @@ class TrainApp(TrainValidator):
                 'Initial Val Loss': initial_val_loss,
                 'Initial Val Acc': initial_val_acc
             })
+
+    def initialize_optimizer(self, model: nn.Module, optimizer_name: str):
+        """ Initialize an optimizer."""
+        if optimizer_name == 'adam':
+            optimizer = torch.optim.Adam(model.parameters(),
+                                         lr=self.lr,
+                                         weight_decay=self.weight_decay)
+        elif optimizer_name == 'sgd':
+            momentum = getattr(self, "momentum", None)
+            if momentum is None:
+                momentum = 0
+            optimizer = torch.optim.SGD(model.parameters(),
+                                        lr=self.lr,
+                                        momentum=momentum,
+                                        weight_decay=self.weight_decay)
+        else:
+            raise ValueError(
+                'Only adam and sgd optimizers supported. '
+                f'Received {optimizer_name}.')
+
+        return optimizer
 
 
 @hydra.main(version_base=None, config_path="../../configs", config_name="train")
