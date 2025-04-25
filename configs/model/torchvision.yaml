@@ -1,4 +1,5 @@
 load_method: torchvision  
 model_name: ???
+pretrained: true
 original_model_ckpt_path:
 unlearned_model_ckpt_path:
