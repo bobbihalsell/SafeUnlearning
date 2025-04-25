@@ -98,7 +98,7 @@ Once you know your experiment parameters, you can then run the appropriate mini-
 
 For instance, suppose your experiment involves forgetting 10 samples from class 0 of CIFAR10, and using 20% of the data as validation. You would run the following command to download the CIFAR10 binaries to the `./raw` folder and your image dataset's train, validation, test, forget and retain splits to the `./data` folder:
 ```bash
-python src/datasets/main.py forget=classnum dataset=cifar10 forget.forget_idx="{0:10}" dataset.init_path=./raw dataset.save_dir=./data
+python src/datasets/main.py forget=classnum dataset=cifar10 dataset.load_method=torchvision dataset.binaries_download_dir=./artifacts forget.forget_idx="{0:10}" dataset.init_path=./raw dataset.save_path=./data experiment_name=test
 ```
 
 ## Contributing guidelines
