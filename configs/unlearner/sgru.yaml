@@ -12,4 +12,5 @@ cfg:
   recalc_freq: 1  # Frequency to recalculate forget subspace 
   num_components: 10  # Number of principal components to use 
   redirection_strength: 2.5  # Lambda value for gradient deflection 
+  retain_strength: 1  # Value for gradient retention
   max_grad_norm: 10  #  Maximum gradient norm for clipping 

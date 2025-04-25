@@ -93,6 +93,7 @@ class InputValidator:
             required_gradproj_params = ['recalc_freq', 
                                         'num_components', 
                                         'redirection_strength', 
+                                        'retain_strength',
                                         'max_grad_norm']
             for param in required_gradproj_params:
                 self._require(cfg, param)
