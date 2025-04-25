@@ -196,10 +196,10 @@ class TrainApp(TrainValidator):
                     "train_time": train_time,
                     "epoch": start_epoch + epoch + 1
                 })
-
             # Validation phase
-            val_loss, val_acc, eval_time = self.eval_model(criterion, model, val_dl)
-
+            val_loss, val_acc, eval_time = self.eval_model(criterion,
+                                                           model,
+                                                           val_dl)
             if self.wandb_enabled:
                 wandb.log({
                     "val_loss": val_loss,
@@ -294,21 +294,6 @@ class TrainApp(TrainValidator):
                 'Initial Val Loss': initial_val_loss,
                 'Initial Val Acc': initial_val_acc
             })
-
-    def _eval_initial_model(self, criterion, model, train_dl, val_dl):
-        initial_train_loss, initial_train_acc = self.eval_model(criterion,
-                                                                model,
-                                                                train_dl)
-        initial_val_loss, initial_val_acc = self.eval_model(criterion,
-                                                            model,
-                                                            val_dl)
-
-        print(f'Initial Train Loss: '
-              f'{initial_train_loss:.4f}. '
-              f'Acc: {initial_train_acc:.2f}%.', end=' || ')
-        print(f'Initial Val Loss: '
-              f'{initial_val_loss:.4f}. '
-              f'Acc: {initial_val_acc:.2f}%.', end=' || ')
 
 
 @hydra.main(version_base=None, config_path="config", config_name="config")
