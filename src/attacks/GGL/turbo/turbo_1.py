@@ -367,7 +367,6 @@ class Turbo1:
                             os.path.join(save_dir, f"best_latent_z_step{self.n_evals}.npy"),
                             z_res.detach().cpu().numpy()
                         )
-                        print(f"z_res saved at: {save_dir}/best_latent_z_step{self.n_evals}.npy")
                     except Exception as e:
                         print(f"Failed to save file: {e}")
 
