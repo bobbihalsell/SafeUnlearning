@@ -204,7 +204,7 @@ class TestGGLReconstructor(unittest.TestCase):
         mock_scrub.unlearn.return_value = (MagicMock(), None)
         mock_scrub_class.return_value = mock_scrub
 
-        expected_device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        expected_device = 'cuda' if torch.cuda.is_available() else 'cpu'
         image = torch.randn(1, 3, 224, 224)
         labels = torch.tensor([1])
         model = MagicMock()
@@ -225,7 +225,7 @@ class TestGGLReconstructor(unittest.TestCase):
 
         self.reconstructor.perform_scrub_updates(image, labels, model, **kwargs)
 
-        # mock_scrub_class.assert_called_once_with(device=torch.device(expected_device))
+        mock_scrub_class.assert_called_once_with(device=torch.device(expected_device))
         mock_scrub.unlearn.assert_called_once()
 
         _, unlearn_kwargs = mock_scrub.unlearn.call_args
@@ -260,6 +260,107 @@ class TestGGLReconstructor(unittest.TestCase):
             self.assertEqual(mock_optimizer.zero_grad.call_count, 3)
             self.assertEqual(mock_optimizer.step.call_count, 3)
             self.assertEqual(result, mock_model)
+
+    @patch("attacks.GGL.reconstructor.NegGradPlus")
+    def test_perform_neggradplus_updates(self, mock_neggradplus_class):
+        """Test NegGradPlus update mechanism"""
+        # Set up mocks
+        mock_neggradplus = MagicMock()
+        mock_neggradplus.unlearn.return_value = (MagicMock(), None)
+        mock_neggradplus_class.return_value = mock_neggradplus
+
+        # Expected device based on system config
+        expected_device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        
+        # Create test data
+        image = torch.randn(1, 3, 224, 224)
+        labels = torch.tensor([1])
+        model = MagicMock()
+        
+        # Additional kwargs for the method
+        kwargs = {
+            'momentum': 0.9,
+            'weight_decay': 0.1,
+            'epochs': 5,
+            'batch_size': 32
+        }
+
+        # Call the method being tested
+        result = self.reconstructor.perform_neggradplus_updates(image, labels, model, **kwargs)
+        
+        # Verify unlearn method was called
+        mock_neggradplus.unlearn.assert_called_once()
+        
+        # Check the arguments passed to unlearn
+        _, unlearn_kwargs = mock_neggradplus.unlearn.call_args
+        self.assertEqual(unlearn_kwargs['model'], model)
+        self.assertIn('data_dict', unlearn_kwargs)
+        self.assertEqual(unlearn_kwargs['lr'], self.reconstructor.lr)
+        self.assertEqual(unlearn_kwargs['momentum'], 0.9)
+        self.assertEqual(unlearn_kwargs['weight_decay'], 0.1)
+        self.assertEqual(unlearn_kwargs['epochs'], 5)
+        self.assertEqual(unlearn_kwargs['batch_size'], 32)
+        
+        # Verify the returned model is the unlearned model
+        self.assertEqual(result, mock_neggradplus.unlearn.return_value[0])
+
+    @patch("attacks.GGL.reconstructor.NegGradPlus")
+    def test_neggradplus_label_conversion(self, mock_neggradplus_class):
+        """Test label conversion from int to tensor in NegGradPlus updates"""
+        mock_neggradplus = MagicMock()
+        mock_neggradplus.unlearn.return_value = (MagicMock(), None)
+        mock_neggradplus_class.return_value = mock_neggradplus
+
+        expected_device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        image = torch.randn(1, 3, 224, 224)
+        label = 2  # integer input
+        model = MagicMock()
+
+        self.reconstructor.perform_neggradplus_updates(image, label, model)
+
+        args, kwargs = mock_neggradplus.unlearn.call_args
+        forget_dict = kwargs['data_dict']
+        forget_loader = forget_dict['forget']
+        forget_batch = next(iter(forget_loader))
+        _, forget_labels = forget_batch
+
+        self.assertTrue(torch.is_tensor(forget_labels))
+        self.assertEqual(forget_labels.dtype, torch.long)
+        self.assertEqual(str(forget_labels.device), expected_device)
+
+    @patch("attacks.GGL.reconstructor.NegGradPlus")
+    def test_neggradplus_forget_and_retain_loaders(self, mock_neggradplus_class):
+        """Test forget and retain dataloaders for NegGradPlus updates"""
+        mock_neggradplus = MagicMock()
+        mock_neggradplus.unlearn.return_value = (MagicMock(), None)
+        mock_neggradplus_class.return_value = mock_neggradplus
+
+        image = torch.randn(4, 3, 224, 224)
+        labels = torch.tensor([0, 1, 2, 3])
+        model = MagicMock()
+
+        self.reconstructor.perform_neggradplus_updates(image, labels, model)
+
+        args, kwargs = mock_neggradplus.unlearn.call_args
+        forget_dict = kwargs['data_dict']
+        
+        # Check that we have both forget and retain loaders
+        self.assertIn('forget', forget_dict)
+        self.assertIn('retain', forget_dict)
+
+        # forget should have 1 batch with all 4 samples
+        forget_loader = forget_dict['forget']
+        self.assertEqual(len(forget_loader), 1)
+        
+        # Check the batch size of the forget loader
+        for batch in forget_loader:
+            x, y = batch
+            self.assertEqual(x.shape[0], 4)
+            self.assertEqual(y.shape[0], 4)
+            
+        # retain should be empty
+        retain_loader = forget_dict['retain']
+        self.assertEqual(len(list(retain_loader)), 0)
 
 
     def test_save_results(self):

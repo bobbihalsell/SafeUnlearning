@@ -257,7 +257,8 @@ class GGLReconstructor:
         empty_x = torch.empty((0, 3, 224, 224))
         empty_labels = torch.empty((0,), dtype=torch.long)
         empty_dataset = TensorDataset(empty_x, empty_labels)
-        # Create forget dictionary
+        # Create forget dictionary since we don't have access to retain set
+        # we handle that with empty dataset
         forget_dict['retain'] = DataLoader(
             empty_dataset
         )
@@ -303,7 +304,8 @@ class GGLReconstructor:
         empty_x = torch.empty((0, 3, 224, 224))
         empty_labels = torch.empty((0,), dtype=torch.long)
         empty_dataset = TensorDataset(empty_x, empty_labels)
-        # Create forget dictionary - we don't have access to retain set
+        # Create forget dictionary since we don't have access to retain set
+        # we handle that with empty dataset
         forget_dict['retain'] = DataLoader(
             empty_dataset
         )
