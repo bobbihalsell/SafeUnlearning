@@ -46,7 +46,7 @@ class GLiRApp(GLiRValidator):
         # combine roc ?
         self.plot_combined_roc = config["plot_combined_roc"]
 
-    def initialise_data(self):
+    def initialize_data(self):
         """
         Initializes and prepares the dataset for attack:
         - Loads background data for baseline creation.
@@ -62,7 +62,7 @@ class GLiRApp(GLiRValidator):
         self.querypoints = self.data.prepare_querypoints()
         return
 
-    def initialise_attack(self):
+    def initialize_attack(self):
         """
         Loads the original and unlearned models and initializes the GLiR 
         attack object using both models.
@@ -92,7 +92,7 @@ class GLiRApp(GLiRValidator):
                         method=self.method,
                         )
         
-    def initialise_baseline(self):
+    def initialize_baseline(self):
         """
         Uses background data to compute the baseline gradient distribution 
         (mean and covariance) for the likelihood ratio test.
@@ -209,14 +209,14 @@ class GLiRApp(GLiRValidator):
         
         """
         print("Peparing query points and background points...")
-        self.initialise_data()
+        self.initialize_data()
         
         # Load models
-        print("Loading models and initialising attack...")
-        self.initialise_attack()
+        print("Loading models and initializing attack...")
+        self.initialize_attack()
 
         print("Creating the baseline...")
-        self.initialise_baseline()
+        self.initialize_baseline()
 
         print("Performing the attack...")
         self.perform_attack()

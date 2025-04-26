@@ -78,7 +78,7 @@ class ImportModel:
                 self._init_from_timm()
             else:
                 raise ConfigError(
-                    "Unknown initialisation method: "
+                    "Unknown initialization method: "
                     f"{self.load_method}"
                 )
             # Load weights if specified
