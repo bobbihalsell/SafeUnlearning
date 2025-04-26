@@ -413,11 +413,6 @@ class GLiR:
         chi2_pdf = chi2.pdf(x, self.df)
         ax1.plot(x, chi2_pdf, 'k-', lw=2, label=f'χ²({self.df}) Distribution')
         
-        # Threshold alpha
-        threshold = chi2.ppf(1 - alpha, self.df)
-        ax1.axvline(x=threshold, color='g', linestyle='--', 
-                    label=f'alpha={alpha} threshold')
-        
         # Plot points with different colors based on labels
         if labels is not None:
             # Forget points (red)
