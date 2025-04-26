@@ -15,14 +15,14 @@ def generate_plots(exp_dir):
 
     fig, axs = plt.subplots(1, 2, figsize=(14, 7))
 
-    for data_path in memberships:
+    for data_path in sorted(memberships):
         data = np.load(exp_dir / data_path, allow_pickle=True)
         label = data_path.split("/")[-1][:-4].replace("_membership", "")
 
         scores = []
         for i in range(len(data)):
             if data[i]:
-                scores.append(np.mean(data[i]))
+                scores.append(np.nanmean(data[i]))
 
         sns.kdeplot(scores, ax=axs[0], label=label.title())
         axs[1].bar(label.title(), np.mean(scores), yerr=np.std(scores))
@@ -31,12 +31,12 @@ def generate_plots(exp_dir):
     axs[0].vlines(0.5, ymin, ymax, color="black", linestyle="--")
     axs[0].axis([xmin, xmax, ymin, ymax])
     axs[0].set_xlabel("Per-sample Membership Inference Accuracy")
+    axs[0].legend(loc="upper left")
 
     xmin, xmax, ymin, ymax = axs[1].axis()
     axs[1].axis([xmin, xmax, ymin, ymax])
     axs[1].set_ylabel("Average Membership Inference Accuracy")
 
-    axs[0].legend()
     plt.savefig(exp_dir / "plots.png", bbox_inches="tight")
 
 
