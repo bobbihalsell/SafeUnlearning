@@ -17,4 +17,4 @@ cfg:   # attack-specific parameters
   lr_decay: True
   scoring_choice: loss
   eval: True
-  filter: none
+  filter: null
