@@ -15,6 +15,20 @@ from attacks.InvertGrad.reconstruction_cost import (reconstruction_costs,
                                                     DistillKL)
 from utils import set_seed
 
+# === Valid Configuration Options ===
+OPTIONS_BOOL = [True, False]
+
+OPTIONS_FILTERS = [None, 'median']
+OPTIONS_COST_FNS = ['sim', 'l2', 'l1']
+OPTIONS_INDICES = [
+    'def', 'batch', 'topk-1', 'top10', 'top50',
+    'first', 'first4', 'first5', 'first10', 'first50',
+    'last5', 'last10', 'last50'
+]
+OPTIONS_WEIGHTS = ['equal', 'none']
+OPTIONS_SCORING = ['loss', 'tv', 'pixelmean', 'pixelmedian']
+OPTIONS_OPTIMIZERS = ['adam', 'sgd', 'LBFGS', 'adamw']
+
 
 @dataclass
 class InvertGradConfig:
@@ -101,6 +115,10 @@ class InvertGradReconstructor():
                 reconstruction process.
         """
         self.config = config
+        print(f"filter: {self.config.filter}")
+
+        # Validate the configuration parameters
+        self._validate_config()
 
         self.original_model = original_model
         self.unlearned_model = unlearned_model
@@ -413,9 +431,6 @@ class InvertGradReconstructor():
             return total_variation(x_trial)
         elif self.config.scoring_choice in ['pixelmean', 'pixelmedian']:
             return 0.0
-        else:
-            raise ValueError("Not a valid scoring choice." 
-            " Choose from ['loss','tv', 'pixelmean', 'pixelmedian']")
 
     def _average_trials(self, x, labels, input_data, stats):
         """
@@ -486,5 +501,50 @@ class InvertGradReconstructor():
             optimizer = torch.optim.AdamW(params, lr=self.lr)
         else:
             raise ValueError(f"Unsupported optimizer: {self.config.optim}")
-        
+     
         return optimizer
+    
+    def _validate_config(self):
+        """
+            Validate the configuration parameters.
+            Raises:
+                ValueError: If any of the configuration parameters are invalid.
+        """
+        if self.config.grad_diff_lr <= 0:
+            raise ValueError("Gradient difference learning rate must be positive.")
+
+        if self.config.recon_iterations <= 0:
+            raise ValueError("Reconstruction iterations must be positive.")
+
+        if self.config.total_variation < 0:
+            raise ValueError("Total variation must be non-negative.")
+
+        if self.config.lr_decay not in OPTIONS_BOOL:
+            raise ValueError("Learning rate decay must be a boolean value.")
+
+        if self.config.signed not in OPTIONS_BOOL:
+            raise ValueError("Signed gradients must be a boolean value.")
+
+        if self.config.boxed not in OPTIONS_BOOL:
+            raise ValueError("Boxed input data must be a boolean value.")
+
+        if self.config.eval not in OPTIONS_BOOL:
+            raise ValueError("Evaluation mode must be a boolean value.")
+
+        if self.config.filter not in OPTIONS_FILTERS:
+            raise ValueError(f"Filter must be one of: {OPTIONS_FILTERS}")
+
+        if self.config.cost_fn not in OPTIONS_COST_FNS:
+            raise ValueError(f"Invalid cost function. Choose from: {OPTIONS_COST_FNS}")
+
+        if self.config.indices not in OPTIONS_INDICES:
+            raise ValueError(f"Invalid indices. Choose from: {OPTIONS_INDICES}")
+
+        if self.config.weights not in OPTIONS_WEIGHTS:
+            raise ValueError(f"Invalid weights. Choose from: {OPTIONS_WEIGHTS}")
+
+        if self.config.scoring_choice not in OPTIONS_SCORING:
+            raise ValueError(f"Invalid scoring choice. Choose from: {OPTIONS_SCORING}")
+
+        if self.config.optim not in OPTIONS_OPTIMIZERS:
+            raise ValueError(f"Invalid optimizer. Choose from: {OPTIONS_OPTIMIZERS}")
