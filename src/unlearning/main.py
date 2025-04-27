@@ -78,31 +78,36 @@ class UnlearnApp(UnlearningValidator):
             unlearner = FinetuneUnlearner(
                 self.device,
                 self.evaluate,
-                self.wandb_enabled
+                self.wandb_enabled,
+                self.verbose
             )
         elif self.unlearner_name == 'neggrad':
             unlearner = NegGrad(
                 self.device,
                 self.evaluate,
-                self.wandb_enabled
+                self.wandb_enabled,
+                self.verbose
             )
         elif self.unlearner_name == 'neggradplus':
             unlearner = NegGradPlus(
                 self.device,
                 self.evaluate,
-                self.wandb_enabled
+                self.wandb_enabled,
+                self.verbose
             )
         elif self.unlearner_name == 'scrub':
             unlearner = SCRUB(
                 self.device,
                 self.evaluate,
-                self.wandb_enabled
+                self.wandb_enabled,
+                self.verbose
             )
         elif self.unlearner_name == 'sgru':
             unlearner = SGRU(
                 self.device,
                 self.evaluate,
-                self.wandb_enabled
+                self.wandb_enabled,
+                self.verbose
             )
         elif self.unlearner_name == 'euk':
             unlearner = KUnlearn(
@@ -111,7 +116,8 @@ class UnlearnApp(UnlearningValidator):
                 self.unlearner_name,
                 self.reinit_method,
                 self.evaluate,
-                self.wandb_enabled
+                self.wandb_enabled,
+                self.verbose
             )
         elif self.unlearner_name == 'cfk':
             unlearner = KUnlearn(
@@ -120,18 +126,19 @@ class UnlearnApp(UnlearningValidator):
                 self.unlearner_name,
                 None,
                 self.evaluate,
-                self.wandb_enabled
+                self.wandb_enabled,
+                self.verbose
             )
         else:
             raise ValueError(f'unlearner_name {self.unlearner_name}'
                              ' not supported.')
         self.unlearner = unlearner
         return unlearner
-    
+
     def initialize_dataloaders(self):
-        """ 
+        """
         Initialize dataloaders from the dataset folder.
-        
+
         Raises:
             ValueError: If required data directories are missing.
 
@@ -198,7 +205,6 @@ class UnlearnApp(UnlearningValidator):
         start_time = time.time()
         unlearned_model, losses = unlearner.unlearn(original_model,
                                                     data_dict=dataloaders,
-                                                    verbose=self.verbose,
                                                     **self.unlearn_params)
         # Log the time taken for the whole unlearning job
         job_run_time = (time.time() - start_time)/60

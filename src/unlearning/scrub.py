@@ -22,7 +22,8 @@ class SCRUB(BaseUnlearner):
     def __init__(self,
                  device,
                  evaluate: bool = False,
-                 wandb_enabled: bool = False
+                 wandb_enabled: bool = False,
+                 verbose: bool = True
                  ):
         """
         Initialize the SCRUB unlearning class.
@@ -33,7 +34,7 @@ class SCRUB(BaseUnlearner):
             evaluate: Whether to track and return evaluation metrics during
                 unlearning.
         """
-        super().__init__(device, evaluate, wandb_enabled)
+        super().__init__(device, evaluate, wandb_enabled, verbose)
         # Following authors' specification
         self.criterion = nn.CrossEntropyLoss()
 
@@ -189,7 +190,6 @@ class SCRUB(BaseUnlearner):
     def unlearn(self,
                 model: nn.Module,
                 data_dict: Dict[str, DataLoader],
-                verbose: bool = False,
                 **kwargs):
         """
         Perform SCRUB unlearning
@@ -247,14 +247,13 @@ class SCRUB(BaseUnlearner):
                     epoch=e+1,
                     time=forward_pass_elapsed
                     )
-            if verbose:
+            if self.verbose:
                 self._print_forward_pass_metrics(e, forward_pass_elapsed)
             if self.evaluate:
                 self._evaluate_all_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
                     epoch=e+1,
-                    verbose=verbose
                 )
 
             if scheduler is not None:

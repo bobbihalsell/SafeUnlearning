@@ -26,7 +26,8 @@ class KUnlearn(FinetuneUnlearner):
                  method: str = 'cfk',
                  reinit_method=None,
                  evaluate: bool = False,
-                 wandb_enabled: bool = False
+                 wandb_enabled: bool = False,
+                 verbose: bool = True
                  ):
         """
         Initialize the KUnlearn class.
@@ -48,7 +49,7 @@ class KUnlearn(FinetuneUnlearner):
             evaluate (bool): Whether to track and return evaluation metrics
                 during unlearning.
         """
-        super().__init__(device, evaluate, wandb_enabled)
+        super().__init__(device, evaluate, wandb_enabled, verbose)
         self.criterion = nn.CrossEntropyLoss()
         self.k = k
         assert method in ['cfk', 'euk'], "Method must be 'cfk' or 'euk'."
