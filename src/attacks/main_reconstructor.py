@@ -57,7 +57,7 @@ class ReconstructorApp(ReconstructorValidator):
         # Forget root for eval metrics
         self.forget_root = f"{self.dataset_save_dir}/forget"
     
-    def initialise_model(self):
+    def initialize_model(self):
         """
         Loads the original and unlearned models from the specified checkpoints.
 
@@ -170,7 +170,7 @@ class ReconstructorApp(ReconstructorValidator):
         print('Running reconstruction...')
         # Step 1 : read yaml files
         # Step 2 : Load models model 
-        self.initialise_model()
+        self.initialize_model()
 
         # Step 3: Initialize wandb
         if self.wandb_enabled:

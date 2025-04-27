@@ -103,7 +103,7 @@ class InvertGradReconstructor():
                  seed=42
                  ):
         """
-        Initialise with algorithm setup.
+        Initialize with algorithm setup.
 
         Args:
             device (torch.device): Device to run the reconstruction on (CPU
