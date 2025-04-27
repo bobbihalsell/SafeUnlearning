@@ -5,4 +5,5 @@ python src/unlearning/main.py dataset=cifar10 model=torchhub unlearner=neggradpl
     unlearner.cfg.beta=0.97 \
     unlearner.cfg.momentum=0.9 \
     id='001' \
-    experiment_name=torchhub_test
+    experiment_name=torchhub_test \
+    verbose=false

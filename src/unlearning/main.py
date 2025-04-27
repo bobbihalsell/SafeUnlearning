@@ -43,7 +43,6 @@ class UnlearnApp(UnlearningValidator):
         super().__init__(config)
 
         self.device = setup_device()
-        print(f'Using device: {self.device}')
         self.seed = config['seed']
         set_seed(self.seed)
 
@@ -51,12 +50,11 @@ class UnlearnApp(UnlearningValidator):
         # Output directory
         self.output_dir = config['output_dir']
         os.makedirs(self.output_dir, exist_ok=True)
-        print(f' num_classes: {self.num_classes}')
 
     def load_model(self):
         """
         Initialize the model based on model name from user configuration.
-        
+
         Returns:
            object: An instance of the selected unlearning class.
         """
@@ -186,10 +184,8 @@ class UnlearnApp(UnlearningValidator):
         """
         # Step 1: Load retain/val/forget datalaoders
         dataloaders = self.initialize_dataloaders()
-        print('Loaders loaded')
         # Step 2: Initialize the pretrained model
         original_model = self.load_model()
-        print('Original model loaded')
 
         save_model(original_model,
                    output_dir=self.output_dir,
@@ -201,7 +197,6 @@ class UnlearnApp(UnlearningValidator):
 
         # Step 3: Perform unlearning
         unlearner = self.initialize_unlearner()
-        print('Unlearning algorithm initialized.')
         start_time = time.time()
         unlearned_model, losses = unlearner.unlearn(original_model,
                                                     data_dict=dataloaders,
