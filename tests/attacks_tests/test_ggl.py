@@ -1,14 +1,22 @@
-import unittest
-import torch
-import numpy as np
-# import os
-import tempfile
-from unittest.mock import MagicMock, patch
+# Standard library imports
 import os
 import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
+import tempfile
+import unittest
+from unittest.mock import MagicMock, patch
 
+# Third-party imports
+import numpy as np
+import torch
+
+# Set up path for local imports
+script_dir = os.path.dirname(__file__)
+src_path = os.path.abspath(os.path.join(script_dir, '../../src'))
+sys.path.insert(0, src_path)
+
+# Local imports
 from attacks.GGL.reconstructor import GGLReconstructor
+
 
 class TestGGLReconstructor(unittest.TestCase):
     
@@ -22,11 +30,17 @@ class TestGGLReconstructor(unittest.TestCase):
         param2 = torch.ones(10, 10) * 2
         
         # Set up parameter mocking
-        self.original_model.parameters = MagicMock(return_value=[param1, param1.clone()])
-        self.target_model.parameters = MagicMock(return_value=[param2, param2.clone()])
+        self.original_model.parameters = MagicMock(
+            return_value=[param1, param1.clone()]
+        )
+        self.target_model.parameters = MagicMock(
+            return_value=[param2, param2.clone()]
+        )
         
         # Mock loss function with requires_grad=True
-        self.loss_fn = MagicMock(return_value=torch.tensor(0.5, requires_grad=True))
+        self.loss_fn = MagicMock(
+            return_value=torch.tensor(0.5, requires_grad=True)
+        )
         
         # Create a temporary directory for file outputs
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -55,7 +69,10 @@ class TestGGLReconstructor(unittest.TestCase):
     
     def test_initialization(self):
         """Test proper initialization of GGLReconstructor"""
-        self.assertEqual(self.reconstructor.original_model, self.original_model)
+        self.assertEqual(
+            self.reconstructor.original_model,
+            self.original_model
+        )
         self.assertEqual(self.reconstructor.target_model, self.target_model)
         self.assertEqual(self.reconstructor.loss_fn, self.loss_fn)
         self.assertEqual(self.reconstructor.num_classes, 1000)
@@ -94,7 +111,8 @@ class TestGGLReconstructor(unittest.TestCase):
     
     def test_compute_model_difference_l1(self):
         """Test L1 difference calculation between models"""
-        # Models have params that differ by 1.0, so total diff should be 2 * 10 * 10 = 200
+        # Models have params that differ by 1.0, so total diff 
+        # should be 2 * 10 * 10 = 200
         diff = self.reconstructor.compute_model_difference_l1(
             self.original_model, self.target_model
         )
@@ -102,7 +120,8 @@ class TestGGLReconstructor(unittest.TestCase):
     
     def test_compute_model_difference_l2(self):
         """Test L2 difference calculation between models"""
-        # Models have params that differ by 1.0, so total squared diff should be 2 * 10 * 10 = 200
+        # Models have params that differ by 1.0, so total 
+        # squared diff should be 2 * 10 * 10 = 200
         diff = self.reconstructor.compute_model_difference_l2(
             self.original_model, self.target_model
         )
@@ -135,13 +154,17 @@ class TestGGLReconstructor(unittest.TestCase):
         def copy_side_effect(original_model):  
             model_copy = MagicMock()
             param_copy = torch.zeros(5, 5)
-            model_copy.named_parameters = MagicMock(return_value=[("layer1", param_copy)])
+            model_copy.named_parameters = MagicMock(
+                return_value=[("layer1", param_copy)]
+            )
             model_copy.parameters = MagicMock(return_value=[param_copy])
             return model_copy
         
         # Test with alpha = 0.3
         with patch('copy.deepcopy', side_effect=copy_side_effect):
-            result = self.reconstructor.interpolate_models(model1, model2, alpha=0.3)
+            result = self.reconstructor.interpolate_models(
+                model1, model2, alpha=0.3
+            )
             
             # Get parameter from the result
             param_result = list(result.parameters())[0]
@@ -149,7 +172,6 @@ class TestGGLReconstructor(unittest.TestCase):
             # Expected: 0.3 * 0 + 0.7 * 10 = 7
             expected = torch.ones(5, 5) * 7
             torch.testing.assert_close(param_result, expected)
-
 
     @patch("attacks.GGL.reconstructor.SCRUB")
     def test_label_conversion_int_to_tensor(self, mock_scrub_class):
@@ -223,9 +245,16 @@ class TestGGLReconstructor(unittest.TestCase):
 
         }
 
-        self.reconstructor.perform_scrub_updates(image, labels, model, **kwargs)
+        self.reconstructor.perform_scrub_updates(
+            image,
+            labels,
+            model,
+            **kwargs
+        )
 
-        mock_scrub_class.assert_called_once_with(device=torch.device(expected_device))
+        mock_scrub_class.assert_called_once_with(
+            device=torch.device(expected_device)
+        )
         mock_scrub.unlearn.assert_called_once()
 
         _, unlearn_kwargs = mock_scrub.unlearn.call_args
@@ -240,7 +269,9 @@ class TestGGLReconstructor(unittest.TestCase):
         """Test SGD update mechanism"""
         # Create mock model and optimizer with requires_grad=True tensors
         mock_model = MagicMock()
-        mock_model.forward = MagicMock(return_value=torch.tensor([0.5], requires_grad=True))
+        mock_model.forward = MagicMock(
+            return_value=torch.tensor([0.5], requires_grad=True)
+        )
         mock_optimizer = MagicMock()
         mock_sgd.return_value = mock_optimizer
         
@@ -249,13 +280,14 @@ class TestGGLReconstructor(unittest.TestCase):
         labels = torch.tensor([1])
         
         # Mock the backward operation
-        with patch('torch.Tensor.backward', MagicMock()) as mock_backward:
+        with patch('torch.Tensor.backward', MagicMock()):
             # Perform updates
             result = self.reconstructor.perform_sgd_updates(
                 generated_image, labels, mock_model, steps=3
             )
             
-            # Verify optimizer was created and step was called correct number of times
+            # Verify optimizer was created and step was called correct
+            # number of times
             mock_sgd.assert_called_once()
             self.assertEqual(mock_optimizer.zero_grad.call_count, 3)
             self.assertEqual(mock_optimizer.step.call_count, 3)
@@ -270,7 +302,7 @@ class TestGGLReconstructor(unittest.TestCase):
         mock_neggradplus_class.return_value = mock_neggradplus
 
         # Expected device based on system config
-        expected_device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        expected_device = 'cuda' if torch.cuda.is_available() else 'cpu'
         
         # Create test data
         image = torch.randn(1, 3, 224, 224)
@@ -286,8 +318,13 @@ class TestGGLReconstructor(unittest.TestCase):
         }
 
         # Call the method being tested
-        result = self.reconstructor.perform_neggradplus_updates(image, labels, model, **kwargs)
-        
+        result = self.reconstructor.perform_neggradplus_updates(
+            image, labels, model, **kwargs
+        )
+
+        mock_neggradplus_class.assert_called_once_with(
+            device=torch.device(expected_device)
+        )
         # Verify unlearn method was called
         mock_neggradplus.unlearn.assert_called_once()
         
@@ -329,7 +366,9 @@ class TestGGLReconstructor(unittest.TestCase):
         self.assertEqual(str(forget_labels.device), expected_device)
 
     @patch("attacks.GGL.reconstructor.NegGradPlus")
-    def test_neggradplus_forget_and_retain_loaders(self, mock_neggradplus_class):
+    def test_neggradplus_forget_and_retain_loaders(
+        self, mock_neggradplus_class
+    ):
         """Test forget and retain dataloaders for NegGradPlus updates"""
         mock_neggradplus = MagicMock()
         mock_neggradplus.unlearn.return_value = (MagicMock(), None)
@@ -362,7 +401,6 @@ class TestGGLReconstructor(unittest.TestCase):
         retain_loader = forget_dict['retain']
         self.assertEqual(len(list(retain_loader)), 0)
 
-
     def test_save_results(self):
         """Test result saving functionality"""
         # Create mock objects
@@ -378,33 +416,33 @@ class TestGGLReconstructor(unittest.TestCase):
         mock_x.clamp.return_value = mock_x
         
         # Mock the necessary modules
-        with patch('PIL.Image'), \
-            patch('torchvision.transforms.ToPILImage') as mock_transform, \
-            patch('numpy.save') as mock_np_save, \
-            patch('os.makedirs'), \
-            patch('os.path.dirname', return_value='/mock'), \
-            patch('os.path.abspath', return_value='/mock'), \
-            patch('os.path.join', return_value='/mock/path'), \
-            patch('os.listdir', return_value=[]), \
-            patch('shutil.rmtree'):
-            
+        with (
+            patch('PIL.Image'),
+            patch('torchvision.transforms.ToPILImage') as mock_transform,
+            patch('numpy.save') as mock_np_save,
+            patch('os.makedirs'),
+            patch('os.path.dirname', return_value='/mock'),
+            patch('os.path.abspath', return_value='/mock'),
+            patch('os.path.join', return_value='/mock/path'),
+            patch('os.listdir', return_value=[]),
+            patch('shutil.rmtree')
+        ):
             # Set up the transform mock
             mock_pil_image = MagicMock()
             mock_transform_instance = MagicMock()
             mock_transform.return_value = mock_transform_instance
             mock_transform_instance.return_value = mock_pil_image
-            
+
             # Call the method under test with the correct signature
             z_path = "/mock/path"
             x_path = "/mock/path.jpg"
             self.reconstructor.save_results(mock_z, mock_x, z_path, x_path)
-            
+
             # Assertions
             mock_transform_instance.assert_called_once()
             mock_pil_image.save.assert_called_once_with(x_path)
             mock_np_save.assert_called_once()
 
-   
-    
+     
 if __name__ == '__main__':
     unittest.main()

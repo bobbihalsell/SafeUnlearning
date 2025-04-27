@@ -26,7 +26,7 @@ class GGLReconstructor:
     original model and the label of unlearned image. It leverages
     BigGAN to use the prior information about the label in order
     to generate reconstructions.
-    
+   
     It utilises Turbo Bayesian Optimisation in order to find an image that
     produces the same changes to the original model as the ones in
     the unlearned model by mimicking unlearning process.
@@ -59,16 +59,16 @@ class GGLReconstructor:
             original_model: The original model (pre-update).
             target_model: The target model (unlearned model).
             loss_fn: The loss function to compute the loss on model output.
-            loss_models: The loss for the objective function of optimization 
+            loss_models: The loss for the objective function of optimization
                 process.
             unlearning_method: Method used for unlearning (scrub or neggrad).
             num_classes: Number of classes in classification.
-            num_updates: The number of SGD updates to performed during 
+            num_updates: The number of SGD updates to performed during
                 unlearning.
             lr: Learning rate for SGD updates during unlearning.
             labels: Label of the forgotten image.
             exp_name: Cusomisable exp_name for saving results.
-            initial_z_path: Path where inital latent vector z should be loaded 
+            initial_z_path: Path where inital latent vector z should be loaded
                 from (might be None).
             batch_size: Batch size.
             gp_optim: Optimiser for Gaussian Process in Turbo
@@ -76,14 +76,11 @@ class GGLReconstructor:
             initial_lr: Initial lr for Gaussian Process optimiser updates
             search_dim: The dimension of the latent space (size of z).
             use_tanh: Whether to apply tanh activation to the latent vector z.
-            budget: The maximum number of evaluations for Bayesian 
+            budget: The maximum number of evaluations for Bayesian
                 Optimization.
         """
         self.original_model = original_model
         self.target_model = target_model
-        generator = BigGAN.from_pretrained("biggan-deep-256")  
-        generator.eval()  # Set to evaluation mode
-        self.generator = generator
         self.loss_fn = loss_fn
         self.num_classes = num_classes
         self.num_updates = num_updates
@@ -104,6 +101,10 @@ class GGLReconstructor:
             "cuda" if torch.cuda.is_available() else "cpu"
         )
 
+        generator = BigGAN.from_pretrained("biggan-deep-256")
+        generator.eval()  # Set to evaluation mode
+        self.generator = generator
+
     def evaluate_loss(self, z, labels, loss_type=None, steps=None, **kwargs):
         """
         Evaluates thee loss for the given latent vector z.
@@ -114,17 +115,19 @@ class GGLReconstructor:
         recon.eval()
 
         if self.unlearning_method == 'neggrad':
-            # Perform neggrad update on recon
+            # Perform neggrad updates on recon
             recon = self.perform_sgd_updates(
                 generated_image, labels, recon, steps=steps
             )
 
         if self.unlearning_method == 'scrub':
+            # Perform scrub updates on recon
             recon = self.perform_scrub_updates(
                 generated_image, labels, recon, **kwargs
             )
         
         if self.unlearning_method == 'neggradplus':
+            # Perform neggradplus updates on recon
             recon = self.perform_neggradplus_updates(
                 generated_image, labels, recon, **kwargs
             )
@@ -139,16 +142,20 @@ class GGLReconstructor:
                 )
 
             if self.unlearning_method == 'scrub':
+                steps = kwargs['max_epochs']
                 kwargs['max_epochs'] = 1
                 recon_1 = self.perform_scrub_updates(
                     generated_image, labels, recon_1, **kwargs
                 )
+                kwargs['max_epochs'] = steps
 
             if self.unlearning_method == 'neggradplus':
+                steps = kwargs['epochs']
                 kwargs['epochs'] = 1
                 recon_1 = self.perform_neggradplus_updates(
                     generated_image, labels, recon_1, **kwargs
                 )
+                kwargs['epochs'] = steps
             # Interpolate between original and unlearned model
             interp_model = self.interpolate_models(
                 self.original_model, self.target_model, alpha=0.5
@@ -203,7 +210,7 @@ class GGLReconstructor:
         for i, (p1, p2) in enumerate(
             zip(model1.parameters(), model2.parameters())
         ):
-            weight = (i + 1) / total_layers  # Gradually increases 
+            weight = (i + 1) / total_layers  # Gradually increases
             diff += weight * torch.sum((p1 - p2) ** 2)  # Weighted L2 norm
 
         return diff.item()
@@ -214,7 +221,7 @@ class GGLReconstructor:
         """
         diff = 0
         for p1, p2 in zip(model1.parameters(), model2.parameters()):
-            diff += torch.sum(abs(p1 - p2)**2)  # L1 norm of the difference
+            diff += torch.sum(abs(p1 - p2)**2)  # L2 norm of the difference
         return diff.item()
 
     def compute_model_difference_l1(self, model1, model2):
@@ -225,13 +232,11 @@ class GGLReconstructor:
         for p1, p2 in zip(model1.parameters(), model2.parameters()):
             diff += torch.sum(abs(p1 - p2))  # L1 norm of the difference
         return diff.item()
-    
-   
+
     def perform_scrub_updates(
         self, generated_image, labels, original_model, verbose=True,
         **kwargs
     ):
-
         """
         Perform scrub updates to mimic the unlearning process.
         """
@@ -251,19 +256,19 @@ class GGLReconstructor:
         forget_loader = torch.utils.data.DataLoader(
             forget_dataset, batch_size=len(forget_dataset), shuffle=False
         )
-        # Create forget dictionary - we don't have access to retain set
+        # Create forget dictionary
         forget_dict = {'forget': forget_loader}
 
         empty_x = torch.empty((0, 3, 224, 224))
         empty_labels = torch.empty((0,), dtype=torch.long)
         empty_dataset = TensorDataset(empty_x, empty_labels)
-        # Create forget dictionary since we don't have access to retain set
+        # Create retain dictionary; since we don't have access to retain set
         # we handle that with empty dataset
         forget_dict['retain'] = DataLoader(
             empty_dataset
         )
 
-        # Run the unlearning process
+        # Mimic the unlearning process
         unlearned_model, _ = scrub.unlearn(
             model=original_model,
             data_dict=forget_dict,
@@ -278,7 +283,6 @@ class GGLReconstructor:
         self, generated_image, labels, original_model, verbose=True,
         **kwargs
     ):
-
         """
         Perform neggradplus updates to mimic the unlearning process.
         """
@@ -304,13 +308,13 @@ class GGLReconstructor:
         empty_x = torch.empty((0, 3, 224, 224))
         empty_labels = torch.empty((0,), dtype=torch.long)
         empty_dataset = TensorDataset(empty_x, empty_labels)
-        # Create forget dictionary since we don't have access to retain set
+        # Create retain dictionary since we don't have access to retain set
         # we handle that with empty dataset
         forget_dict['retain'] = DataLoader(
             empty_dataset
         )
 
-        # Run the unlearning process
+        # Mimic the unlearning process
         unlearned_model, _ = neggradplus.unlearn(
             model=original_model,
             data_dict=forget_dict,
@@ -324,9 +328,8 @@ class GGLReconstructor:
     def perform_sgd_updates(
         self, generated_image, labels, updated_model_attacker, steps=None
     ):
-
         """
-        Perform updates in neggrad to mimic the unlearning process.
+        Perform updates in neggrad to mimic the neggrad unlearning process.
         """
         if steps is None:
             steps = self.num_updates
@@ -393,7 +396,7 @@ class GGLReconstructor:
 
         if self.initial_z_path is not None:
             z = np.load(self.initial_z_path)
-            initial_z = torch.from_numpy(z).float().to(self.device)  
+            initial_z = torch.from_numpy(z).float().to(self.device)
         else:
             initial_z = None
 
@@ -458,7 +461,7 @@ class GGLReconstructor:
         # If an initial z is provided, use it instead of a random start
         if initial_z is not None:
             # Ensure correct format
-            initial_z = initial_z.cpu().numpy().reshape(1, -1)        
+            initial_z = initial_z.cpu().numpy().reshape(1, -1)     
             # Evaluate the function at the initial point
             initial_loss = f(initial_z)
 
@@ -513,7 +516,7 @@ class GGLReconstructor:
         transform = transforms.ToPILImage()
         img_pil = transform(x.clamp(0, 1))  # Clamp to [0, 1] range
         # Save the image to specified path
-        img_pil.save(x_path)  
+        img_pil.save(x_path)
         print(f"Image saved to {x_path}")
 
         # Convert z to numpy and save
