@@ -9,3 +9,5 @@ stages:
 test:
     script:
         - python3 -m unittest discover -s tests
+    artifacts:
+      expire_in: 1 week

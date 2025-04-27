@@ -8,7 +8,7 @@ from torch.nn.functional import softmax
 from torch.utils.data import ConcatDataset, DataLoader
 
 from importmodel import ImportModel
-from datasets.load_datasets import load_train_val_test_datasets
+from lira_utils import load_train_test_datasets
 from datasets import DATASETS_TO_TRANSFORM
 
 
@@ -60,9 +60,7 @@ def generate_predictions(
 
     transform = DATASETS_TO_TRANSFORM[dataset_name]()
 
-    train, _, test = load_train_val_test_datasets(
-        dataset_name, 1, 0, save_path, "", transform
-    )
+    train, test = load_train_test_datasets(dataset_name, save_path, transform)
     dataset = ConcatDataset([train, test])
     loader = DataLoader(
         dataset,

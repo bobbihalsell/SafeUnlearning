@@ -8,7 +8,7 @@ from numpy.typing import NDArray as Array
 from scipy.stats import norm, multivariate_normal
 from torch.utils.data import ConcatDataset
 
-from datasets.load_datasets import load_train_val_test_datasets
+from lira_utils import load_train_test_datasets
 
 
 class TrainNeverAndForgotten:
@@ -254,8 +254,7 @@ def lira_score(
     train_indices = np.load(output_dir / "splits" / "train_matrices.npy")
     test_indices = np.load(output_dir / "splits" / "test_matrices.npy")
 
-    train, _, test = load_train_val_test_datasets(dataset_name, 1, 0,
-                                                  save_path, "")
+    train, test = load_train_test_datasets(dataset_name, save_path)
     dataset = ConcatDataset([train, test])
     targets = np.array([label for (image, label) in dataset])
 

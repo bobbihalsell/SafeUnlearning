@@ -14,7 +14,8 @@ class BaseUnlearner:
     def __init__(self,
                  device,
                  evaluate: bool = False,
-                 wandb_enabled: bool = False
+                 wandb_enabled: bool = False,
+                 verbose: bool = True
                  ):
         """
         Initialize the BaseUnlearner.
@@ -27,13 +28,13 @@ class BaseUnlearner:
         self.evaluate = evaluate
         self.criterion = nn.CrossEntropyLoss()
         self.wandb_enabled = wandb_enabled
+        self.verbose = verbose
 
     @abstractmethod
     def unlearn(
         self,
         model: nn.Module,
         data_dict: Dict[str, DataLoader],
-        verbose: bool = False,
         **kwargs
     ):
         """
@@ -46,7 +47,6 @@ class BaseUnlearner:
         Args:
             model: The model to perform unlearning on.
             data_dict: A dictionary of dataloaders with the data type as keys
-            verbose: Whether to print the training logs to the terminal.
             **kwargs: Algorithm-specific hyperparameters
         Returns:
             Tuple of the unlearned model, and a logs dictionary.
@@ -169,13 +169,12 @@ class BaseUnlearner:
                              model: nn.Module,
                              data_dict: Dict[str, DataLoader],
                              epoch: int,
-                             verbose: bool = True):
+                             ):
         """ Evaluate the model on the data splits in data dict.
 
         Args:
             model: nn.Module
             data_dict: The dictionary of dataloaders relevant to unlearning.
-            verbose (bool): Whether to print the results
 
         Returns:
             self.logs (dict): A logs dictionary
@@ -191,11 +190,11 @@ class BaseUnlearner:
             self.logs[f"{data_type}_acc"].append(loader_acc)
             elapsed = time.time() - start_eval_time
             self.logs[f"{data_type}_time"].append(elapsed)
-            if verbose:
+            if self.verbose:
                 print(f'{data_type.capitalize()} Loss: {loader_loss:.4f} '
                       f'Acc: {loader_acc:.2f}%. '
                       f'Time: {elapsed:.1f} s', end=' || ')
-        if verbose:
+        if self.verbose:
             print('')
 
         if self.wandb_enabled:
@@ -245,7 +244,7 @@ class BaseUnlearner:
 
         return unlearned_model, scheduler
 
-    def _eval_initial_model(self, model, data_dict, verbose=True):
+    def _eval_initial_model(self, model, data_dict):
         """ Evaluate the initial model's performance on all dataset splits."""
         for data_type in data_dict.keys():
             split_loss, split_acc = self._evaluate(
@@ -261,11 +260,11 @@ class BaseUnlearner:
             self.logs[data_type].append(split_loss)
             self.logs[f"{data_type}_acc"].append(split_acc)
 
-            if verbose:
+            if self.verbose:
                 print(f'Initial {data_type.capitalize()} Loss: '
                       f'{split_loss:.4f}. '
                       f'Acc: {split_acc:.2f}%.', end=' || ')
-        if verbose:
+        if self.verbose:
             print('')
 
     def _print_forward_pass_metrics(self, epoch_num, time_taken):

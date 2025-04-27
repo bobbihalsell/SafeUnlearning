@@ -13,23 +13,26 @@ python src/unlearning/main.py dataset=cifar10 model=torchhub unlearner=neggradpl
     unlearner.cfg.beta=0.97 \
     unlearner.cfg.momentum=0.9 \
     id='001' \
-    experiment_name=torchhub_test
+    experiment_name=torchhub_test \
+    verbose=false
 
 python src/unlearning/main.py dataset=cifar10 model=torchhub unlearner=neggradplus \
-    experiment_name=models_test \
     model.repo_path=chenyaofo/pytorch-cifar-models \
     model.model_name=cifar10_mobilenetv2_x0_5 \
     dataset.save_path=./data \
+    output_dir=./artifacts/modelstest \
     +wandb=default \
-    wandb.run_id=cifar10_mobilenetv2_x0_5 \
-    unlearner.cfg.beta=0.97 \
-    unlearner.cfg.momentum=0.9
+    unlearner.cfg.beta=0.995 \
+    unlearner.cfg.momentum=0.9 \
+    unlearner.cfg.epochs=5 \
+    verbose=false \
+    experiment_name=test
 
-python src/unlearning/main.py model=torchvision unlearner=neggrad dataset=cifar10 \
-    experiment_name=unl_test \
+python src/unlearning/main.py model=torchvision unlearner=finetune dataset=cifar10 \
     model.model_name=resnet18 \
     dataset.save_path=./data \
     output_dir=artifacts/models \
     +wandb=default \
-    wandb.run_id=resnet18-cifar10-neggrad \
-    unlearner.cfg.momentum=0.9
+    unlearner.cfg.momentum=0.9 \
+    experiment_name=tests \
+    verbose=false

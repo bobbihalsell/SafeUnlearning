@@ -6,7 +6,7 @@ from typing import Tuple
 import numpy as np
 from numpy.typing import NDArray as Array
 
-from datasets.load_datasets import load_train_val_test_datasets
+from lira_utils import load_train_test_datasets
 
 
 def generate_lira_train_tests(
@@ -103,7 +103,7 @@ def generate_splits(
         print("Splits are already generated. Skipping.")
         return
 
-    train, _, test = load_train_val_test_datasets(dataset_name, 1, 0, save_path, "")
+    train, test = load_train_test_datasets(dataset_name, save_path)
     train_len, test_len = len(train), len(test)
 
     indices = np.arange(train_len + test_len)
