@@ -1,3 +1,5 @@
+#!/bin/bash
+
 python src/evaluation/main.py \
     dataset=cifar10 model=torchhub \                                                  
     model.repo_path=chenyaofo/pytorch-cifar-models \

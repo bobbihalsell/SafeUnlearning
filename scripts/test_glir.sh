@@ -1,3 +1,5 @@
+#!/bin/bash
+
 python src/attacks/GLiR/main.py dataset=cifar10 model=torchhub attack=glir \
     experiment_name=glir_test1 \
     model.repo_path=chenyaofo/pytorch-cifar-models \
