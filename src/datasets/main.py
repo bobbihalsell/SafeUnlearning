@@ -266,9 +266,12 @@ class DatasetInitializer(DatasetValidator):
                                                         class_label,
                                                         file))
                 dst_file = os.path.join(target_dir, file)
-
-                # Create the symlink
-                os.symlink(src_file, dst_file)
+                # If src_file is itself a symlink, get the real path
+                if os.path.islink(src_file):
+                    real_src = os.path.realpath(src_file)
+                    os.symlink(real_src, dst_file)
+                else:
+                    os.symlink(src_file, dst_file)
 
         def create_dir_symlink(subset_name, class_label):
             # Create the target directory (retain classes)
