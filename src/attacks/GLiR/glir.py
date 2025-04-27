@@ -416,7 +416,7 @@ class GLiR:
         # Threshold alpha
         threshold = chi2.ppf(1 - alpha, self.df)
         ax1.axvline(x=threshold, color='g', linestyle='--', 
-                    label=f'alpha={alpha} threshold')
+                    label=f'alpha={alpha} threshold for test statistic')
         
         # Plot points with different colors based on labels
         if labels is not None:
