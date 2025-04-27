@@ -27,7 +27,8 @@ class SGRU(BaseUnlearner):
     def __init__(self,
                  device,
                  evaluate: bool = False,
-                 wandb_enabled: bool = False
+                 wandb_enabled: bool = False,
+                 verbose: bool = True
                  ):
         """
         Initialize the SGRU class.
@@ -38,13 +39,12 @@ class SGRU(BaseUnlearner):
             evaluate: Whether to track and return evaluation metrics during
                 unlearning.
         """
-        super().__init__(device, evaluate, wandb_enabled)
+        super().__init__(device, evaluate, wandb_enabled, verbose)
         self.criterion = nn.CrossEntropyLoss()
 
     def unlearn(self,
                 model: nn.Module,
                 data_dict: Dict[str, DataLoader],
-                verbose: bool = False,
                 **kwargs):
         """
         Unlearn through Subspace Gradient Redirection on retain data.
@@ -55,7 +55,6 @@ class SGRU(BaseUnlearner):
                     and 'forget' keys with the respective datasets. Other keys
                     (e.g., 'test') will
                     be used for evaluation if self.evaluate is True.
-            verbose: Whether to print progress during unlearning.
             **kwargs: Additional arguments including:
                 - loss_fn: Loss function to use for training.
                 - num_epochs: Number of training epochs (default: 1).
@@ -133,7 +132,7 @@ class SGRU(BaseUnlearner):
 
                         # Check for NaN loss
                         if torch.isnan(forget_loss).any():
-                            if verbose:
+                            if self.verbose:
                                 print(
                                     f"Warning: NaN loss detected in forget "
                                     f"data during SVD calculation at epoch {e}"
@@ -285,14 +284,13 @@ class SGRU(BaseUnlearner):
                     epoch=e+1,
                     time=forward_pass_elapsed
                     )
-            if verbose:
+            if self.verbose:
                 self._print_forward_pass_metrics(e, forward_pass_elapsed)
             if self.evaluate:
                 self._evaluate_all_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
                     epoch=e+1,
-                    verbose=verbose
                 )
 
             if scheduler is not None:
