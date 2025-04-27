@@ -1,17 +1,15 @@
-import unittest
-from unittest.mock import patch, MagicMock
-import sys
 import os
-import torch
+import sys
 import tempfile
+import unittest
+from unittest.mock import MagicMock, patch
 
+import torch
 
-
-sys.path.insert(
-    0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-    )
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from src.attacks.utils import SaveImage
+
 
 class TestSaveImage(unittest.TestCase):
     def setUp(self):
@@ -19,18 +17,18 @@ class TestSaveImage(unittest.TestCase):
         self.seed = "12345"
         self.experiment_name = "test_experiment"
         self.output_dir = tempfile.mkdtemp()
-    
+
     def test_save_png_creates_directory(self):
         # Create a SaveImage instance
         save_image = SaveImage(
             attack_name=self.attack_name,
             seed=self.seed,
             experiment_name=self.experiment_name,
-            output_dir=self.output_dir
+            output_dir=self.output_dir,
         )
 
         # Mock images
-        images = torch.randn(1, 3, 64, 64) 
+        images = torch.randn(1, 3, 64, 64)
 
         # Call the save_png method
         save_image.save_png(images)
@@ -44,36 +42,41 @@ class TestSaveImage(unittest.TestCase):
             attack_name=self.attack_name,
             seed=self.seed,
             experiment_name=self.experiment_name,
-            output_dir=self.output_dir
+            output_dir=self.output_dir,
         )
 
         # Mock images
-        images = torch.randn(2, 3, 32, 32) # 2 images of size 32x32
+        images = torch.randn(2, 3, 32, 32)  # 2 images of size 32x32
 
         # Call the save_png method
         save_image.save_png(images)
 
         # Check if files were created
-        file_path = os.path.join(self.output_dir, f"reconstruction/{self.attack_name}/{self.attack_name}_{self.seed}_{self.experiment_name}.png")
+        file_path = os.path.join(
+            self.output_dir,
+            f"reconstruction/{self.attack_name}/{self.attack_name}_{self.seed}_{self.experiment_name}.png",
+        )
         self.assertTrue(os.path.exists(file_path))
-    
+
     def test_save_png_with_custom_filename(self):
         # Create a SaveImage instance
         save_image = SaveImage(
             attack_name=self.attack_name,
             seed=self.seed,
             experiment_name=self.experiment_name,
-            output_dir=self.output_dir
+            output_dir=self.output_dir,
         )
 
         # Mock images
-        images = torch.randn(1, 3, 64, 64) 
+        images = torch.randn(1, 3, 64, 64)
 
         # Call the save_png method with a custom filename
         save_image.save_png(images, filename="custom_test.png")
 
         # Check if the file was created
-        file_path = os.path.join(self.output_dir, f"reconstruction/{self.attack_name}/custom_test.png")
+        file_path = os.path.join(
+            self.output_dir, f"reconstruction/{self.attack_name}/custom_test.png"
+        )
         self.assertTrue(os.path.exists(file_path))
 
     def test_save_png_with_invalid_images(self):
@@ -82,7 +85,7 @@ class TestSaveImage(unittest.TestCase):
             attack_name=self.attack_name,
             seed=self.seed,
             experiment_name=self.experiment_name,
-            output_dir=self.output_dir
+            output_dir=self.output_dir,
         )
 
         # Mock invalid images (not a list)
@@ -91,6 +94,7 @@ class TestSaveImage(unittest.TestCase):
         # Call the save_png method and check for exception
         with self.assertRaises(TypeError):
             save_image.save_png(images)
+
 
 class TestLoadSaveTensor(unittest.TestCase):
     def setUp(self):
@@ -105,11 +109,11 @@ class TestLoadSaveTensor(unittest.TestCase):
             attack_name=self.attack_name,
             seed=self.seed,
             experiment_name=self.experiment_name,
-            output_dir=self.output_dir
+            output_dir=self.output_dir,
         )
 
         # Mock tensor
-        tensor = torch.randn(3, 32, 32) 
+        tensor = torch.randn(3, 32, 32)
 
         # Call the save_tensor method
         save_image.save_tensor(tensor)
@@ -117,25 +121,31 @@ class TestLoadSaveTensor(unittest.TestCase):
         # Check if the directory was created
         self.assertTrue(os.path.exists(self.output_dir))
         # Check if the tensor file was created
-        file_path = os.path.join(self.output_dir, f"reconstruction/{self.attack_name}/{self.attack_name}_{self.seed}_{self.experiment_name}.pt")
+        file_path = os.path.join(
+            self.output_dir,
+            f"reconstruction/{self.attack_name}/{self.attack_name}_{self.seed}_{self.experiment_name}.pt",
+        )
         self.assertTrue(os.path.exists(file_path))
-    
+
     def test_load_tensor(self):
         # Create a SaveImage instance
         save_image = SaveImage(
             attack_name=self.attack_name,
             seed=self.seed,
             experiment_name=self.experiment_name,
-            output_dir=self.output_dir
+            output_dir=self.output_dir,
         )
 
         # Mock tensor
-        tensor = torch.randn(3, 32, 32) 
+        tensor = torch.randn(3, 32, 32)
 
         # Call the save_tensor method
         save_image.save_tensor(tensor)
 
-        filepath = os.path.join(self.output_dir, f'reconstruction/{self.attack_name}/{self.attack_name}_{self.seed}_{self.experiment_name}.pt')
+        filepath = os.path.join(
+            self.output_dir,
+            f"reconstruction/{self.attack_name}/{self.attack_name}_{self.seed}_{self.experiment_name}.pt",
+        )
 
         # Load the tensor back
         loaded_tensor = save_image.load_tensor(filepath)
@@ -149,7 +159,7 @@ class TestLoadSaveTensor(unittest.TestCase):
             attack_name=self.attack_name,
             seed=self.seed,
             experiment_name=self.experiment_name,
-            output_dir=self.output_dir
+            output_dir=self.output_dir,
         )
 
         # Mock invalid file path

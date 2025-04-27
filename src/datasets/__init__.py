@@ -2,7 +2,6 @@ from .cifar10 import *
 from .cifar100 import *
 from .imagenet import *
 
-
 DATASETS_TO_TRAIN_TRANSFORM = {
     "cifar5": get_cifar10_train_transform,
     "cifar10": get_cifar10_train_transform,

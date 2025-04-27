@@ -1,14 +1,16 @@
-import os
 import argparse
+import os
 from pathlib import Path
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
 
 
 def generate_plots(exp_dir):
-    memberships = [file for file in os.listdir(exp_dir) if file.endswith("membership.npy")]
+    memberships = [
+        file for file in os.listdir(exp_dir) if file.endswith("membership.npy")
+    ]
     if not memberships:
         print("Couldn't find any membership scores to plot. Skipping..")
         return

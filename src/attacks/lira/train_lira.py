@@ -5,12 +5,11 @@ from typing import Dict
 import numpy as np
 import torch
 import torch.nn as nn
+from lira_utils import get_loaders_from_indices, get_retain_forget_val_indices
+from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
 
-from lira_utils import (get_loaders_from_indices, 
-                       get_retain_forget_val_indices)
 from unlearning.main import UnlearnApp
-from omegaconf import OmegaConf, DictConfig
 
 
 class UnlearnAppForLiRA(UnlearnApp):
@@ -26,13 +25,15 @@ class UnlearnAppForLiRA(UnlearnApp):
         """
         if not isinstance(config, dict):
             config = OmegaConf.to_container(config, resolve=True)
-        
+
         config["model"]["pretrained"] = False
         config["unlearner"]["name"] = unlearner_name
         super().__init__(OmegaConf.create(config))
         self.unlearner_name = unlearner_name
-      
-    def run(self, dataloaders: Dict[str, DataLoader], unlearning: bool = True) -> nn.Module:
+
+    def run(
+        self, dataloaders: Dict[str, DataLoader], unlearning: bool = True
+    ) -> nn.Module:
         """Executes the unlearning or finetuning process.
 
         Args:
@@ -45,7 +46,7 @@ class UnlearnAppForLiRA(UnlearnApp):
         """
         original_model = self.load_model()
         unlearner = self.initialize_unlearner()
-        
+
         print(f"{'unlearner' if unlearning else 'finetuner'} initialized")
         unlearned_model, _ = unlearner.unlearn(
             original_model,
@@ -55,7 +56,7 @@ class UnlearnAppForLiRA(UnlearnApp):
         )
         print(f"model {'unlearned' if unlearning else 'finetuned'}")
         return unlearned_model
-    
+
 
 def train_models(
     config: DictConfig,
@@ -86,13 +87,13 @@ def train_models(
 
     unlearner_name = "finetune" if unlearner in ["original", "naive"] else unlearner
     print(f"Unlearner: {unlearner_name}")
-    
+
     app = UnlearnAppForLiRA(config, unlearner_name)
-    print('dataset       ', hasattr(app, "dataset_name"))
-    
+    print("dataset       ", hasattr(app, "dataset_name"))
+
     total_models = num_splits * num_forgets
     model_num = 0
-    
+
     for split_ndx in range(num_splits):
         for forget_ndx in range(num_forgets):
             model_num += 1
@@ -102,14 +103,18 @@ def train_models(
                 / "models"
                 / f"{model_name}_{split_ndx}_{forget_ndx}.pth"
             )
-            
+
             if os.path.exists(target_model_path):
-                print(f"Model {model_name}_{split_ndx}_{forget_ndx}.pth already exists. Skipping.")
+                print(
+                    f"Model {model_name}_{split_ndx}_{forget_ndx}.pth already exists. Skipping."
+                )
                 continue
-            
-            print(f"Split {split_ndx+1}/{num_splits}, Forget {forget_ndx+1}/{num_forgets}, "
-                  f"Model {model_num}/{total_models}")
-            
+
+            print(
+                f"Split {split_ndx + 1}/{num_splits}, Forget {forget_ndx + 1}/{num_forgets}, "
+                f"Model {model_num}/{total_models}"
+            )
+
             try:
                 retain, forget, val = get_retain_forget_val_indices(
                     lira_path=output_dir / "splits",
@@ -126,7 +131,7 @@ def train_models(
                     app.batch_sizes,
                     app.num_workers,
                 )
-                
+
                 unlearning = unlearner not in ["original", "naive"]
                 if unlearning:
                     original_model_path = (
@@ -135,18 +140,22 @@ def train_models(
                         / "models"
                         / f"{model_name}_{split_ndx}_{forget_ndx}.pth"
                     )
-                    
+
                     if not os.path.exists(original_model_path):
-                        print(f"Warning: Original model {original_model_path} not found. Skipping.")
+                        print(
+                            f"Warning: Original model {original_model_path} not found. Skipping."
+                        )
                         continue
-                        
+
                     app.model_ckpt_path = original_model_path
-                    
+
                 unlearned_model = app.run(loaders, unlearning=unlearning)
                 torch.save(
                     {"model_state_dict": unlearned_model.state_dict()},
                     target_model_path,
                 )
-                
+
             except Exception as e:
-                print(f"Error processing model {model_name}_{split_ndx}_{forget_ndx}: {str(e)}")
+                print(
+                    f"Error processing model {model_name}_{split_ndx}_{forget_ndx}: {str(e)}"
+                )

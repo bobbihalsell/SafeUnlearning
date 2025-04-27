@@ -1,26 +1,29 @@
-import numpy as np
-import random
-from pathlib import Path
-import matplotlib.pyplot as plt
-import torch
-from typing import Optional
-import os
-from dataclasses import fields
-from attacks.metrics import psnr, mse_image_space
-from torchvision import transforms
-from PIL import Image
 import glob
+import os
+import random
+from dataclasses import fields
+from pathlib import Path
+from typing import Optional
+
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+from PIL import Image
+from torchvision import transforms
+
+from attacks.metrics import mse_image_space, psnr
 
 
 class SaveImage:
-    def __init__(self, 
-                 attack_name: str,
-                 seed: str,
-                 experiment_name: str,
-                 image_mean: list = None, 
-                 image_std: list = None, 
-                 output_dir: str = "artifacts/reconstructed",
-                 ):
+    def __init__(
+        self,
+        attack_name: str,
+        seed: str,
+        experiment_name: str,
+        image_mean: list = None,
+        image_std: list = None,
+        output_dir: str = "artifacts/reconstructed",
+    ):
         """Class to save images and tensors.
         Args:
             attack_name (str): Name of the attack.
@@ -33,31 +36,31 @@ class SaveImage:
         self.attack_name = attack_name
         self.seed = seed
         self.experiment_name = experiment_name
-        self.device = 'cpu'
-    
+        self.device = "cpu"
+
         # Default if not provided
         if image_mean is None:
-            image_mean = [0.0]  
+            image_mean = [0.0]
         if image_std is None:
-            image_std = [1.0] 
+            image_std = [1.0]
 
-        self.image_mean = torch.as_tensor(image_mean, device = self.device)[:, None, None]
-        self.image_std = torch.as_tensor(image_std, device = self.device)[:, None, None]
+        self.image_mean = torch.as_tensor(image_mean, device=self.device)[:, None, None]
+        self.image_std = torch.as_tensor(image_std, device=self.device)[:, None, None]
 
         self.base_save_path = Path(output_dir)
         self.base_save_path.mkdir(parents=True, exist_ok=True)
 
-        self.directory = f'{output_dir}/reconstruction/{attack_name}'
+        self.directory = f"{output_dir}/reconstruction/{attack_name}"
         os.makedirs(self.directory, exist_ok=True)  # Ensure the directory exists
 
-
-    def save_png(self, 
-                 images: list, 
-                 filename: str = None, 
-                 fig_size: tuple = None,
-                 n_cols: int = None,
-                 normalize: bool = True
-                 ): 
+    def save_png(
+        self,
+        images: list,
+        filename: str = None,
+        fig_size: tuple = None,
+        n_cols: int = None,
+        normalize: bool = True,
+    ):
         """
         Save images as PNG files with a specified layout.
         Args:
@@ -66,18 +69,17 @@ class SaveImage:
             fig_size (tuple): Figure size. Defaults to None.
             n_cols (int): Number of columns. Defaults to None.
             normalize (bool): Whether to normalize the images. Defaults to True.
-        
+
         Returns:
             None
         """
         if not isinstance(images, torch.Tensor):
             raise TypeError("Images should be a tensor.")
-        
+
         self.num_images = len(images)
 
         images = images.clone().detach().to(self.device)
         clipped_images = [torch.clamp(img, 0.0, 1.0) for img in images]
-
 
         if normalize:
             clipped_images = [
@@ -87,7 +89,7 @@ class SaveImage:
 
         if self.num_images == 1:
             plt.imshow(clipped_images[0].permute(1, 2, 0).cpu())
-            plt.axis('off')
+            plt.axis("off")
         else:
             if n_cols is None:
                 max_cols = 8
@@ -105,25 +107,26 @@ class SaveImage:
 
             for i, im in enumerate(clipped_images):
                 axes[i].imshow(im.permute(1, 2, 0).cpu())
-                axes[i].axis('off')
+                axes[i].axis("off")
 
             # Hide any unused subplots
             for j in range(len(images), len(axes)):
-                axes[j].axis('off')
+                axes[j].axis("off")
 
         if filename is None:
-            filepath = os.path.join(self.directory, f'{self.attack_name}_{self.seed}_{self.experiment_name}.png')
+            filepath = os.path.join(
+                self.directory,
+                f"{self.attack_name}_{self.seed}_{self.experiment_name}.png",
+            )
         else:
             filepath = os.path.join(self.directory, filename)
-            
+
         plt.tight_layout()
-        plt.savefig(filepath, bbox_inches='tight')
+        plt.savefig(filepath, bbox_inches="tight")
         print(f"Image saved at {filepath}")
         plt.show()
 
-    def save_tensor(self, 
-                    images: list, 
-                    filepath: str = None):
+    def save_tensor(self, images: list, filepath: str = None):
         """Save images as a tensor.
         Args:
             images (list): List of images to save.
@@ -132,32 +135,36 @@ class SaveImage:
         Returns:
             None
         """
-        
+
         if filepath is None:
-            filepath = os.path.join(self.directory, f'{self.attack_name}_{self.seed}_{self.experiment_name}.pt')
+            filepath = os.path.join(
+                self.directory,
+                f"{self.attack_name}_{self.seed}_{self.experiment_name}.pt",
+            )
 
         torch.save(images, filepath)
 
         print(f"Image saved as a tensor at {filepath}")
 
-    def load_tensor(self, 
-                    filepath: str):
+    def load_tensor(self, filepath: str):
         """Load images from a tensor file.
         Args:
             filepath (str): Path to the tensor file.
         Returns:
             list: Loaded images.
         """
-        
+
         if not os.path.exists(filepath):
             raise FileNotFoundError(f"File {filepath} does not exist.")
-        if not filepath.endswith('.pt'):
+        if not filepath.endswith(".pt"):
             raise ValueError(f"File {filepath} is not a .pt file.")
         return torch.load(filepath)
-    
+
+
 class ConfigError(Exception):
-    def __init__(self, message='Configuration .YAML specification error.'):
+    def __init__(self, message="Configuration .YAML specification error."):
         super().__init__(message)
+
 
 def safe_dataclass_load(dataclass_type, config_dict):
     field_names = {f.name for f in fields(dataclass_type)}
@@ -167,8 +174,8 @@ def safe_dataclass_load(dataclass_type, config_dict):
 
 def calculate_metrics(img_batch, ref_batch, dataset_size, verbose=True):
     # Compute metrics
-    ref_batch = ref_batch.to('cuda') 
-    img_batch = img_batch.to('cuda')
+    ref_batch = ref_batch.to("cuda")
+    img_batch = img_batch.to("cuda")
 
     # Make sure hat the range is the same for both batches
     img_batch = torch.clamp(img_batch, 0.0, 1.0)
@@ -187,14 +194,13 @@ def calculate_metrics(img_batch, ref_batch, dataset_size, verbose=True):
 
     return psnr_value, mse_value
 
+
 def load_from_directory(dir_path):
     transform = transforms.ToTensor()
     images = []
 
     # Recursively find all image files in dir_path
-    image_paths = sorted(
-        glob.glob(os.path.join(dir_path, "**", "*.*"), recursive=True)
-    )
+    image_paths = sorted(glob.glob(os.path.join(dir_path, "**", "*.*"), recursive=True))
     image_paths = [
         p for p in image_paths if p.lower().endswith((".png", ".jpg", ".jpeg"))
     ]
@@ -212,17 +218,17 @@ def load_from_directory(dir_path):
 
 
 def setup_device():
-    """ Setup a torch device.
+    """Setup a torch device.
 
     Returns:
         str
     """
     if torch.cuda.is_available():
-        return 'cuda'
+        return "cuda"
     elif torch.mps.is_available():
-        return 'mps'
+        return "mps"
     else:
-        return 'cpu'
+        return "cpu"
 
 
 def set_seed(seed: int = 42):
@@ -237,20 +243,18 @@ def set_seed(seed: int = 42):
 
 if __name__ == "__main__":
     # Example usage
-    save_image = SaveImage(attack_name="example_attack", 
-                           seed="1234", 
-                           experiment_name="example_experiment")
-    
+    save_image = SaveImage(
+        attack_name="example_attack", seed="1234", experiment_name="example_experiment"
+    )
+
     # Create a dummy tensor of images
-    images = torch.randn(32, 3, 64, 64)  
+    images = torch.randn(32, 3, 64, 64)
 
     # Save the images with custom parameters
 
-    save_image.save_tensor(images,
-                           filepath="example_tensor.pt")
-    
-    loaded_images = save_image.load_tensor(filepath="example_tensor.pt")    
+    save_image.save_tensor(images, filepath="example_tensor.pt")
+
+    loaded_images = save_image.load_tensor(filepath="example_tensor.pt")
     print(f"Loaded images shape: {loaded_images.shape}")
 
-    save_image.save_png(loaded_images, 
-                         normalize=True)
+    save_image.save_png(loaded_images, normalize=True)

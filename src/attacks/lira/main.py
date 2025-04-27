@@ -3,14 +3,14 @@ from copy import deepcopy
 from pathlib import Path
 
 import hydra
-from omegaconf import DictConfig, OmegaConf
-from omegaconf.errors import MissingMandatoryValue
-
 from compute_lira import lira_score
 from config_validation import LiRAValidator
 from generate_predictions import generate_predictions
 from generate_splits import generate_splits
+from omegaconf import DictConfig, OmegaConf
+from omegaconf.errors import MissingMandatoryValue
 from train_lira import train_models
+
 from utils import set_seed, setup_device
 
 
@@ -33,6 +33,7 @@ class LiRAApp(LiRAValidator):
         seed (int): Random seed for reproducibility.
         output_dir (Path): Directory for storing experiment outputs.
     """
+
     def __init__(self, config: DictConfig):
         # Perform input validation first
         self.config = config
@@ -45,7 +46,7 @@ class LiRAApp(LiRAValidator):
 
         self.output_dir = Path(self.config["output_dir"])
         os.makedirs(self.output_dir, exist_ok=True)
-            
+
     def train_original_models(self):
         """Trains the original shadow models and stores their predictions."""
         original_config = deepcopy(self.config)
@@ -59,7 +60,7 @@ class LiRAApp(LiRAValidator):
             self.num_forgets,
             self.output_dir,
         )
-    
+
         generate_predictions(
             self.dataset_name,
             self.dataset_cfg,
@@ -110,11 +111,10 @@ class LiRAApp(LiRAValidator):
         2. Training original models
         3. Unlearning models
         4. Computing LiRA scores as described in https://arxiv.org/abs/2410.01276
-   
+
         """
 
-
-        print('Generating splits...')
+        print("Generating splits...")
         generate_splits(
             self.dataset_name,
             self.forget_ratio,
@@ -123,13 +123,13 @@ class LiRAApp(LiRAValidator):
             self.num_forgets,
             self.dataset_save_dir,
             self.output_dir,
-            self.seed
+            self.seed,
         )
-        print('Training original models...')
+        print("Training original models...")
         self.train_original_models()
-        print('Unlearning models...')
+        print("Unlearning models...")
         self.unlearn_models()
-        print('Generating LiRA scores...')
+        print("Generating LiRA scores...")
         lira_score(
             self.dataset_name,
             self.model_name,
@@ -141,23 +141,22 @@ class LiRAApp(LiRAValidator):
         )
 
 
-@hydra.main(version_base=None,
-            config_path="../../../configs",
-            config_name="attacks")
+@hydra.main(version_base=None, config_path="../../../configs", config_name="attacks")
 def main(cfg: DictConfig):
     # Print the config for the user first
-    print('============ Run Configuration ============')
+    print("============ Run Configuration ============")
     print(OmegaConf.to_yaml(cfg))
-    print('============================================')
+    print("============================================")
     missing_keys = OmegaConf.missing_keys(cfg)
     if missing_keys:
         raise MissingMandatoryValue(
-            'Missing the following required arguments in the configuration: '
-            f'{missing_keys}. \n'
-            'Hint: python file.py key=value sets the appropriate value.')
+            "Missing the following required arguments in the configuration: "
+            f"{missing_keys}. \n"
+            "Hint: python file.py key=value sets the appropriate value."
+        )
     app = LiRAApp(cfg)
     app.run()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

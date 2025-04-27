@@ -1,48 +1,51 @@
+import json
 import os
-import json 
+
 import hydra
-from omegaconf import OmegaConf, DictConfig
+from combined_roc_curve import load_roc_data, plot_all_rocs
+from omegaconf import DictConfig, OmegaConf
 from omegaconf.errors import MissingMandatoryValue
-from attacks.GLiR.glir_utils import calculate_metrics
-from attacks.GLiR.glir import GLiR
-from attacks.GLiR.datahandler import DataHandler
+from sklearn.metrics import auc, roc_curve
+
 from attacks.GLiR.config_validation import GLiRValidator
+from attacks.GLiR.datahandler import DataHandler
+from attacks.GLiR.glir import GLiR
+from attacks.GLiR.glir_utils import calculate_metrics
 from importmodel import ImportModel
 from utils import set_seed, setup_device
-from combined_roc_curve import load_roc_data, plot_all_rocs
-from sklearn.metrics import roc_curve, auc
 
 
 class GLiRApp(GLiRValidator):
     """
-    GLiRApp orchestrates the full pipeline for running the GLiR white-box 
+    GLiRApp orchestrates the full pipeline for running the GLiR white-box
     membership inference attack, as described in:
-    "Gradient Likelihood Ratio: A Test Statistic for Membership Inference" 
+    "Gradient Likelihood Ratio: A Test Statistic for Membership Inference"
     (https://arxiv.org/abs/2306.07273).
 
-    This includes data preparation, model loading, baseline gradient 
+    This includes data preparation, model loading, baseline gradient
     distribution construction, and executing the attack on query points.
 
     Args:
-        config (DictConfig): Hydra/OmegaConf configuration object 
+        config (DictConfig): Hydra/OmegaConf configuration object
                              containing all required parameters.
     """
+
     def __init__(self, config: DictConfig):
         # Perform input validation first
         config = OmegaConf.to_container(config, resolve=True)
         super().__init__(config)
 
         self.device = setup_device()
-        print(f'Using device: {self.device}')
-        self.seed = config['seed']
+        print(f"Using device: {self.device}")
+        self.seed = config["seed"]
         set_seed(self.seed)
 
         # Output directory
-        self.output_dir = config['output_dir']
-        self.combined_roc_dir = config['combined_roc_dir']        
+        self.output_dir = config["output_dir"]
+        self.combined_roc_dir = config["combined_roc_dir"]
         os.makedirs(self.combined_roc_dir, exist_ok=True)
         os.makedirs(self.output_dir, exist_ok=True)
- 
+
         # combine roc ?
         self.plot_combined_roc = config["plot_combined_roc"]
 
@@ -56,7 +59,7 @@ class GLiRApp(GLiRValidator):
             self.dataset_name,
             self.dataset_save_dir,
             self.background_ratio,
-            self.test_size
+            self.test_size,
         )
         self.background, _ = self.data.prepare_background_points()
         self.querypoints = self.data.prepare_querypoints()
@@ -64,40 +67,42 @@ class GLiRApp(GLiRValidator):
 
     def initialize_attack(self):
         """
-        Loads the original and unlearned models and initializes the GLiR 
+        Loads the original and unlearned models and initializes the GLiR
         attack object using both models.
         """
-        original_import = ImportModel(self.load_method,
-                                      self.model_name, 
-                                      self.num_classes,
-                                      self.init_path, 
-                                      self.original_model_ckpt_path,
-                                      self.model_kwargs, 
-                                      )
+        original_import = ImportModel(
+            self.load_method,
+            self.model_name,
+            self.num_classes,
+            self.init_path,
+            self.original_model_ckpt_path,
+            self.model_kwargs,
+        )
         self.original_model = original_import.model
-        unlearned_import = ImportModel(self.load_method,
-                                       self.model_name, 
-                                       self.num_classes,
-                                       self.init_path, 
-                                       self.unlearned_model_ckpt_path,
-                                       self.model_kwargs, 
-                                       )
+        unlearned_import = ImportModel(
+            self.load_method,
+            self.model_name,
+            self.num_classes,
+            self.init_path,
+            self.unlearned_model_ckpt_path,
+            self.model_kwargs,
+        )
         self.unlearned_model = unlearned_import.model
 
         self.attack = GLiR(
-                        model_before=self.original_model, 
-                        model_after=self.unlearned_model,
-                        num_params=self.num_params, 
-                        small_var_lim=self.small_var_lim,
-                        method=self.method,
-                        )
-        
+            model_before=self.original_model,
+            model_after=self.unlearned_model,
+            num_params=self.num_params,
+            small_var_lim=self.small_var_lim,
+            method=self.method,
+        )
+
     def initialize_baseline(self):
         """
-        Uses background data to compute the baseline gradient distribution 
+        Uses background data to compute the baseline gradient distribution
         (mean and covariance) for the likelihood ratio test.
         """
-        print(f'creating baseline with method: {self.method}')
+        print(f"creating baseline with method: {self.method}")
         self.attack.establish_baseline(self.background)
         return
 
@@ -105,9 +110,9 @@ class GLiRApp(GLiRValidator):
         """
         Perform the attack on the query points and save results.
 
-        Args: 
+        Args:
             savepath: Directory to save plots and results
-            threshold: The threshold to classify predictions based on 
+            threshold: The threshold to classify predictions based on
                 attack scores
         """
         # Ensure the save path exists
@@ -117,7 +122,7 @@ class GLiRApp(GLiRValidator):
         # Create the directory (and any necessary parent directories)
         os.makedirs(output_path, exist_ok=True)
 
-        # Unpack the labels and data points 
+        # Unpack the labels and data points
         # labels = [z for _, z in self.querypoints]
         # data = [d for d, _ in self.querypoints]
         data, labels = zip(*self.querypoints)
@@ -125,31 +130,32 @@ class GLiRApp(GLiRValidator):
         labels = list(labels)
 
         # Classify points using the attack method
-        print('classifying...')
+        print("classifying...")
         classifications, p_vals, test_statistics = self.attack.classify_set(
-            data, 
+            data,
             self.threshold,
             teststatistic=True,
-            )
-        print(f'predicted forget points: {sum(classifications)}')
-        print(f'predicted test points: {len(classifications) - sum(classifications)}')
-        print(f'max test statistic: {max(test_statistics)}')
-        print(f'min test statistic: {min(test_statistics)}')
+        )
+        print(f"predicted forget points: {sum(classifications)}")
+        print(f"predicted test points: {len(classifications) - sum(classifications)}")
+        print(f"max test statistic: {max(test_statistics)}")
+        print(f"min test statistic: {min(test_statistics)}")
 
         # Evaluate the attack
-        print('evaluating...')
+        print("evaluating...")
         metrics = calculate_metrics(classifications, labels)
         one_take_pvals = [1 - p for p in p_vals]
 
         # Save the ROC curve and GLIR distribution plot
-        print('visualising...')
-        self.attack.plot_roc_curve(one_take_pvals, labels,
-                                   savepath=output_path)
-        self.attack.plot_glir_distribution(p_values=p_vals, 
-                                           test_statistics=test_statistics,
-                                           labels=labels,
-                                           savepath=output_path, 
-                                           alpha=self.threshold)
+        print("visualising...")
+        self.attack.plot_roc_curve(one_take_pvals, labels, savepath=output_path)
+        self.attack.plot_glir_distribution(
+            p_values=p_vals,
+            test_statistics=test_statistics,
+            labels=labels,
+            savepath=output_path,
+            alpha=self.threshold,
+        )
 
         # Save metrics as JSON
         metrics_path = os.path.join(output_path, "attack_metrics.json")
@@ -161,21 +167,19 @@ class GLiRApp(GLiRValidator):
         print(f"Accuracy: {metrics['Accuracy']}")
         print(f"Precision: {metrics['Precision']}")
         print(f"Recall: {metrics['Recall']}")
-        #=============================================================================================
+        # =============================================================================================
         if self.combined_roc_dir is not None:
             os.makedirs(self.combined_roc_dir, exist_ok=True)
             combined_roc_path = os.path.join(self.combined_roc_dir, "roc_data.json")
 
-        
             fpr, tpr, _ = roc_curve(labels, one_take_pvals)
             roc_auc = auc(fpr, tpr)
             new_roc_data = {
                 "fpr": fpr.tolist(),
                 "tpr": tpr.tolist(),
                 "auc": roc_auc,
-                "label": os.path.basename(os.path.normpath(self.output_dir)) 
+                "label": os.path.basename(os.path.normpath(self.output_dir)),
             }
-
 
             if os.path.exists(combined_roc_path):
                 with open(combined_roc_path, "r") as f:
@@ -183,21 +187,16 @@ class GLiRApp(GLiRValidator):
             else:
                 all_roc_data = []
 
-
             all_roc_data.append(new_roc_data)
-
 
             with open(combined_roc_path, "w") as f:
                 json.dump(all_roc_data, f, indent=4)
                 print(f"Appended ROC data to: {combined_roc_path}")
 
-
             if self.plot_combined_roc:
                 plot_all_rocs(all_roc_data, savepath=self.combined_roc_dir)
-            
-    #=====================================================================
-        
 
+    # =====================================================================
 
     def run(self):
         """
@@ -206,11 +205,11 @@ class GLiRApp(GLiRValidator):
         2. Model import and attack setup
         3. Baseline gradient computation
         4. Attack execution and visualization
-        
+
         """
         print("Peparing query points and background points...")
         self.initialize_data()
-        
+
         # Load models
         print("Loading models and initializing attack...")
         self.initialize_attack()
@@ -222,23 +221,22 @@ class GLiRApp(GLiRValidator):
         self.perform_attack()
 
         print("Attack complete")
-        return 
+        return
 
 
-@hydra.main(version_base=None,
-            config_path="../../../configs",
-            config_name="attacks")
+@hydra.main(version_base=None, config_path="../../../configs", config_name="attacks")
 def main(cfg: DictConfig):
     # Print the config for the user first
-    print('============ Run Configuration ============')
+    print("============ Run Configuration ============")
     print(OmegaConf.to_yaml(cfg))
-    print('============================================')
+    print("============================================")
     missing_keys = OmegaConf.missing_keys(cfg)
     if missing_keys:
         raise MissingMandatoryValue(
-            'Missing the following required arguments in the configuration: '
-            f'{missing_keys}. \n'
-            'Hint: python file.py key=value sets the appropriate value.')
+            "Missing the following required arguments in the configuration: "
+            f"{missing_keys}. \n"
+            "Hint: python file.py key=value sets the appropriate value."
+        )
     app = GLiRApp(cfg)
     app.run()
 
