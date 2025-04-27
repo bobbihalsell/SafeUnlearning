@@ -234,7 +234,7 @@ class GGLReconstructor:
         return diff.item()
 
     def perform_scrub_updates(
-        self, generated_image, labels, original_model, verbose=True,
+        self, generated_image, labels, original_model, verbose=False,
         **kwargs
     ):
         """
@@ -280,7 +280,7 @@ class GGLReconstructor:
         return unlearned_model
 
     def perform_neggradplus_updates(
-        self, generated_image, labels, original_model, verbose=True,
+        self, generated_image, labels, original_model, verbose=False,
         **kwargs
     ):
         """
