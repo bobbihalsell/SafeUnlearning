@@ -1,10 +1,12 @@
+import time
+from typing import Dict
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from unlearning.base import BaseUnlearner
-from typing import Dict
 from torch.utils.data import DataLoader
-import time
+
+from unlearning.base import BaseUnlearner
 
 
 class SCRUB(BaseUnlearner):
@@ -19,12 +21,14 @@ class SCRUB(BaseUnlearner):
     This approach ensures the model "forgets" specific data while maintaining
     performance on data that should be retained.
     """
-    def __init__(self,
-                 device,
-                 evaluate: bool = False,
-                 wandb_enabled: bool = False,
-                 verbose: bool = True
-                 ):
+
+    def __init__(
+        self,
+        device,
+        evaluate: bool = False,
+        wandb_enabled: bool = False,
+        verbose: bool = True,
+    ):
         """
         Initialize the SCRUB unlearning class.
 
@@ -38,10 +42,9 @@ class SCRUB(BaseUnlearner):
         # Following authors' specification
         self.criterion = nn.CrossEntropyLoss()
 
-    def _kl_divergence(self,
-                       model1_logits: torch.Tensor,
-                       model2_logits: torch.Tensor
-                       ) -> torch.Tensor:
+    def _kl_divergence(
+        self, model1_logits: torch.Tensor, model2_logits: torch.Tensor
+    ) -> torch.Tensor:
         """
         Calculate the Kullback-Leibler divergence between the outputs of
         two models.
@@ -67,7 +70,7 @@ class SCRUB(BaseUnlearner):
         model2_probs = F.softmax(model2_logits, dim=1)
         model2_probs = torch.clamp(model2_probs, min=1e-10)  # Avoid log(0)
 
-        return F.kl_div(log_model1_probs, model2_probs, reduction='sum')
+        return F.kl_div(log_model1_probs, model2_probs, reduction="sum")
 
     def forget_loss(self, original_out, unl_out):
         """
@@ -87,7 +90,7 @@ class SCRUB(BaseUnlearner):
         # Compute KL divergence between original and unlearned model outputs
         forget_kl = self._kl_divergence(original_out, unl_out)
 
-        return forget_kl/Nf, forget_kl
+        return forget_kl / Nf, forget_kl
 
     def retain_loss(self, original_out, unl_out, true_y):
         """
@@ -111,12 +114,11 @@ class SCRUB(BaseUnlearner):
         Nr = len(original_out)
         retain_kl = self._kl_divergence(original_out, unl_out)
         retain_ce = self.criterion(unl_out, true_y)
-        weighted_loss = (self.alpha * retain_kl)/Nr + self.gamma * retain_ce
+        weighted_loss = (self.alpha * retain_kl) / Nr + self.gamma * retain_ce
 
         return weighted_loss, retain_kl, retain_ce
 
-    def max_epoch(self, model, unlearned_model,
-                  forget_loader, step=True):
+    def max_epoch(self, model, unlearned_model, forget_loader, step=True):
         """
         Perform one epoch of maximizing divergence on forget data.
         This is the "forgetting" step where we make the model outputs diverge
@@ -146,7 +148,7 @@ class SCRUB(BaseUnlearner):
                 self.optimizer.step()
             avg_loss += loss
         # Normalize by number of batches
-        avg_loss = avg_loss/len(forget_loader)
+        avg_loss = avg_loss / len(forget_loader)
 
         return avg_loss
 
@@ -173,24 +175,18 @@ class SCRUB(BaseUnlearner):
             # Compute retain losses
             original_out = model(retain_x)
             unl_out = unlearned_model(retain_x)
-            loss, kl_loss, ce_loss = self.retain_loss(
-                original_out, unl_out, retain_y
-                )
+            loss, kl_loss, ce_loss = self.retain_loss(original_out, unl_out, retain_y)
             self.optimizer.zero_grad()
             # Perform optimization using combined loss
             loss.backward()
             self.optimizer.step()
 
             avg_ce_loss += ce_loss
-        avg_ce_loss = (avg_ce_loss/len(retain_loader) if
-                       len(retain_loader) > 0 else 0)
+        avg_ce_loss = avg_ce_loss / len(retain_loader) if len(retain_loader) > 0 else 0
 
         return avg_ce_loss
 
-    def unlearn(self,
-                model: nn.Module,
-                data_dict: Dict[str, DataLoader],
-                **kwargs):
+    def unlearn(self, model: nn.Module, data_dict: Dict[str, DataLoader], **kwargs):
         """
         Perform SCRUB unlearning
 
@@ -209,10 +205,7 @@ class SCRUB(BaseUnlearner):
             Tuple of (unlearned_model, self.logs)
         """
         model.to(self.device)
-        unlearned_model, scheduler = self._setup_unlearning(
-            model,
-            data_dict,
-            **kwargs)
+        unlearned_model, scheduler = self._setup_unlearning(model, data_dict, **kwargs)
 
         if self.alpha < 0 or self.gamma < 0:
             raise ValueError("Alpha and gamma must be non-negative.")
@@ -229,31 +222,26 @@ class SCRUB(BaseUnlearner):
 
             # Maximize divergence on forget data
             if e < self.max_epochs:
-                self.max_epoch(
-                    model,
-                    unlearned_model,
-                    data_dict['forget']
-                )
+                self.max_epoch(model, unlearned_model, data_dict["forget"])
             # Minimize divergence on retain data
             if not self.sep_epochs or e < self.min_epochs:
                 self.min_epoch(
-                        model,
-                        unlearned_model,
-                        data_dict['retain'],
-                    )
+                    model,
+                    unlearned_model,
+                    data_dict["retain"],
+                )
             forward_pass_elapsed = time.time() - epoch_start_time
             if self.wandb_enabled:
                 self._log_forward_pass_time_in_wandb(
-                    epoch=e+1,
-                    time=forward_pass_elapsed
-                    )
+                    epoch=e + 1, time=forward_pass_elapsed
+                )
             if self.verbose:
                 self._print_forward_pass_metrics(e, forward_pass_elapsed)
             if self.evaluate:
                 self._evaluate_all_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
-                    epoch=e+1,
+                    epoch=e + 1,
                 )
 
             if scheduler is not None:

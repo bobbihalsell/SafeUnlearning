@@ -1,10 +1,12 @@
-import torch
-import numpy as np
-import random
-from datasets import DATASETS_TO_TRANSFORM
 import os
-from train.image_loading import RobustImageFolder
+import random
+
+import numpy as np
+import torch
 from torch.utils.data import DataLoader
+
+from datasets import DATASETS_TO_TRANSFORM
+from train.image_loading import RobustImageFolder
 
 
 def setup_device():
@@ -14,11 +16,11 @@ def setup_device():
           str: The selected device type ('cuda', 'mps', or 'cpu').
     """
     if torch.cuda.is_available():
-        return 'cuda'
+        return "cuda"
     elif torch.mps.is_available():
-        return 'mps'
+        return "mps"
     else:
-        return 'cpu'
+        return "cpu"
 
 
 def set_seed(seed: int = 42):
@@ -41,16 +43,15 @@ class ConfigError(Exception):
     Custom exception raised for configuration errors in YAML specifications.
 
     """
-    def __init__(self, message='Configuration .YAML specification error.'):
+
+    def __init__(self, message="Configuration .YAML specification error."):
         super().__init__(message)
 
 
-def initialize_dataloaders(splits,
-                           batch_sizes,
-                           num_workers,
-                           dataset_name,
-                           dataset_save_dir):
-    """ 
+def initialize_dataloaders(
+    splits, batch_sizes, num_workers, dataset_name, dataset_save_dir
+):
+    """
     Initialize dataloaders from the dataset folder in ImageFolder format.
     Args:
         splits (list): List of splits to initialize (e.g., 'retain', 'forget', 'val').
@@ -68,9 +69,9 @@ def initialize_dataloaders(splits,
         dataloaders[dataset] = DataLoader(
             datasets[dataset],
             batch_size=batch_sizes[dataset],
-            shuffle=(dataset in ['train', 'retain', 'forget']),
+            shuffle=(dataset in ["train", "retain", "forget"]),
             num_workers=num_workers,
-            pin_memory=True
+            pin_memory=True,
         )
     return dataloaders
 
@@ -97,8 +98,10 @@ def initialize_datasets(splits, dataset_name, dataset_save_dir):
     for split in splits:
         split_dir = os.path.join(dataset_save_dir, split)
         if not os.path.exists(split_dir):
-            raise Exception(f'{split_dir} does not exist. '
-                            f'Is the dataset in {dataset_save_dir} format?')
+            raise Exception(
+                f"{split_dir} does not exist. "
+                f"Is the dataset in {dataset_save_dir} format?"
+            )
 
         dataset = RobustImageFolder(root=split_dir, transform=transform)
         datasets[split] = dataset

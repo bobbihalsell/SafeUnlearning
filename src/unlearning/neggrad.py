@@ -1,11 +1,13 @@
+import time
+from itertools import cycle
+from typing import Dict, Optional, Tuple
+
 import torch
 import torch.nn as nn
-from unlearning.unlearn_utils import l2_penalty
-from itertools import cycle
-from unlearning.base import BaseUnlearner
-from typing import Optional, Tuple, Dict
 from torch.utils.data import DataLoader
-import time
+
+from unlearning.base import BaseUnlearner
+from unlearning.unlearn_utils import l2_penalty
 
 
 class NegGrad(BaseUnlearner):
@@ -24,7 +26,7 @@ class NegGrad(BaseUnlearner):
         device: Optional[torch.device] = None,
         evaluate: bool = False,
         wandb_enabled: bool = False,
-        verbose: bool = True
+        verbose: bool = True,
     ):
         """
         Initialize the NegGrad unlearning object.
@@ -37,10 +39,7 @@ class NegGrad(BaseUnlearner):
         """
         super(NegGrad, self).__init__(device, evaluate, wandb_enabled, verbose)
 
-    def unlearn(self,
-                model: nn.Module,
-                data_dict: Dict[str, DataLoader],
-                **kwargs):
+    def unlearn(self, model: nn.Module, data_dict: Dict[str, DataLoader], **kwargs):
         """
         Perform NegGrad unlearning.
         NegGrad performs gradient ascent on the forget set.
@@ -65,19 +64,16 @@ class NegGrad(BaseUnlearner):
         Raises:
             ValueError: If 'forget' data is not in data_dict.
         """
-        if 'forget' not in data_dict.keys():
+        if "forget" not in data_dict.keys():
             raise ValueError("'forget' data must be in data_dict.")
 
         model.to(self.device)
-        unlearned_model, scheduler = self._setup_unlearning(
-            model,
-            data_dict,
-            **kwargs)
+        unlearned_model, scheduler = self._setup_unlearning(model, data_dict, **kwargs)
 
         # Main training loop
         for e in range(self.epochs):
             epoch_start_time = time.time()
-            for forget_inputs, forget_labels in data_dict['forget']:
+            for forget_inputs, forget_labels in data_dict["forget"]:
                 unlearned_model.eval()
                 self.optimizer.zero_grad()
 
@@ -91,9 +87,11 @@ class NegGrad(BaseUnlearner):
 
                 # Add L2 penalty if requested
                 if self.use_l2_penalty:
-                    l2_loss = l2_penalty(model=unlearned_model,
-                                         model_init=model,
-                                         weight_decay=self.weight_decay)
+                    l2_loss = l2_penalty(
+                        model=unlearned_model,
+                        model_init=model,
+                        weight_decay=self.weight_decay,
+                    )
                     loss += l2_loss
 
                 loss.backward()
@@ -101,16 +99,15 @@ class NegGrad(BaseUnlearner):
             forward_pass_elapsed = time.time() - epoch_start_time
             if self.wandb_enabled:
                 self._log_forward_pass_time_in_wandb(
-                    epoch=e+1,
-                    time=forward_pass_elapsed
-                    )
+                    epoch=e + 1, time=forward_pass_elapsed
+                )
             if self.verbose:
                 self._print_forward_pass_metrics(e, forward_pass_elapsed)
             if self.evaluate:
                 self._evaluate_all_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
-                    epoch=e+1,
+                    epoch=e + 1,
                 )
 
             if scheduler is not None:
@@ -135,7 +132,7 @@ class NegGradPlus(BaseUnlearner):
         device: Optional[torch.device] = None,
         evaluate: bool = False,
         wandb_enabled: bool = False,
-        verbose: bool = True
+        verbose: bool = True,
     ):
         """
         Initialize the NegGrad+ unlearning object.
@@ -155,7 +152,7 @@ class NegGradPlus(BaseUnlearner):
         retain_outputs: torch.Tensor,
         retain_targets: torch.Tensor,
         forget_outputs: torch.Tensor,
-        forget_targets: torch.Tensor
+        forget_targets: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Calculate the composite loss based on retain and forget data.
@@ -182,10 +179,7 @@ class NegGradPlus(BaseUnlearner):
         total_loss = beta * retain_loss - (1 - beta) * forget_loss
         return total_loss, retain_loss, forget_loss
 
-    def unlearn(self,
-                model: nn.Module,
-                data_dict: Dict[str, DataLoader],
-                **kwargs):
+    def unlearn(self, model: nn.Module, data_dict: Dict[str, DataLoader], **kwargs):
         """
         Perform NegGrad+ unlearning with balanced retain/forget optimization.
 
@@ -220,43 +214,37 @@ class NegGradPlus(BaseUnlearner):
               equivalent to simpler methods).
         """
         model.to(self.device)
-        unlearned_model, scheduler = self._setup_unlearning(
-            model,
-            data_dict,
-            **kwargs)
+        unlearned_model, scheduler = self._setup_unlearning(model, data_dict, **kwargs)
         # Ensure required data is available
-        if ('forget' not in data_dict.keys()
-           or 'retain' not in data_dict.keys()):
-            raise ValueError(
-                "'forget' and 'retain' data must be in data_dict."
-                )
+        if "forget" not in data_dict.keys() or "retain" not in data_dict.keys():
+            raise ValueError("'forget' and 'retain' data must be in data_dict.")
         if self.beta == 0:
-            raise ValueError("Please use NegGrad if you wish to perform "
-                             "gradient ascent on only the forget set.")
+            raise ValueError(
+                "Please use NegGrad if you wish to perform "
+                "gradient ascent on only the forget set."
+            )
         if self.beta == 1:
-            raise ValueError("Please use FinetuneUnlearner if you wish to "
-                             "perform gradient descent on only the retain set")
+            raise ValueError(
+                "Please use FinetuneUnlearner if you wish to "
+                "perform gradient descent on only the retain set"
+            )
         # Main training loop
         for e in range(self.epochs):
             epoch_start_time = time.time()
-            for retain_batch, forget_batch in zip(data_dict['retain'],
-                                                  cycle(data_dict['forget'])
-                                                  ):
+            for retain_batch, forget_batch in zip(
+                data_dict["retain"], cycle(data_dict["forget"])
+            ):
                 #  Avoid BN layer computation, so code works with batch size 1
                 unlearned_model.eval()
                 self.optimizer.zero_grad()
                 # Process forget batch
-                forget_batch = [
-                    tensor.to(self.device) for tensor in forget_batch
-                ]
+                forget_batch = [tensor.to(self.device) for tensor in forget_batch]
                 # Compute the forget set and retain set loss. Cycle forget set.
                 forget_inputs, forget_labels = forget_batch
                 forget_output = unlearned_model(forget_inputs)
 
                 # Process retain batch
-                retain_batch = [
-                    tensor.to(self.device) for tensor in retain_batch
-                ]
+                retain_batch = [tensor.to(self.device) for tensor in retain_batch]
                 retain_inputs, retain_labels = retain_batch
                 retain_output = unlearned_model(retain_inputs)
 
@@ -267,13 +255,15 @@ class NegGradPlus(BaseUnlearner):
                     retain_outputs=retain_output,
                     retain_targets=retain_labels,
                     forget_outputs=forget_output,
-                    forget_targets=forget_labels
+                    forget_targets=forget_labels,
                 )
                 # Add L2 penalty if requested
                 if self.use_l2_penalty:
-                    l2_loss = l2_penalty(model=unlearned_model,
-                                         model_init=model,
-                                         weight_decay=self.weight_decay)
+                    l2_loss = l2_penalty(
+                        model=unlearned_model,
+                        model_init=model,
+                        weight_decay=self.weight_decay,
+                    )
                     loss += l2_loss
                 loss.backward()
                 self.optimizer.step()
@@ -281,16 +271,15 @@ class NegGradPlus(BaseUnlearner):
             forward_pass_elapsed = time.time() - epoch_start_time
             if self.wandb_enabled:
                 self._log_forward_pass_time_in_wandb(
-                    epoch=e+1,
-                    time=forward_pass_elapsed
-                    )
+                    epoch=e + 1, time=forward_pass_elapsed
+                )
             if self.verbose:
                 self._print_forward_pass_metrics(e, forward_pass_elapsed)
             if self.evaluate:
                 self._evaluate_all_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
-                    epoch=e+1,
+                    epoch=e + 1,
                 )
 
             if scheduler is not None:

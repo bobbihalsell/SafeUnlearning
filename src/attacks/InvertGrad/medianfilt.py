@@ -13,7 +13,7 @@ class MedianPool2d(nn.Module):
     def __init__(self, kernel_size=3, stride=1, padding=0, same=True):
         """
         Initialize with kernel_size, stride, padding.
-        
+
         Args:
             kernel_size: size of pooling kernel, int or 2-tuple
             stride: pool stride, int or 2-tuple
@@ -52,18 +52,18 @@ class MedianPool2d(nn.Module):
 
         else:
             padding = self.padding
-            
+
         return padding
 
     def forward(self, x):
-        """"
+        """ "
         Forward pass for median pooling.
         Args:
             x: input tensor
         Returns:
             x: pooled tensor
         """
-        x = F.pad(x, self._padding(x), mode='reflect')
+        x = F.pad(x, self._padding(x), mode="reflect")
         x = x.unfold(2, self.k[0], self.stride[0]).unfold(3, self.k[1], self.stride[1])
         x = x.contiguous().view(x.size()[:4] + (-1,)).median(dim=-1)[0]
 

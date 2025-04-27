@@ -2,14 +2,14 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 import numpy as np
-from numpy.typing import NDArray as Array
-from omegaconf import DictConfig
+import timm
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, ConcatDataset, DataLoader, Subset
 import torchvision
 import torchvision.datasets as datasets
-import timm
+from numpy.typing import NDArray as Array
+from omegaconf import DictConfig
+from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset
 
 from datasets import DATASETS_TO_TRAIN_TRANSFORM, DATASETS_TO_TRANSFORM
 
@@ -33,53 +33,43 @@ def load_train_test_datasets(
         Exception: If dataset_name is not one of the supported datasets.
     """
     if dataset_name == "cifar10":
-        raw_train = datasets.CIFAR10(root=dataset_save_dir,
-                                     train=True,
-                                     download=True,
-                                     transform=transform)
-        raw_test = datasets.CIFAR10(root=dataset_save_dir,
-                                    train=False,
-                                    download=True,
-                                    transform=transform)
+        raw_train = datasets.CIFAR10(
+            root=dataset_save_dir, train=True, download=True, transform=transform
+        )
+        raw_test = datasets.CIFAR10(
+            root=dataset_save_dir, train=False, download=True, transform=transform
+        )
 
     elif dataset_name == "cifar100":
-        raw_train = datasets.CIFAR100(root=dataset_save_dir,
-                                      train=True,
-                                      download=True,
-                                      transform=transform)
-        raw_test = datasets.CIFAR100(root=dataset_save_dir,
-                                     train=False,
-                                     download=True,
-                                     transform=transform)
+        raw_train = datasets.CIFAR100(
+            root=dataset_save_dir, train=True, download=True, transform=transform
+        )
+        raw_test = datasets.CIFAR100(
+            root=dataset_save_dir, train=False, download=True, transform=transform
+        )
 
     elif dataset_name == "cifar5":
-        raw_train = datasets.CIFAR10(root=dataset_save_dir,
-                                     train=True,
-                                     download=True,
-                                     transform=transform)
-        raw_test = datasets.CIFAR10(root=dataset_save_dir,
-                                    train=False,
-                                    download=True,
-                                    transform=transform)
+        raw_train = datasets.CIFAR10(
+            root=dataset_save_dir, train=True, download=True, transform=transform
+        )
+        raw_test = datasets.CIFAR10(
+            root=dataset_save_dir, train=False, download=True, transform=transform
+        )
 
         # Filter for classes 0–4
-        train_indices = [i for i, (_, label) in
-                         enumerate(raw_train) if label < 5]
-        test_indices = [i for i, (_, label) in
-                        enumerate(raw_test) if label < 5]
+        train_indices = [i for i, (_, label) in enumerate(raw_train) if label < 5]
+        test_indices = [i for i, (_, label) in enumerate(raw_test) if label < 5]
         raw_train = Subset(raw_train, train_indices)
         raw_test = Subset(raw_test, test_indices)
 
     else:
-        raise Exception(f'{dataset_name} is an unsupported dataset.')
+        raise Exception(f"{dataset_name} is an unsupported dataset.")
 
     return raw_train, raw_test
 
 
 def get_retain_forget_val_indices(
-    lira_path: Path,
-    split_ndx: int,
-    forget_ndx: int
+    lira_path: Path, split_ndx: int, forget_ndx: int
 ) -> Tuple[Array, Array, Array]:
     """Retrieves indices for retain, forget, and validation sets from stored splits.
 
@@ -137,17 +127,20 @@ def get_loaders_from_indices(
     train_transform = DATASETS_TO_TRAIN_TRANSFORM[dataset_name]()
     test_transform = DATASETS_TO_TRANSFORM[dataset_name]()
 
-    train, test = load_train_test_datasets(dataset_name, dataset_save_dir, train_transform)
+    train, test = load_train_test_datasets(
+        dataset_name, dataset_save_dir, train_transform
+    )
     dataset_aug = ConcatDataset([train, test])
 
-    train, test = load_train_test_datasets(dataset_name, dataset_save_dir, test_transform)
+    train, test = load_train_test_datasets(
+        dataset_name, dataset_save_dir, test_transform
+    )
     dataset_non_aug = ConcatDataset([train, test])
 
     retain_indices, forget_indices, val_indices = indices
     loaders = {}
     for split_name, indices in zip(
-        ["retain", "forget", "val"], 
-        [retain_indices, forget_indices, val_indices]
+        ["retain", "forget", "val"], [retain_indices, forget_indices, val_indices]
     ):
         if split_name == "val":
             dataset = dataset_non_aug

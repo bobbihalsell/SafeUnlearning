@@ -4,15 +4,12 @@ from pathlib import Path
 from typing import Tuple
 
 import numpy as np
-from numpy.typing import NDArray as Array
-
 from lira_utils import load_train_test_datasets
+from numpy.typing import NDArray as Array
 
 
 def generate_lira_train_tests(
-    lira_dev_indices: Array, 
-    num_attempts: int, 
-    ratio: float = 0.5
+    lira_dev_indices: Array, num_attempts: int, ratio: float = 0.5
 ) -> Tuple[Array, Array]:
     """Generates train and test splits for LiRA.
 
@@ -45,9 +42,7 @@ def generate_lira_train_tests(
 
 
 def generate_all_forgets(
-    train_matrices: Array, 
-    num_attempts: int, 
-    ratio: float
+    train_matrices: Array, num_attempts: int, ratio: float
 ) -> Tuple[Array, Array]:
     """Generates retain and forget splits from training matrices.
 

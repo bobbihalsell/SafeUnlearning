@@ -1,8 +1,7 @@
-from torch.utils.data import Subset
 import numpy as np
-from sklearn.metrics import (precision_score, recall_score, 
-                             f1_score, accuracy_score)
-import torch 
+import torch
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+from torch.utils.data import Subset
 
 
 def compute_accuracy(model, dataloader, device):
@@ -55,8 +54,7 @@ def create_subset(dataset, fraction, return_indices=False):
     return subset
 
 
-def create_matched_subset(dataset, target_size, 
-                          exempt_points=[], test_size=None):
+def create_matched_subset(dataset, target_size, exempt_points=[], test_size=None):
     """
     Creates a subset of specified size, excluding certain indices.
 
@@ -69,20 +67,16 @@ def create_matched_subset(dataset, target_size,
     Returns:
         Subset: A PyTorch Subset with selected samples.
     """
-    available_test_indices = list(
-                                set(range(len(dataset))) - set(exempt_points)
-                                )
+    available_test_indices = list(set(range(len(dataset))) - set(exempt_points))
     # Ensure target_size does not exceed the number of available indices
     if test_size is None:
         target_size = min(target_size, len(available_test_indices))
-    else: 
+    else:
         target_size = test_size
-   
-    indices = np.random.choice(available_test_indices, 
-                               target_size, 
-                               replace=False)
+
+    indices = np.random.choice(available_test_indices, target_size, replace=False)
     subset = Subset(dataset, indices)
-    return subset    
+    return subset
 
 
 def calculate_metrics(y_true, y_pred):
@@ -129,5 +123,5 @@ def calculate_metrics(y_true, y_pred):
         "Accuracy": accuracy,
         "Precision": precision,
         "Recall": recall,
-        "F1": f1
+        "F1": f1,
     }
