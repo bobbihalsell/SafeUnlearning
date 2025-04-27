@@ -87,7 +87,7 @@ class SGRU(BaseUnlearner):
             raise TypeError("num_components must an integer.")
         if self.redirection_strength < 0:
             raise ValueError("redirection_strength must be non-negative.")
-        if self.retain_strencth < 0:
+        if self.retain_strength < 0:
             raise ValueError("retain_strength must be non-negative.")
         if self.max_grad_norm < 0:
             raise ValueError("max_grad_norm must be non-negative.")

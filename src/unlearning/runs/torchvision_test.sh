@@ -1,1 +1,1 @@
-python src/unlearning/main.py model=torchvision model.model_name=resnet18 unlearner=scrub dataset=cifar10 dataset.save_path=./data output_dir=artifacts/models +wandb=default wandb.run_id=resnet18-cifar10 unlearner.cfg.momentum=0.9 experiment_name=tests verbose=false
+python src/unlearning/main.py model=torchvision model.model_name=resnet18 unlearner=finetune dataset=cifar10 dataset.save_path=./data output_dir=artifacts/models +wandb=default unlearner.cfg.momentum=0.9 experiment_name=tests verbose=false
