@@ -19,6 +19,19 @@ def load_train_test_datasets(
     dataset_save_dir: str,
     transform: torchvision.transforms = None,
 ) -> Tuple[Dataset, Dataset]:
+    """Loads training and test datasets for specified dataset.
+
+    Args:
+        dataset_name: Name of the dataset to load.
+        dataset_save_dir: Directory where the dataset should be downloaded and saved.
+        transform: Optional torchvision transforms to be applied to the dataset.
+
+    Returns:
+        A tuple of (train_dataset, test_dataset).
+
+    Raises:
+        Exception: If dataset_name is not one of the supported datasets.
+    """
     if dataset_name == "cifar10":
         raw_train = datasets.CIFAR10(root=dataset_save_dir,
                                      train=True,
