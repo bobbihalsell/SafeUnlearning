@@ -1,0 +1,14 @@
+default:
+    image: python:3.12
+    before_script:
+       - apt-get update
+       - apt-get install -y python3-pip
+       - pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+       - pip install -e .
+stages:
+    - test
+test:
+    script:
+        - python3 -m unittest discover -s tests
+    artifacts:
+      expire_in: 1 week

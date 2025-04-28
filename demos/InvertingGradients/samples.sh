@@ -1,0 +1,12 @@
+# Note: These are the exact samples used in the experiments. They were generated using an older version of the dataset app. 
+# They are manually defined in the new version of the dataset app to ensure reproducibility.
+
+unlearn1='["25377.png"]'
+unlearn8='["16010.png", "11849.png", "25377.png", "07778.png", "49541.png", "31835.png", "01877.png", "35730.png"]'
+unlearn16='['16010.png', '34607.png', '34646.png', '45886.png', '11849.png', '07778.png','25377.png','00078.png', '18497.png', '13925.png', '10719.png', '49541.png', '31835.png', '01877.png', '14539.png', '35730.png']'
+unlearn32='['32994.png', '07659.png', '07778.png', '25377.png', '43728.png', '34607.png', '16010.png', '34646.png', '45886.png', '11849.png', '00796.png', '32136.png', '00907.png', '33131.png', '46155.png', '00141.png', '18497.png', '13925.png', '00078.png', '37871.png', '39009.png', '00020.png', '10719.png', '49541.png', '27838.png', '47513.png', '26537.png', '31835.png', '12097.png', '14539.png', '01877.png', '35730.png']'
+
+retain1='['26908.png']'
+retain5='['06503.png', '24620.png', '20760.png','26908.png', '34966.png']'
+retain25='['06503.png', '00550.png', '06736.png', '00879.png', '24620.png', '00057.png', '45641.png', '22245.png', '35804.png', '20760.png', '33872.png', '24637.png', '14802.png', '10104.png', '09381.png', '20681.png', '01825.png', '49177.png', '12401.png', '26908.png', '46178.png', '41329.png', '12793.png', '34966.png', '02157.png']'
+retain50='['33542.png', '32990.png', '00550.png', '06503.png', '24620.png', '09318.png', '00879.png', '06736.png', '00057.png', '13341.png', '21656.png', '22245.png', '35804.png', '20144.png', '20760.png', '48798.png', '45641.png', '00481.png', '37776.png', '40712.png', '33872.png', '40688.png', '24637.png', '10104.png', '39677.png', '09563.png', '38600.png', '14802.png', '14724.png', '09381.png', '40128.png', '08907.png', '49037.png', '37624.png', '01825.png', '20681.png', '49177.png', '12401.png', '17783.png', '41329.png', '03895.png', '34966.png', '18929.png', '00031.png', '08716.png', '12793.png', '13690.png', '02157.png', '26908.png', '46178.png']'

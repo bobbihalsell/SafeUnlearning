@@ -1,0 +1,31 @@
+type: ggl
+lr: 0.01
+unlearned_labels: ??
+cfg:
+  num_updates: 1
+  unlearning_method: neggrad
+  batch_size: 1
+  loss_models: "l2"  # 'l1', 'l2', 'weighted', or 'interpolated'
+  budget: 1000  # Budget for Bayesian Optimization
+  search_dim: 128  # Dimension of the latent space
+  use_tanh: false  # Whether to apply tanh activation to the latent vector
+  gp_optim: "AdamW" # Optimiser for gaussian process
+  use_scheduler: True # Whether to use scheduler for Gaussian Process optimiser
+  initial_lr: 1 # Initial learning rate for Gaussian Process optimisation
+  initial_z_path: # Where to download initial latent vector from
+unlearner:
+  weight_decay: 0
+  use_l2_penalty: False
+  optimizer: sgd
+  momentum: 0
+  sep_epochs: True
+  lr_decay_factor: 
+  epochs_per_lr_decay: 
+  alpha: Null # for scrub, otherwise leave None
+  gamma: Null # for scrub, otherwise leave None
+  min_epochs: Null # for scrub, otherwise leave None
+  max_epochs: Null # for scrub, otherwise leave None
+  epochs: 1 # for neggradplus, otherwise leave None
+  beta: Null # for neggradplus, otherwise leave None
+
+

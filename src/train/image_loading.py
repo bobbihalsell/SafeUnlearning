@@ -1,0 +1,76 @@
+import os
+from pathlib import Path
+from typing import Union
+
+from PIL import Image, UnidentifiedImageError
+from torchvision.datasets import ImageFolder
+
+
+class RobustImageFolder(ImageFolder):
+    def __init__(self, root, transform=None):
+        """
+        Initializes the dataset from the root directory.
+
+        Args:
+            root (str): Root directory path where images are stored in subdirectories by class.
+            transform (callable, optional): A function/transform to apply to the images.
+        """
+        super().__init__(root, transform)
+
+    def __getitem__(self, index):
+        """
+        Retrieves the image and label at the specified index, skipping corrupted images.
+
+        Args:
+            index (int): Index of the image to retrieve.
+
+        Returns:
+            tuple: (transformed image, target class index)
+        """
+        path, target = self.samples[index]
+
+        try:
+            # Open the image file
+            sample = Image.open(path)
+            sample = sample.convert("RGB")
+
+            if self.transform is not None:
+                sample = self.transform(sample)
+
+        except UnidentifiedImageError:
+            # Skip the corrupted image and continue to the next one
+            print(f"Skipping corrupted image: {path}")
+            return self.__getitem__((index + 1) % len(self.samples))
+        return sample, target
+
+    def find_classes(self, directory: Union[str, Path]):
+        """
+        Finds the class folders in a dataset.
+        Override of the default ImageFolder find_classes method to literally
+        transcribe folder names into labels.
+        Args:
+            directory (str or Path): Root directory path.
+
+        Returns:
+            tuple: (classes, class_to_idx)
+                - classes (List[str]): Sorted list of class names.
+                - class_to_idx (Dict[str, int]): Mapping from class name to integer label.
+
+        Raises:
+            FileNotFoundError: If no class folders are found.
+            RuntimeError: If folder names are not valid integers.
+        """
+        classes = sorted(
+            entry.name for entry in os.scandir(directory) if entry.is_dir()
+        )
+        if not classes:
+            raise FileNotFoundError(f"Couldn't find any class folder in {directory}.")
+        try:
+            class_to_idx = {cls_name: int(cls_name) for cls_name in classes}
+        except ValueError:
+            raise RuntimeError(
+                "Dataset folder names must be integers corresponding exactly "
+                "to image labels. Use the dataset splitting app to prepare "
+                "your dataset, or manually adjust your folder names."
+            )
+        return classes, class_to_idx
