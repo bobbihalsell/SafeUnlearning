@@ -73,45 +73,59 @@ class SaveImage:
         Returns:
             None
         """
+
         if not isinstance(images, torch.Tensor):
             raise TypeError("Images should be a tensor.")
 
         self.num_images = len(images)
 
         images = images.clone().detach().to(self.device)
-        clipped_images = [torch.clamp(img, 0.0, 1.0) for img in images]
 
-        if normalize:
-            clipped_images = [
-                img.mul_(self.image_std).add_(self.image_mean).clamp_(0, 1)
-                for img in clipped_images
-            ]
+        if self.attack_name == 'ggl':
+            x = images.detach().cpu()
+            x = (x.squeeze(0) + 1) / 2.0  # Normalize from [-1, 1] to [0, 1]
 
-        if self.num_images == 1:
-            plt.imshow(clipped_images[0].permute(1, 2, 0).cpu())
+            # Convert tensor to PIL image
+            transform = transforms.ToPILImage()
+            img_pil = transform(x.clamp(0, 1))  # Clamp to [0, 1] range
+            plt.imshow(img_pil)
             plt.axis("off")
+
+        
         else:
-            if n_cols is None:
-                max_cols = 8
-                n_cols = min(max_cols, self.num_images)
-            n_rows = int(np.ceil(self.num_images / n_cols))
+            clipped_images = [torch.clamp(img, 0.0, 1.0) for img in images]
 
-            _, h, w = clipped_images[0].shape
-            scale = 2.5
-            fig_width = (w * n_cols * scale) / 100
-            fig_height = (h * n_rows * scale) / 100
-            fig_size = (fig_width, fig_height)
+            if normalize:
+                clipped_images = [
+                    img.mul_(self.image_std).add_(self.image_mean).clamp_(0, 1)
+                    for img in clipped_images
+                ]
 
-            fig, axes = plt.subplots(n_rows, n_cols, figsize=fig_size, dpi=300)
-            axes = np.array(axes).flatten()
+            if self.num_images == 1:
+                plt.imshow(clipped_images[0].permute(1, 2, 0).cpu())
+                plt.axis("off")
+            else:
+                if n_cols is None:
+                    max_cols = 8
+                    n_cols = min(max_cols, self.num_images)
+                n_rows = int(np.ceil(self.num_images / n_cols))
 
-            for i, im in enumerate(clipped_images):
-                axes[i].imshow(im.permute(1, 2, 0).cpu())
-                axes[i].axis("off")
+                _, h, w = clipped_images[0].shape
+                scale = 2.5
+                fig_width = (w * n_cols * scale) / 100
+                fig_height = (h * n_rows * scale) / 100
+                fig_size = (fig_width, fig_height)
 
-            # Hide any unused subplots
-            for j in range(len(images), len(axes)):
-                axes[j].axis("off")
+                fig, axes = plt.subplots(n_rows, n_cols, figsize=fig_size, dpi=300)
+                axes = np.array(axes).flatten()
+
+                for i, im in enumerate(clipped_images):
+                    axes[i].imshow(im.permute(1, 2, 0).cpu())
+                    axes[i].axis("off")
+
+                # Hide any unused subplots
+                for j in range(len(images), len(axes)):
+                    axes[j].axis("off")
 
         if filename is None:
             filepath = os.path.join(
@@ -121,10 +135,13 @@ class SaveImage:
         else:
             filepath = os.path.join(self.directory, filename)
 
+
+
         plt.tight_layout()
         plt.savefig(filepath, bbox_inches="tight")
         print(f"Image saved at {filepath}")
         plt.show()
+        
 
     def save_tensor(self, images: list, filepath: str = None):
         """Save images as a tensor.
