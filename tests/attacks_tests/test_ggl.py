@@ -1,6 +1,5 @@
 # Standard library imports
 import os
-import sys
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
@@ -8,11 +7,6 @@ from unittest.mock import MagicMock, patch
 # Third-party imports
 import numpy as np
 import torch
-
-# Set up path for local imports
-script_dir = os.path.dirname(__file__)
-src_path = os.path.abspath(os.path.join(script_dir, "../../src"))
-sys.path.insert(0, src_path)
 
 # Local imports
 from attacks.GGL.reconstructor import GGLReconstructor

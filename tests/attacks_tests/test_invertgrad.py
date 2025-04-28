@@ -1,13 +1,7 @@
-import os
-import sys
 import unittest
 from unittest.mock import patch
 
 import torch
-
-sys.path.insert(
-    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../src"))
-)
 
 from attacks.InvertGrad.reconstruction_cost import DistillKL, reconstruction_costs
 from attacks.InvertGrad.reconstructor import InvertGradConfig, InvertGradReconstructor
