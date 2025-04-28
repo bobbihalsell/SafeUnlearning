@@ -26,11 +26,14 @@ class EvaluationValidator(InputValidator):
         self._validate_required_sections(["model", "dataset"])
         self.check_weights()
         self.verify_1_original()
+        self.filter_data()
 
     def _validate_dataset_params(self):
         super()._validate_dataset_params()
+        self._require(self.dataset_file, "splits")
+        self.splits = self.splits.split()
         self._require(self.dataset_file, "cfg")
-        self._require(self.cfg, "batch_sizes", "data_to_evaluate")
+        self._require(self.cfg, "batch_sizes")
         self.num_workers = self.cfg.get("num_workers", 1)
 
     def check_weights(self):
@@ -56,6 +59,14 @@ class EvaluationValidator(InputValidator):
                 "Please ensure only one original model is specified."
             )
         self.has_original = original_models == 1
+
+    def filter_data(self):
+        self.data_to_evaluate = {}
+        for split in self.splits:
+            if split in self.cfg["batch_sizes"]:
+                self.data_to_evaluate[split] = self.cfg["batch_sizes"][split]
+            else:
+                raise ValueError(f"Batch size for split '{split}' not found.")
 
 
 class EvaluationApp(EvaluationValidator):
