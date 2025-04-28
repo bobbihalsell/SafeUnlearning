@@ -10,10 +10,6 @@ from torchvision import transforms
 
 from train.image_loading import RobustImageFolder
 
-# sys.path.insert(
-#     0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-#     )
-
 
 class TestRobustImageFolder(unittest.TestCase):
     def setUp(self):

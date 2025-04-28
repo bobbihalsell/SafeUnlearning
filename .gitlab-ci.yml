@@ -4,6 +4,7 @@ default:
        - apt-get update
        - apt-get install -y python3-pip
        - pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+       - pip install -e .
 stages:
     - test
 test:

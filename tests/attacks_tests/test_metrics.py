@@ -1,5 +1,3 @@
-import os
-import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -8,9 +6,6 @@ import torch
 import torchvision.transforms as transforms
 from PIL import Image
 
-sys.path.insert(
-    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../src"))
-)
 from attacks.metrics import apply_normalization, apply_resizing, mse_image_space, psnr
 
 

@@ -1,12 +1,9 @@
 import os
-import sys
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
 import torch
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from src.attacks.utils import SaveImage
 

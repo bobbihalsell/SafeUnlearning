@@ -1,6 +1,4 @@
-import os
 import random
-import sys
 import unittest
 from unittest.mock import patch
 
@@ -8,10 +6,6 @@ import numpy as np
 import torch
 
 from utils import set_seed, setup_device
-
-# sys.path.insert(
-#     0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-#     )
 
 
 class TestDeviceSetup(unittest.TestCase):
