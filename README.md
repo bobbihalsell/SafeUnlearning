@@ -6,6 +6,12 @@ Use SafeUnlearning to perform highly configurable, custom, and reproducible imag
 ### Configurable Dataset Splitting
 Download CIFAR datasets from Torchvision, or load image datasets in from your local drive. Define forget sets flexibly with a range of options from forgetting *n* samples, forgetting *k* classes, forgetting *n* samples from *k* classes, or forgetting specific filenames from your dataset.
 
+#### Supported Datasets
+* CIFAR5
+* CIFAR10
+* CIFAR100
+* ImageNet
+
 ### Model Training/Finetuning
 Pretrained and non-pretrained models can be imported and trained, or finetuned to produce an original model before unlearning.
 
