@@ -7,7 +7,13 @@ Use SafeUnlearning to perform highly configurable, custom, and reproducible imag
 Download CIFAR datasets from Torchvision, or load image datasets in from your local drive. Define forget sets flexibly with a range of options from forgetting *n* samples, forgetting *k* classes, forgetting *n* samples from *k* classes, or forgetting specific filenames from your dataset.
 
 ### Model Training/Finetuning
-Pretrained and non-pretrained `Torchvision` and `timm` models can be imported and trained, or finetuned to produce an original model before unlearning.
+Pretrained and non-pretrained models can be imported and trained, or finetuned to produce an original model before unlearning.
+
+#### Model loading options
+* Torchvision
+* Pytorch Image Models (timm)
+* Torch Hub
+* Local (if the model architecture can be initialized from local disk)
 
 ### Novel and Benchmark Unlearning and Privacy Attack Algorithms
 SafeUnlearning includes a range of machine unlearning algorithms, reconstruction attacks and membership inference attacks which you can use to perform machine unlearning and privacy risk evaluation.
@@ -59,11 +65,18 @@ Example experiment runs built using the SafeUnlearning framework, including reco
 
     ```bash
     python3 -m venv .venv
-    source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+    source .venv/bin/activate  # On Windows use `.venv\Scripts\activate`
     pip install -r requirements.txt
      ```
 
-3. (Optional) WandB setup
+3. Build the package
+    
+    From the repository root level, run:
+    ```bash
+    pip install -e .
+    ```
+
+4. (Optional) WandB setup
 
     Generate a WandB API key and login to your WandB account from your CLI, so that your experiment logs can be logged and viewed on the WandB platform. Check out WandB's setup tutorial [here](https://docs.wandb.ai/quickstart/).
 
@@ -138,7 +151,7 @@ cfg:
     test: 1
   num_workers: 4
 ```
-Each mini-app only uses the arguments that it needs. As the dataset app is a dataset splitter, it will not use keys such as `cfg`, `background_ratio` and `forget_ratio`. We must specify `dataset.load_method=torchvision`, and `dataset.save_path`, as it is a mandatory argument referring to the directory to save the dataset splits to. Suppose we decide to save binaries to `./artifacts/`, the CIFAR ImageFolder images to `./raw` and the split symlinks to `./data`. 
+Each mini-app only uses the arguments that it needs. As the dataset app is a dataset splitter, it will not use keys such as `cfg` (used for train and unlearn apps), `background_ratio` (used for LiRA only) and `forget_ratio` (used for LiRA only). We must specify `dataset.load_method=torchvision`, and `dataset.save_path`, as it is a mandatory argument referring to the directory to save the dataset splits to. Suppose we decide to save binaries to `./artifacts/`, the CIFAR ImageFolder images to `./raw` and the split symlinks to `./data`. 
 
 Now, reviewing the `forget/classnum.yaml` file corresponding to forgetting a number from a class:
 ```
