@@ -1,15 +1,15 @@
 import os
-from typing import Dict
 from pathlib import Path
+from typing import Dict
 
 import numpy as np
 import torch
+from lira_utils import load_train_test_datasets
 from torch.nn.functional import softmax
 from torch.utils.data import ConcatDataset, DataLoader
 
-from importmodel import ImportModel
-from datasets.load_datasets import load_train_val_test_datasets
 from datasets import DATASETS_TO_TRANSFORM
+from importmodel import ImportModel
 
 
 def generate_predictions(
@@ -60,9 +60,7 @@ def generate_predictions(
 
     transform = DATASETS_TO_TRANSFORM[dataset_name]()
 
-    train, _, test = load_train_val_test_datasets(
-        dataset_name, 1, 0, save_path, "", transform
-    )
+    train, test = load_train_test_datasets(dataset_name, save_path, transform)
     dataset = ConcatDataset([train, test])
     loader = DataLoader(
         dataset,
@@ -76,11 +74,11 @@ def generate_predictions(
             ckpt_path = models_path / f"{model_name}_{split_ndx}_{forget_ndx}.pth"
             importmodel = ImportModel(
                 load_method,
-                model_name, 
+                model_name,
                 num_classes,
-                init_path, 
+                init_path,
                 ckpt_path,
-                model_kwargs, 
+                model_kwargs,
             )
             model = importmodel.model
             model.to(device)
@@ -94,5 +92,7 @@ def generate_predictions(
                     probas = softmax(logits, dim=1).cpu().numpy()
                 predictions.append(probas)
 
-            output_path = predictions_path / f"{model_name}_{split_ndx}_{forget_ndx}.npy"
+            output_path = (
+                predictions_path / f"{model_name}_{split_ndx}_{forget_ndx}.npy"
+            )
             np.save(output_path, np.concatenate(predictions))

@@ -1,1 +1,0 @@
-python src/datasets/main.py forget=filename forget.forget_filenames="[08443.png, 41333.png, 25574.png, 31402i041.png]" forget.retain_filenames="[]" dataset=cifar10 dataset.load_method=local dataset.init_path=./cifar10 dataset.save_path=./data experiment_name=test

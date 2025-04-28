@@ -1,8 +1,9 @@
-from torchvision.datasets import ImageFolder
-from PIL import Image, UnidentifiedImageError
-from typing import Union
-from pathlib import Path
 import os
+from pathlib import Path
+from typing import Union
+
+from PIL import Image, UnidentifiedImageError
+from torchvision.datasets import ImageFolder
 
 
 class RobustImageFolder(ImageFolder):
@@ -59,17 +60,17 @@ class RobustImageFolder(ImageFolder):
             FileNotFoundError: If no class folders are found.
             RuntimeError: If folder names are not valid integers.
         """
-        classes = sorted(entry.name for entry in
-                         os.scandir(directory) if
-                         entry.is_dir())
+        classes = sorted(
+            entry.name for entry in os.scandir(directory) if entry.is_dir()
+        )
         if not classes:
-            raise FileNotFoundError(
-                f"Couldn't find any class folder in {directory}.")
+            raise FileNotFoundError(f"Couldn't find any class folder in {directory}.")
         try:
             class_to_idx = {cls_name: int(cls_name) for cls_name in classes}
         except ValueError:
             raise RuntimeError(
-                'Dataset folder names must be integers corresponding exactly '
-                'to image labels. Use the dataset splitting app to prepare '
-                'your dataset, or manually adjust your folder names.')
+                "Dataset folder names must be integers corresponding exactly "
+                "to image labels. Use the dataset splitting app to prepare "
+                "your dataset, or manually adjust your folder names."
+            )
         return classes, class_to_idx
