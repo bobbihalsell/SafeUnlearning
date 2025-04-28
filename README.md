@@ -52,7 +52,7 @@ Before using this app, you will need to ensure you have the following prerequisi
 
 
 ## Instructions for using SafeUnlearning
-SafeUnlearning is structured as 4 mini-applications in 4 distinct folders: dataset splitting, model training, model unlearning, and reconstruction attacks/MIA on an unlearned model.
+SafeUnlearning is structured as 5 mini-applications in 5 distinct folders: dataset splitting, model training, model unlearning, unlearning score evaluation, and reconstruction attacks/MIA on an unlearned model.
 
 Each of the mini-applications required by your machine unlearning job can be run by calling the corresponding `main.py` file and specifying all required and any optional defaults from the mini-app's Hydra configuration setup through command line arguments. Hydra's documentation can be found [here](https://hydra.cc/docs/intro/).
 
