@@ -1,10 +1,12 @@
+import time
+from typing import Dict
+
 import torch
 import torch.nn as nn
-from unlearning.unlearn_utils import l2_penalty
-from unlearning.base import BaseUnlearner
-from typing import Dict
 from torch.utils.data import DataLoader
-import time
+
+from unlearning.base import BaseUnlearner
+from unlearning.unlearn_utils import l2_penalty
 
 
 class SGRU(BaseUnlearner):
@@ -24,11 +26,14 @@ class SGRU(BaseUnlearner):
         training
     3. Periodically recalculates the forget subspace for optimal unlearning
     """
-    def __init__(self,
-                 device,
-                 evaluate: bool = False,
-                 wandb_enabled: bool = False
-                 ):
+
+    def __init__(
+        self,
+        device,
+        evaluate: bool = False,
+        wandb_enabled: bool = False,
+        verbose: bool = True,
+    ):
         """
         Initialize the SGRU class.
 
@@ -38,14 +43,10 @@ class SGRU(BaseUnlearner):
             evaluate: Whether to track and return evaluation metrics during
                 unlearning.
         """
-        super().__init__(device, evaluate, wandb_enabled)
+        super().__init__(device, evaluate, wandb_enabled, verbose)
         self.criterion = nn.CrossEntropyLoss()
 
-    def unlearn(self,
-                model: nn.Module,
-                data_dict: Dict[str, DataLoader],
-                verbose: bool = False,
-                **kwargs):
+    def unlearn(self, model: nn.Module, data_dict: Dict[str, DataLoader], **kwargs):
         """
         Unlearn through Subspace Gradient Redirection on retain data.
 
@@ -55,7 +56,6 @@ class SGRU(BaseUnlearner):
                     and 'forget' keys with the respective datasets. Other keys
                     (e.g., 'test') will
                     be used for evaluation if self.evaluate is True.
-            verbose: Whether to print progress during unlearning.
             **kwargs: Additional arguments including:
                 - loss_fn: Loss function to use for training.
                 - num_epochs: Number of training epochs (default: 1).
@@ -73,10 +73,7 @@ class SGRU(BaseUnlearner):
             Tuple of (unlearned_model, self.logs)
         """
         model.to(self.device)
-        unlearned_model, scheduler = self._setup_unlearning(
-            model,
-            data_dict,
-            **kwargs)
+        unlearned_model, scheduler = self._setup_unlearning(model, data_dict, **kwargs)
 
         if self.recalc_freq < 0:
             raise ValueError("recalc_freq must be non-negative.")
@@ -94,18 +91,15 @@ class SGRU(BaseUnlearner):
             raise ValueError("max_grad_norm must be non-negative.")
 
         # Ensure required data is available
-        if ('retain' not in data_dict.keys()
-           or 'forget' not in data_dict.keys()):
-            raise ValueError(
-                "'retain' and 'forget' data must be in data_dict."
-                )
+        if "retain" not in data_dict.keys() or "forget" not in data_dict.keys():
+            raise ValueError("'retain' and 'forget' data must be in data_dict.")
 
         # Group parameters by layers/modules for efficiency
         param_groups = {}
         for name, param in unlearned_model.named_parameters():
             if param.requires_grad:
                 # Extract module name (e.g., 'layer1.0.conv1' -> 'layer1')
-                module_name = name.split('.')[0]
+                module_name = name.split(".")[0]
                 if module_name not in param_groups:
                     param_groups[module_name] = []
                 param_groups[module_name].append((name, param))
@@ -122,22 +116,21 @@ class SGRU(BaseUnlearner):
                     # Collect gradients for this parameter group across batches
                     group_grads = []
 
-                    for forget_inputs, forget_labels in data_dict['forget']:
+                    for forget_inputs, forget_labels in data_dict["forget"]:
                         forget_inputs = forget_inputs.to(self.device)
                         forget_labels = forget_labels.to(self.device)
 
                         self.optimizer.zero_grad()
                         forget_output = unlearned_model(forget_inputs)
-                        forget_loss = self.criterion(forget_output,
-                                                     forget_labels)
+                        forget_loss = self.criterion(forget_output, forget_labels)
 
                         # Check for NaN loss
                         if torch.isnan(forget_loss).any():
-                            if verbose:
+                            if self.verbose:
                                 print(
                                     f"Warning: NaN loss detected in forget "
                                     f"data during SVD calculation at epoch {e}"
-                                    )
+                                )
                             continue
 
                         forget_loss.backward()
@@ -158,33 +151,37 @@ class SGRU(BaseUnlearner):
 
                         # Check for NaN in gradient matrix
                         if torch.isnan(grad_matrix).any():
-                            print(f"Warning: NaN detected in gradient matrix "
-                                  f"for {group_name}")
+                            print(
+                                f"Warning: NaN detected in gradient matrix "
+                                f"for {group_name}"
+                            )
                             continue
 
-                        k = min(self.num_components,
-                                grad_matrix.size(0),
-                                grad_matrix.size(1)
-                                )
+                        k = min(
+                            self.num_components,
+                            grad_matrix.size(0),
+                            grad_matrix.size(1),
+                        )
 
                         if k > 0:
                             try:
                                 if grad_matrix.size(0) == grad_matrix.size(1):
                                     epsilon = 1e-8
-                                    reg_matrix = grad_matrix + torch.eye(
-                                                    grad_matrix.size(0),
-                                                    device=grad_matrix.device
-                                                    ) * epsilon
+                                    reg_matrix = (
+                                        grad_matrix
+                                        + torch.eye(
+                                            grad_matrix.size(0),
+                                            device=grad_matrix.device,
+                                        )
+                                        * epsilon
+                                    )
                                 else:
                                     reg_matrix = grad_matrix
 
                                 U, S, V = torch.svd(reg_matrix)
                                 # Normalize the directions for stability
                                 directions = V[:, :k]
-                                norms = torch.norm(directions,
-                                                   dim=0,
-                                                   keepdim=True
-                                                   )
+                                norms = torch.norm(directions, dim=0, keepdim=True)
                                 # Avoid division by zero
                                 norms = torch.clamp(norms, min=1e-8)
                                 norm_directions = directions / norms
@@ -198,9 +195,7 @@ class SGRU(BaseUnlearner):
                                 # Q has orthonormal columns
                                 # R is an upper triangular matrix
                                 random_dirs = torch.randn(
-                                    grad_matrix.size(1),
-                                    k,
-                                    device=self.device
+                                    grad_matrix.size(1), k, device=self.device
                                 )
                                 qr_result = torch.linalg.qr(random_dirs)
                                 forget_directions[group_name], _ = qr_result
@@ -209,7 +204,7 @@ class SGRU(BaseUnlearner):
             unlearned_model.train()
             total_retain_loss = 0
 
-            for retain_inputs, retain_labels in data_dict['retain']:
+            for retain_inputs, retain_labels in data_dict["retain"]:
                 self.optimizer.zero_grad()
 
                 retain_inputs = retain_inputs.to(self.device)
@@ -221,9 +216,11 @@ class SGRU(BaseUnlearner):
                 total_retain_loss += retain_loss.item()
 
                 if self.use_l2_penalty:
-                    l2_loss = l2_penalty(model=unlearned_model,
-                                         model_init=model,
-                                         weight_decay=self.weight_decay)
+                    l2_loss = l2_penalty(
+                        model=unlearned_model,
+                        model_init=model,
+                        weight_decay=self.weight_decay,
+                    )
                     retain_loss += l2_loss
 
                 retain_loss.backward()
@@ -249,21 +246,22 @@ class SGRU(BaseUnlearner):
                                 max_proj = 10.0
                                 proj = torch.clamp(proj, -max_proj, max_proj)
                                 # Apply the deflection with strength
-                                flat_grad = (flat_grad * self.retain_strength
-                                             - (proj * direction 
-                                                * self.redirection_strength))
+                                flat_grad = flat_grad * self.retain_strength - (
+                                    proj * direction * self.redirection_strength
+                                )
 
                             # DEBUGGING
                             if torch.isnan(flat_grad).any():
-                                print(f"Warning: NaN detected in deflected "
-                                      f"gradient for {group_name}")
+                                print(
+                                    f"Warning: NaN detected in deflected "
+                                    f"gradient for {group_name}"
+                                )
                                 continue
 
                             # Map deflected gradient back to the parameter
                             start_idx = 0
                             for i, (_, param) in enumerate(params):
-                                if (param.grad is not None
-                                   and i < len(param_shapes)):
+                                if param.grad is not None and i < len(param_shapes):
                                     num_params = param.numel()
                                     end_idx = start_idx + num_params
                                     param_grad = flat_grad[start_idx:end_idx]
@@ -273,26 +271,23 @@ class SGRU(BaseUnlearner):
 
                     # Apply gradient clipping to all parameters
                     torch.nn.utils.clip_grad_norm_(
-                        unlearned_model.parameters(),
-                        self.max_grad_norm
-                        )
+                        unlearned_model.parameters(), self.max_grad_norm
+                    )
 
                 self.optimizer.step()
 
             forward_pass_elapsed = time.time() - epoch_start_time
             if self.wandb_enabled:
                 self._log_forward_pass_time_in_wandb(
-                    epoch=e+1,
-                    time=forward_pass_elapsed
-                    )
-            if verbose:
+                    epoch=e + 1, time=forward_pass_elapsed
+                )
+            if self.verbose:
                 self._print_forward_pass_metrics(e, forward_pass_elapsed)
             if self.evaluate:
                 self._evaluate_all_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
-                    epoch=e+1,
-                    verbose=verbose
+                    epoch=e + 1,
                 )
 
             if scheduler is not None:

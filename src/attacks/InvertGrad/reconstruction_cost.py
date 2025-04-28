@@ -3,12 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def reconstruction_costs(gradients,
-                         input_gradient,
-                         cost_fn='l2',
-                         indices='def',
-                         weights='equal'
-                         ):
+def reconstruction_costs(
+    gradients, input_gradient, cost_fn="l2", indices="def", weights="equal"
+):
     """
     Calculate the reconstruction costs based on the specified cost function.
     Args:
@@ -42,87 +39,96 @@ def reconstruction_costs(gradients,
     """
     if isinstance(indices, list):
         pass
-    elif indices == 'def':
+    elif indices == "def":
         indices = torch.arange(len(input_gradient))
-    elif indices == 'batch':
+    elif indices == "batch":
         indices = torch.randperm(len(input_gradient))[:8]
-    elif indices == 'topk-1':
+    elif indices == "topk-1":
         _, indices = torch.topk(
-            torch.stack([p.norm() for p in input_gradient], dim=0),
-            4
+            torch.stack([p.norm() for p in input_gradient], dim=0), 4
         )
-    elif indices == 'top10':
+    elif indices == "top10":
         _, indices = torch.topk(
-            torch.stack([p.norm() for p in input_gradient], dim=0),
-            10
+            torch.stack([p.norm() for p in input_gradient], dim=0), 10
         )
-    elif indices == 'top50':
+    elif indices == "top50":
         _, indices = torch.topk(
-            torch.stack([p.norm() for p in input_gradient], dim=0),
-            50
+            torch.stack([p.norm() for p in input_gradient], dim=0), 50
         )
-    elif indices in ['first', 'first4']:
+    elif indices in ["first", "first4"]:
         indices = torch.arange(0, 4)
-    elif indices == 'first5':
+    elif indices == "first5":
         indices = torch.arange(0, 5)
-    elif indices == 'first10':
+    elif indices == "first10":
         indices = torch.arange(0, 10)
-    elif indices == 'first50':
+    elif indices == "first50":
         indices = torch.arange(0, 50)
-    elif indices == 'last5':
+    elif indices == "last5":
         indices = torch.arange(len(input_gradient))[-5:]
-    elif indices == 'last10':
+    elif indices == "last10":
         indices = torch.arange(len(input_gradient))[-10:]
-    elif indices == 'last50':
+    elif indices == "last50":
         indices = torch.arange(len(input_gradient))[-50:]
     else:
-        raise ValueError("Invalid indices option. Choose from ['def', 'batch',"
-                         "'topk-1', 'top10', 'top50', 'first', 'first4', "
-                         "'first5', 'first10', 'first50', 'last5', 'last10',"
-                         " 'last50']")
+        raise ValueError(
+            "Invalid indices option. Choose from ['def', 'batch',"
+            "'topk-1', 'top10', 'top50', 'first', 'first4', "
+            "'first5', 'first10', 'first50', 'last5', 'last10',"
+            " 'last50']"
+        )
 
     ex = input_gradient[0]
-    if weights == 'linear':
-        weights = torch.arange(len(input_gradient), 0, -1, dtype=ex.dtype,
-                               device=ex.device) / len(input_gradient)
-    elif weights == 'exp':
-        weights = torch.arange(len(input_gradient), 0, -1, dtype=ex.dtype,
-                               device=ex.device)
+    if weights == "linear":
+        weights = torch.arange(
+            len(input_gradient), 0, -1, dtype=ex.dtype, device=ex.device
+        ) / len(input_gradient)
+    elif weights == "exp":
+        weights = torch.arange(
+            len(input_gradient), 0, -1, dtype=ex.dtype, device=ex.device
+        )
         weights = weights.softmax(dim=0)
         weights = weights / weights[0]
-    elif weights == 'equal':
+    elif weights == "equal":
         weights = input_gradient[0].new_ones(len(input_gradient))
     else:
-        raise ValueError('Weights must be one of [linear, exp, equal]')
+        raise ValueError("Weights must be one of [linear, exp, equal]")
 
     total_costs = 0
     for trial_gradient in gradients:
         pnorm = [0, 0]
         costs = 0
         for i in indices:
-            if cost_fn == 'l2':
-                costs += ((trial_gradient[i] - input_gradient[i]).pow(2)).sum() * weights[i]
-            elif cost_fn == 'l1':
-                costs += ((trial_gradient[i] - input_gradient[i]).abs()).sum() * weights[i]
-            elif cost_fn == 'max':
-                costs += ((trial_gradient[i] - input_gradient[i]).abs()).max() * weights[i]
-            elif cost_fn == 'sim':
+            if cost_fn == "l2":
+                costs += (
+                    (trial_gradient[i] - input_gradient[i]).pow(2)
+                ).sum() * weights[i]
+            elif cost_fn == "l1":
+                costs += (
+                    (trial_gradient[i] - input_gradient[i]).abs()
+                ).sum() * weights[i]
+            elif cost_fn == "max":
+                costs += (
+                    (trial_gradient[i] - input_gradient[i]).abs()
+                ).max() * weights[i]
+            elif cost_fn == "sim":
                 costs -= (trial_gradient[i] * input_gradient[i]).sum() * weights[i]
                 pnorm[0] += trial_gradient[i].pow(2).sum() * weights[i]
                 pnorm[1] += input_gradient[i].pow(2).sum() * weights[i]
-            elif cost_fn == 'simlocal':
+            elif cost_fn == "simlocal":
                 costs += (
-                    1 - F.cosine_similarity(
+                    1
+                    - F.cosine_similarity(
                         trial_gradient[i].flatten(),
                         input_gradient[i].flatten(),
                         dim=0,
-                        eps=1e-10
+                        eps=1e-10,
                     )
                 ) * weights[i]
             else:
-                raise ValueError('Cost function must be one of [l2, l1, max,'
-                                 ' sim, simlocal]')              
-        if cost_fn == 'sim':
+                raise ValueError(
+                    "Cost function must be one of [l2, l1, max, sim, simlocal]"
+                )
+        if cost_fn == "sim":
             costs = 1 + costs / pnorm[0].sqrt() / pnorm[1].sqrt()
 
         # Accumulate final costs
@@ -163,8 +169,7 @@ class DistillKL(nn.Module):
         T (float): Temperature parameter for scaling the logits.
     """
 
-    def __init__(self,
-                 T):
+    def __init__(self, T):
         """
         Initialize the Kullback-Leibler divergence loss.
         Args:
@@ -173,9 +178,7 @@ class DistillKL(nn.Module):
         super(DistillKL, self).__init__()
         self.T = T
 
-    def forward(self,
-                y_s,
-                y_t):
+    def forward(self, y_s, y_t):
         """
         Forward pass for the Kullback-Leibler divergence loss.
         Args:
@@ -186,8 +189,6 @@ class DistillKL(nn.Module):
         """
         p_s = F.log_softmax(y_s / self.T, dim=1)
         p_t = F.softmax(y_t / self.T, dim=1)
-        loss = F.kl_div(
-            p_s, p_t, reduction='sum'
-        ) * (self.T**2) / y_s.shape[0]
+        loss = F.kl_div(p_s, p_t, reduction="sum") * (self.T**2) / y_s.shape[0]
 
         return loss

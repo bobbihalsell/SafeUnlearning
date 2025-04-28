@@ -1,33 +1,45 @@
 # Adapted from JonasGeiping/invertinggradients, licensed under MIT
 # Source: https://github.com/JonasGeiping/invertinggradients/
 
+from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass
-from collections import defaultdict
 from typing import Optional
 
 import torch
 import torchvision.transforms as transforms
 
 from attacks.InvertGrad.medianfilt import MedianPool2d
-from attacks.InvertGrad.reconstruction_cost import (reconstruction_costs,
-                                                    total_variation,
-                                                    DistillKL)
+from attacks.InvertGrad.reconstruction_cost import (
+    DistillKL,
+    reconstruction_costs,
+    total_variation,
+)
 from utils import set_seed
 
 # === Valid Configuration Options ===
 OPTIONS_BOOL = [True, False]
 
-OPTIONS_FILTERS = [None, 'median']
-OPTIONS_COST_FNS = ['sim', 'l2', 'l1']
+OPTIONS_FILTERS = [None, "median"]
+OPTIONS_COST_FNS = ["sim", "l2", "l1"]
 OPTIONS_INDICES = [
-    'def', 'batch', 'topk-1', 'top10', 'top50',
-    'first', 'first4', 'first5', 'first10', 'first50',
-    'last5', 'last10', 'last50'
+    "def",
+    "batch",
+    "topk-1",
+    "top10",
+    "top50",
+    "first",
+    "first4",
+    "first5",
+    "first10",
+    "first50",
+    "last5",
+    "last10",
+    "last50",
 ]
-OPTIONS_WEIGHTS = ['equal', 'none']
-OPTIONS_SCORING = ['loss', 'tv', 'pixelmean', 'pixelmedian']
-OPTIONS_OPTIMIZERS = ['adam', 'sgd', 'LBFGS', 'adamw']
+OPTIONS_WEIGHTS = ["equal", "none"]
+OPTIONS_SCORING = ["loss", "tv", "pixelmean", "pixelmedian"]
+OPTIONS_OPTIMIZERS = ["adam", "sgd", "LBFGS", "adamw"]
 
 
 @dataclass
@@ -54,19 +66,20 @@ class InvertGradConfig:
           image every 500 iterations.
 
     """
+
     grad_diff_lr: float = 1e-4
     signed: bool = False
     boxed: bool = True
-    cost_fn: str = 'sim'
-    indices: str = 'def'
-    weights: str = 'equal'
-    optim: str = 'adam'
+    cost_fn: str = "sim"
+    indices: str = "def"
+    weights: str = "equal"
+    optim: str = "adam"
     num_runs: int = 1
     recon_iterations: int = 4800
     total_variation: float = 1e-1
-    init: str = 'randn'
+    init: str = "randn"
     lr_decay: bool = True
-    scoring_choice: str = 'loss'
+    scoring_choice: str = "loss"
     eval: bool = True
     filter: Optional[str] = None
 
@@ -76,7 +89,7 @@ class InvertGradConfig:
             self.total_variation = float(self.total_variation)
 
 
-class InvertGradReconstructor():
+class InvertGradReconstructor:
     """
     Implements a gradient inversion attack as introduced in
     "Inverting Gradients -- How Easy Is It to Break Privacy
@@ -95,15 +108,16 @@ class InvertGradReconstructor():
     class probabilities.
     """
 
-    def __init__(self,
-                 device,
-                 original_model,
-                 unlearned_model,
-                 config: InvertGradConfig = InvertGradConfig(),
-                 seed=42
-                 ):
+    def __init__(
+        self,
+        device,
+        original_model,
+        unlearned_model,
+        config: InvertGradConfig = InvertGradConfig(),
+        seed=42,
+    ):
         """
-        Initialise with algorithm setup.
+        Initialize with algorithm setup.
 
         Args:
             device (torch.device): Device to run the reconstruction on (CPU
@@ -129,14 +143,16 @@ class InvertGradReconstructor():
         self.input_gradient = self._gradient_difference(config.grad_diff_lr)
         set_seed(seed)
 
-    def reconstruct(self,
-                    labels,
-                    num_images,
-                    image_size=[3, 32, 32],
-                    image_mean=[0.5, 0.5, 0.5],
-                    image_std=[0.5, 0.5, 0.5],
-                    lr=0.1,
-                    verbose=True):
+    def reconstruct(
+        self,
+        labels,
+        num_images,
+        image_size=[3, 32, 32],
+        image_mean=[0.5, 0.5, 0.5],
+        image_std=[0.5, 0.5, 0.5],
+        lr=0.1,
+        verbose=True,
+    ):
         """
         Reconstruct image from gradient. The reconstruction process runs for a
         specified number of trials and returns the best result based on the
@@ -166,15 +182,15 @@ class InvertGradReconstructor():
         else:
             self.num_images = num_images
 
-        if self.num_images > 1 and self.config.scoring_choice in ['pixelmean',
-                                                                  'pixelmedian']:
-            raise ValueError('Pixel mean/median scoring choice can only be'
-                             ' performed on one image.')
+        if self.num_images > 1 and self.config.scoring_choice in [
+            "pixelmean",
+            "pixelmedian",
+        ]:
+            raise ValueError(
+                "Pixel mean/median scoring choice can only be performed on one image."
+            )
 
-        self.normalizer = transforms.Normalize(
-            mean=image_mean,
-            std=image_std
-        )
+        self.normalizer = transforms.Normalize(mean=image_mean, std=image_std)
 
         if self.config.eval:
             self.original_model.eval()
@@ -190,43 +206,45 @@ class InvertGradReconstructor():
 
             def loss_fn(pred, labels):
                 labels = torch.nn.functional.softmax(labels, dim=-1)
-                return torch.mean(torch.sum(-labels *
-                                            torch.nn.functional.
-                                            log_softmax(pred, dim=-1), 1))
+                return torch.mean(
+                    torch.sum(
+                        -labels * torch.nn.functional.log_softmax(pred, dim=-1), 1
+                    )
+                )
+
             self.loss_fn_ce = loss_fn
         else:
             self.reconstruct_label = False
 
         try:
             for trial in range(self.config.num_runs):
-                x_trial, labels = self._run_trial(x[trial].to(self.device),
-                                                  input_data, labels)
+                x_trial, labels = self._run_trial(
+                    x[trial].to(self.device), input_data, labels
+                )
 
                 # Store the trial result
                 scores[trial] = self._score_trial(x_trial, input_data, labels)
                 x[trial] = x_trial.to(self.device)
 
         except KeyboardInterrupt:
-            print('Trial procedure manually interruped.')
+            print("Trial procedure manually interruped.")
             pass
 
         # Choose optimal result
-        if self.config.scoring_choice in ['pixelmean', 'pixelmedian']:
-            x_optimal, stats = self._average_trials(x, labels,
-                                                    input_data, stats)
+        if self.config.scoring_choice in ["pixelmean", "pixelmedian"]:
+            x_optimal, stats = self._average_trials(x, labels, input_data, stats)
         else:
-            scores = scores[torch.isfinite(scores)]  
+            scores = scores[torch.isfinite(scores)]
             optimal_index = torch.argmin(scores)
-            stats['opt'] = scores[optimal_index].item()
+            stats["opt"] = scores[optimal_index].item()
             x_optimal = x[optimal_index]
 
             if self.verbose:
-                print(f'Optimal result score: {scores[optimal_index]:2.4f}')
+                print(f"Optimal result score: {scores[optimal_index]:2.4f}")
 
-        return x_optimal.detach(), stats['opt']
+        return x_optimal.detach(), stats["opt"]
 
-    def _gradient_difference(self,
-                             grad_lr=1e-4):
+    def _gradient_difference(self, grad_lr=1e-4):
         """
         Calculate the gradient difference between the original and
         unlearned models.
@@ -236,13 +254,13 @@ class InvertGradReconstructor():
             list: List of gradient differences for each parameter.
         """
 
-        param_old = [p.clone().detach() for p in
-                     self.original_model.parameters()]
-        param_new = [p.clone().detach() for p in
-                     self.unlearned_model.parameters()]
+        param_old = [p.clone().detach() for p in self.original_model.parameters()]
+        param_new = [p.clone().detach() for p in self.unlearned_model.parameters()]
 
-        return [(new.detach() - old.detach()) / grad_lr for old, new
-                in zip(param_old, param_new)]
+        return [
+            (new.detach() - old.detach()) / grad_lr
+            for old, new in zip(param_old, param_new)
+        ]
 
     def _init_images(self):
         """
@@ -251,22 +269,30 @@ class InvertGradReconstructor():
         Returns:
             torch.Tensor: Initialized input images.
         """
-        if self.config.init == 'randn':
-            return torch.randn((self.config.num_runs, self.num_images,
-                                *self.image_size), device=self.device)
-        elif self.config.init == 'rand':
-            return (torch.rand((self.config.num_runs, self.num_images,
-                                *self.image_size), device=self.device) - 0.5) * 2
-        elif self.config.init == 'zeros':
-            return torch.zeros((self.config.num_runs, self.num_images,
-                                *self.image_size), device=self.device)
+        if self.config.init == "randn":
+            return torch.randn(
+                (self.config.num_runs, self.num_images, *self.image_size),
+                device=self.device,
+            )
+        elif self.config.init == "rand":
+            return (
+                torch.rand(
+                    (self.config.num_runs, self.num_images, *self.image_size),
+                    device=self.device,
+                )
+                - 0.5
+            ) * 2
+        elif self.config.init == "zeros":
+            return torch.zeros(
+                (self.config.num_runs, self.num_images, *self.image_size),
+                device=self.device,
+            )
         else:
-            raise ValueError("Invalid initialization method. Choose from ['randn', 'rand', 'zeros'].")
+            raise ValueError(
+                "Invalid initialization method. Choose from ['randn', 'rand', 'zeros']."
+            )
 
-    def _run_trial(self,
-                   x_trial,
-                   input_data,
-                   labels):
+    def _run_trial(self, x_trial, input_data, labels):
         """
         Run a single trial of the reconstruction process.
         Args:
@@ -285,9 +311,7 @@ class InvertGradReconstructor():
 
             # Create trainable label vector to reconstruct
             labels = (
-                torch.randn(output_test.shape[1])
-                .to(self.device)
-                .requires_grad_(True)
+                torch.randn(output_test.shape[1]).to(self.device).requires_grad_(True)
             )
 
         # Set up the optimizer with the labels
@@ -309,40 +333,33 @@ class InvertGradReconstructor():
             self.model_copy = deepcopy(self.original_model)
 
             for iteration in range(recon_iterations):
-
                 if self.config.boxed:
                     x_trial.data = torch.clamp(x_trial.data, 0, 1)
 
-                closure = self._gradient_closure(optimizer, x_trial,
-                                                 input_data, labels)
+                closure = self._gradient_closure(optimizer, x_trial, input_data, labels)
                 rec_loss = optimizer.step(closure)
                 if self.config.lr_decay:
                     scheduler.step()
 
-                    if (iteration + 1 == recon_iterations or
-                       iteration % 500 == 0) and self.verbose:
-                        print(f'It: {iteration}. Rec. loss:{rec_loss.item():2.4f}.')
+                    if (
+                        iteration + 1 == recon_iterations or iteration % 500 == 0
+                    ) and self.verbose:
+                        print(f"It: {iteration}. Rec. loss:{rec_loss.item():2.4f}.")
 
                     if (iteration + 1) % 500 == 0:
-                        if self.config.filter == 'median':
+                        if self.config.filter == "median":
                             x_trial.data = MedianPool2d(
-                                    kernel_size=3,
-                                    stride=1,
-                                    padding=1,
-                                    same=False)(x_trial)
+                                kernel_size=3, stride=1, padding=1, same=False
+                            )(x_trial)
                         else:
                             pass
 
         except KeyboardInterrupt:
-            print(f'Recovery interrupted manually in iteration {iteration}!')
+            print(f"Recovery interrupted manually in iteration {iteration}!")
             pass
         return x_trial.detach(), labels
 
-    def _gradient_closure(self,
-                          optimizer,
-                          x_trial,
-                          input_gradient,
-                          label):
+    def _gradient_closure(self, optimizer, x_trial, input_gradient, label):
         """
         Closure function for the optimizer. This function computes the loss and
         gradients for the current trial.
@@ -361,29 +378,27 @@ class InvertGradReconstructor():
             self.original_model.zero_grad()
 
             loss_ce = self.loss_fn_ce(
-                self.original_model(self.normalizer(x_trial)),
-                label
+                self.original_model(self.normalizer(x_trial)), label
             )
 
             loss_kl = self.loss_fn(
                 self.original_model(self.normalizer(x_trial)),
-                self.model_copy(self.normalizer(x_trial))
+                self.model_copy(self.normalizer(x_trial)),
             )
             # Combine the losses
             loss = loss_ce + loss_kl
 
             gradient = torch.autograd.grad(
-                                        loss,
-                                        self.original_model.parameters(),
-                                        create_graph=True
-                                        )
+                loss, self.original_model.parameters(), create_graph=True
+            )
             rec_loss = reconstruction_costs(
-                                        [gradient], input_gradient,
-                                        cost_fn=self.config.cost_fn,
-                                        indices=self.config.indices,
-                                        weights=self.config.weights
-                                        )
-          
+                [gradient],
+                input_gradient,
+                cost_fn=self.config.cost_fn,
+                indices=self.config.indices,
+                weights=self.config.weights,
+            )
+
             # Add total variation regularization if specified
             if self.config.total_variation > 0:
                 rec_loss += self.config.total_variation * total_variation(x_trial)
@@ -394,14 +409,12 @@ class InvertGradReconstructor():
                 x_trial.grad.sign_()
 
             return rec_loss
+
         return closure
 
-    def _score_trial(self,
-                     x_trial,
-                     input_gradient,
-                     label):
+    def _score_trial(self, x_trial, input_gradient, label):
         """
-        Score the trial based on the specified scoring choice. Uses only the 
+        Score the trial based on the specified scoring choice. Uses only the
         cross-entropy loss. Returns 0 for pixelmean and pixelmedian.
         Args:
             x_trial (torch.Tensor): Input image for the trial.
@@ -411,32 +424,32 @@ class InvertGradReconstructor():
             float: Score of the trial.
         """
 
-        if self.config.scoring_choice == 'loss':
+        if self.config.scoring_choice == "loss":
             self.original_model.zero_grad()
             x_trial.grad = None
             loss = self.loss_fn_ce(self.original_model((x_trial)), label)
 
             gradient = torch.autograd.grad(
-                                        loss,
-                                        self.original_model.parameters(),
-                                        create_graph=False
-                                        )
+                loss, self.original_model.parameters(), create_graph=False
+            )
 
             return reconstruction_costs(
-                                    [gradient], input_gradient,
-                                    cost_fn=self.config.cost_fn,
-                                    indices=self.config.indices,
-                                    weights=self.config.weights)
-        elif self.config.scoring_choice == 'tv':
+                [gradient],
+                input_gradient,
+                cost_fn=self.config.cost_fn,
+                indices=self.config.indices,
+                weights=self.config.weights,
+            )
+        elif self.config.scoring_choice == "tv":
             return total_variation(x_trial)
-        elif self.config.scoring_choice in ['pixelmean', 'pixelmedian']:
+        elif self.config.scoring_choice in ["pixelmean", "pixelmedian"]:
             return 0.0
 
     def _average_trials(self, x, labels, input_data, stats):
         """
         Average the trials and compute the optimal result based on the
         specified scoring choice.
-        
+
         Args:
             x (torch.Tensor): Input images for the trials.
             labels (torch.Tensor): Labels for the images to be reconstructed.
@@ -447,13 +460,13 @@ class InvertGradReconstructor():
                 reconstructed image.
             dict: Dictionary of statistics.
         """
-        if self.config.scoring_choice == 'pixelmedian':
+        if self.config.scoring_choice == "pixelmedian":
             x_optimal, _ = x.median(dim=0, keepdims=False)
             x = x.squeeze(1)
             # Combine the original image with the optimal result
             x_with_opt = torch.vstack([x, x_optimal])
 
-        elif self.config.scoring_choice == 'pixelmean':
+        elif self.config.scoring_choice == "pixelmean":
             x_optimal = x.mean(dim=0, keepdims=False)
             x = x.squeeze(1)
             # Combine the original image with the optimal result
@@ -466,19 +479,21 @@ class InvertGradReconstructor():
         # Calculate the loss for the optimal result and score it
         loss = self.loss_fn_ce(self.original_model(x_optimal), labels)
 
-        gradient = torch.autograd.grad(loss, self.original_model.parameters(),
-                                       create_graph=False)
-        stats['opt'] = reconstruction_costs([gradient], input_data,
-                                            cost_fn=self.config.cost_fn,
-                                            indices=self.config.indices,
-                                            weights=self.config.weights)
+        gradient = torch.autograd.grad(
+            loss, self.original_model.parameters(), create_graph=False
+        )
+        stats["opt"] = reconstruction_costs(
+            [gradient],
+            input_data,
+            cost_fn=self.config.cost_fn,
+            indices=self.config.indices,
+            weights=self.config.weights,
+        )
         if self.verbose:
-            print(f'Optimal result score: {stats["opt"]:2.4f}')
+            print(f"Optimal result score: {stats['opt']:2.4f}")
         return x_with_opt, stats
 
-    def _set_optimizer(self,
-                       x_trial,
-                       labels=None):
+    def _set_optimizer(self, x_trial, labels=None):
         """
         Set up the optimizer for the trial.
         Args:
@@ -490,25 +505,24 @@ class InvertGradReconstructor():
         if self.reconstruct_label:
             params.append(labels)
 
-        if self.config.optim == 'adam':
+        if self.config.optim == "adam":
             optimizer = torch.optim.Adam(params, lr=self.lr)
-        elif self.config.optim == 'sgd':
-            optimizer = torch.optim.SGD(params, lr=self.lr,
-                                        momentum=0.9, nesterov=True)
-        elif self.config.optim == 'LBFGS':
+        elif self.config.optim == "sgd":
+            optimizer = torch.optim.SGD(params, lr=self.lr, momentum=0.9, nesterov=True)
+        elif self.config.optim == "LBFGS":
             optimizer = torch.optim.LBFGS(params)
-        elif self.config.optim == 'adamw':
+        elif self.config.optim == "adamw":
             optimizer = torch.optim.AdamW(params, lr=self.lr)
         else:
             raise ValueError(f"Unsupported optimizer: {self.config.optim}")
-     
+
         return optimizer
-    
+
     def _validate_config(self):
         """
-            Validate the configuration parameters.
-            Raises:
-                ValueError: If any of the configuration parameters are invalid.
+        Validate the configuration parameters.
+        Raises:
+            ValueError: If any of the configuration parameters are invalid.
         """
         if self.config.grad_diff_lr <= 0:
             raise ValueError("Gradient difference learning rate must be positive.")

@@ -1,8 +1,10 @@
-import torch.nn as nn
 import copy
-from unlearning.finetune import FinetuneUnlearner
 from typing import Dict
+
+import torch.nn as nn
 from torch.utils.data import DataLoader
+
+from unlearning.finetune import FinetuneUnlearner
 
 
 class KUnlearn(FinetuneUnlearner):
@@ -20,14 +22,17 @@ class KUnlearn(FinetuneUnlearner):
     The model selectively retains general knowledge in early layers while
     modifying later layers to "forget" specific data points or classes.
     """
-    def __init__(self,
-                 k: int,
-                 device,
-                 method: str = 'cfk',
-                 reinit_method=None,
-                 evaluate: bool = False,
-                 wandb_enabled: bool = False
-                 ):
+
+    def __init__(
+        self,
+        k: int,
+        device,
+        method: str = "cfk",
+        reinit_method=None,
+        evaluate: bool = False,
+        wandb_enabled: bool = False,
+        verbose: bool = True,
+    ):
         """
         Initialize the KUnlearn class.
 
@@ -48,14 +53,14 @@ class KUnlearn(FinetuneUnlearner):
             evaluate (bool): Whether to track and return evaluation metrics
                 during unlearning.
         """
-        super().__init__(device, evaluate, wandb_enabled)
+        super().__init__(device, evaluate, wandb_enabled, verbose)
         self.criterion = nn.CrossEntropyLoss()
         self.k = k
-        assert method in ['cfk', 'euk'], "Method must be 'cfk' or 'euk'."
+        assert method in ["cfk", "euk"], "Method must be 'cfk' or 'euk'."
         self.method = method
         self.reinit_method = reinit_method
-        print(f'eval: {evaluate}')
-        print(f'self eval: {self.evaluate}')
+        print(f"eval: {evaluate}")
+        print(f"self eval: {self.evaluate}")
 
     def _freeze_first_k_layers(self, model):
         """
@@ -76,7 +81,7 @@ class KUnlearn(FinetuneUnlearner):
             raise ValueError(
                 "k is larger than the total number of layers in the model "
                 f"{(len(layers))}."
-                )
+            )
 
         # Freeze parameters in the first k layers
         for i in range(self.k):
@@ -110,15 +115,10 @@ class KUnlearn(FinetuneUnlearner):
                     # Initialize with standard normal distribution
                     param.data.normal_()
                 else:
-                    raise ValueError(
-                        f"Invalid initialiastion: {self.reinit_method}"
-                        )
+                    raise ValueError(f"Invalid initialiastion: {self.reinit_method}")
         return model
 
-    def unlearn(self,
-                model: nn.Module,
-                data_dict: Dict[str, DataLoader],
-                **kwargs):
+    def unlearn(self, model: nn.Module, data_dict: Dict[str, DataLoader], **kwargs):
         """
         Perform K-unlearning by freezing the first k layers and fine-tuning
         the rest.
@@ -149,6 +149,6 @@ class KUnlearn(FinetuneUnlearner):
 
         # Freeze the first k layers of the model
         modified_model = self._freeze_first_k_layers(modified_model)
-        if self.method == 'euk':
+        if self.method == "euk":
             modified_model = self._reinitialize_weights(modified_model)
         return super().unlearn(modified_model, data_dict, **kwargs)

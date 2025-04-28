@@ -1,9 +1,11 @@
-import torch.nn as nn
-from unlearning.unlearn_utils import l2_penalty
-from unlearning.base import BaseUnlearner
-from typing import Dict
-from torch.utils.data import DataLoader
 import time
+from typing import Dict
+
+import torch.nn as nn
+from torch.utils.data import DataLoader
+
+from unlearning.base import BaseUnlearner
+from unlearning.unlearn_utils import l2_penalty
 
 
 class FinetuneUnlearner(BaseUnlearner):
@@ -18,11 +20,14 @@ class FinetuneUnlearner(BaseUnlearner):
     forgetting guarantees for models that may have already memorized the
     forget data.
     """
-    def __init__(self,
-                 device,
-                 evaluate: bool = False,
-                 wandb_enabled: bool = False
-                 ):
+
+    def __init__(
+        self,
+        device,
+        evaluate: bool = False,
+        wandb_enabled: bool = False,
+        verbose: bool = True,
+    ):
         """
         Initialize the FinetuneUnlearner class.
 
@@ -30,13 +35,9 @@ class FinetuneUnlearner(BaseUnlearner):
             device: Computing device (CPU/GPU) to use for computations.
                    If None, will be automatically determined.
         """
-        super().__init__(device, evaluate, wandb_enabled)
+        super().__init__(device, evaluate, wandb_enabled, verbose)
 
-    def unlearn(self,
-                model: nn.Module,
-                data_dict: Dict[str, DataLoader],
-                verbose: bool = False,
-                **kwargs):
+    def unlearn(self, model: nn.Module, data_dict: Dict[str, DataLoader], **kwargs):
         """
         Unlearn by fine-tuning the model on retain data only.
 
@@ -57,20 +58,16 @@ class FinetuneUnlearner(BaseUnlearner):
         Returns:
             Tuple of (unlearned_model, self.logs)
         """
-        if 'retain' not in data_dict.keys():
+        if "retain" not in data_dict.keys():
             raise ValueError("'retain' data must be in data_dict.")
 
         model.to(self.device)
-        unlearned_model, scheduler = self._setup_unlearning(
-            model,
-            data_dict,
-            **kwargs)
+        unlearned_model, scheduler = self._setup_unlearning(model, data_dict, **kwargs)
 
         # Main training loop
         for e in range(self.epochs):
             epoch_start_time = time.time()
-            for retain_inputs, retain_labels in data_dict['retain']:
-
+            for retain_inputs, retain_labels in data_dict["retain"]:
                 unlearned_model.eval()
                 self.optimizer.zero_grad()
 
@@ -82,9 +79,11 @@ class FinetuneUnlearner(BaseUnlearner):
 
                 # Add L2 penalty for bias towards weight similarity to original
                 if self.use_l2_penalty:
-                    l2_loss = l2_penalty(model=unlearned_model,
-                                         model_init=model,
-                                         weight_decay=self.weight_decay)
+                    l2_loss = l2_penalty(
+                        model=unlearned_model,
+                        model_init=model,
+                        weight_decay=self.weight_decay,
+                    )
                     retain_loss += l2_loss
 
                 retain_loss.backward()
@@ -92,17 +91,15 @@ class FinetuneUnlearner(BaseUnlearner):
             forward_pass_elapsed = time.time() - epoch_start_time
             if self.wandb_enabled:
                 self._log_forward_pass_time_in_wandb(
-                    epoch=e+1,
-                    time=forward_pass_elapsed
-                    )
-            if verbose:
+                    epoch=e + 1, time=forward_pass_elapsed
+                )
+            if self.verbose:
                 self._print_forward_pass_metrics(e, forward_pass_elapsed)
             if self.evaluate:
                 self._evaluate_all_splits(
                     model=unlearned_model,
                     data_dict=data_dict,
-                    epoch=e+1,
-                    verbose=verbose
+                    epoch=e + 1,
                 )
 
             if scheduler is not None:

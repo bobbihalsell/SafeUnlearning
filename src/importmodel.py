@@ -1,11 +1,13 @@
-import torch
-import torch.nn as nn
-from utils import setup_device, ConfigError
+import importlib
 import os
 import sys
-import importlib
-import torchvision
+
 import timm
+import torch
+import torch.nn as nn
+import torchvision
+
+from utils import ConfigError, setup_device
 
 
 class ImportModel:
@@ -29,17 +31,17 @@ class ImportModel:
         from_pretrained (bool): Flag indicating whether to load a pre-trained model.
         model (nn.Module): The loaded model object.
     """
-    
+
     def __init__(
-                    self,
-                    load_method: str,
-                    model_name: str,
-                    num_classes: int,
-                    init_path=None,
-                    model_ckpt_path=None,
-                    model_kwargs=None,
-                    from_pretrained=True,
-                ):
+        self,
+        load_method: str,
+        model_name: str,
+        num_classes: int,
+        init_path=None,
+        model_ckpt_path=None,
+        model_kwargs=None,
+        from_pretrained=True,
+    ):
         self.device = setup_device()
         self.load_method = load_method
         self.init_path = init_path
@@ -68,19 +70,16 @@ class ImportModel:
         """
         try:
             # Load the model based on the specified method
-            if self.load_method == 'class':
+            if self.load_method == "class":
                 self._init_from_class(**self.model_kwargs)
-            elif self.load_method == 'torchhub':
+            elif self.load_method == "torchhub":
                 self._init_from_torch_hub()
-            elif self.load_method == 'torchvision':
+            elif self.load_method == "torchvision":
                 self._init_from_torchvision()
-            elif self.load_method == 'timm':
+            elif self.load_method == "timm":
                 self._init_from_timm()
             else:
-                raise ConfigError(
-                    "Unknown initialisation method: "
-                    f"{self.load_method}"
-                )
+                raise ConfigError(f"Unknown initialization method: {self.load_method}")
             # Load weights if specified
             if self.model_ckpt_path is not None:
                 self._load_weights()
@@ -89,9 +88,8 @@ class ImportModel:
             self.model = self.model.to(self.device)
             self.model.eval()
             print(
-                    f"Model loaded successfully and set to evaluation mode "
-                    f"on {self.device}"
-                )
+                f"Model loaded successfully and set to evaluation mode on {self.device}"
+            )
 
             return self.model
 
@@ -110,13 +108,9 @@ class ImportModel:
             print(f"Initialized model using {self.model_name}")
 
         except ImportError as e:
-            raise ConfigError(
-                f"Could not import module {self.init_path}: {str(e)}"
-                )
+            raise ConfigError(f"Could not import module {self.init_path}: {str(e)}")
         except AttributeError:
-            raise ConfigError(
-                f"{self.model_name} not found in module {self.init_path}"
-                )
+            raise ConfigError(f"{self.model_name} not found in module {self.init_path}")
         except Exception as e:
             raise ConfigError(f"Failed to initialize model: {str(e)}")
 
@@ -124,9 +118,9 @@ class ImportModel:
         """Import a module from either a file path or module name."""
         # Check if it's a file path or module name
         if (
-            module_path.startswith('./')
-            or module_path.startswith('/')
-            or '/' in module_path
+            module_path.startswith("./")
+            or module_path.startswith("/")
+            or "/" in module_path
         ):
             abs_path = os.path.abspath(module_path)
             # Get the directory and module name
@@ -143,17 +137,16 @@ class ImportModel:
     def _init_from_torch_hub(self):
         """Load model from torch hub."""
         try:
-            pretrained = (self.model_ckpt_path is None 
-                          and self.from_pretrained)
+            pretrained = self.model_ckpt_path is None and self.from_pretrained
 
             # Try with 'weights' parameter first
             try:
-                weights_param = 'DEFAULT' if pretrained else None
+                weights_param = "DEFAULT" if pretrained else None
                 self.model = torch.hub.load(
                     self.init_path,
                     self.model_name,
                     weights=weights_param,
-                    trust_repo="check"
+                    trust_repo="check",
                 )
             except (TypeError, ValueError):
                 # Fall back to 'pretrained' parameter
@@ -161,13 +154,10 @@ class ImportModel:
                     self.init_path,
                     self.model_name,
                     pretrained=pretrained,
-                    trust_repo="check"
+                    trust_repo="check",
                 )
 
-            print(
-                f"Loaded model from torch.hub: "
-                f"{self.init_path}/{self.model_name}"
-            )
+            print(f"Loaded model from torch.hub: {self.init_path}/{self.model_name}")
 
         except Exception as e:
             raise ConfigError(f"Failed to load model from torch.hub: {str(e)}")
@@ -179,11 +169,11 @@ class ImportModel:
             else:
                 weights = None
             self.model = torchvision.models.get_model(
-                        self.model_name,
-                        weights=weights,
-                    )
+                self.model_name,
+                weights=weights,
+            )
             if self.num_classes != 1000:  # Not using ImageNet
-                print('Replacing default ImageNet classification head.')
+                print("Replacing default ImageNet classification head.")
                 # Adjust the last layer based on model type
                 if hasattr(self.model, "fc"):  # ResNet-style
                     self.model.fc = nn.Linear(
@@ -197,7 +187,7 @@ class ImportModel:
                         last_layer_idx = len(self.model.classifier) - 1
                         self.model.classifier[last_layer_idx] = nn.Linear(
                             self.model.classifier[last_layer_idx].in_features,
-                            self.num_classes
+                            self.num_classes,
                         )
                     else:
                         self.model.classifier = nn.Linear(
@@ -213,8 +203,7 @@ class ImportModel:
     def _init_from_timm(self):
         try:
             self.model = timm.create_model(
-                self.model_name,
-                num_classes=self.num_classes
+                self.model_name, num_classes=self.num_classes
             )
         except Exception as e:
             raise ConfigError(f"Failed to load timm model: {str(e)}")
@@ -227,18 +216,15 @@ class ImportModel:
                 raise ConfigError(f"Weight file not found: {self.model_ckpt_path}")
 
             # Load checkpoint
-            checkpoint = torch.load(
-                self.model_ckpt_path,
-                map_location=self.device
-            )
+            checkpoint = torch.load(self.model_ckpt_path, map_location=self.device)
 
             # Extract state dict smartly
             if isinstance(checkpoint, dict):
-                if 'model_state_dict' in checkpoint:
-                    state_dict = checkpoint['model_state_dict']
+                if "model_state_dict" in checkpoint:
+                    state_dict = checkpoint["model_state_dict"]
                     print("Found 'model_state_dict' key in checkpoint.")
-                elif 'state_dict' in checkpoint:
-                    state_dict = checkpoint['state_dict']
+                elif "state_dict" in checkpoint:
+                    state_dict = checkpoint["state_dict"]
                     print("Found 'state_dict' key in checkpoint.")
                 else:
                     state_dict = checkpoint
@@ -257,14 +243,18 @@ class ImportModel:
                 # Count the number of missing/unexpected keys
                 missing_count = error_msg.count("Missing key(s)")
                 unexpected_count = error_msg.count("Unexpected key(s)")
-                
+
                 # Create a concise error message
                 error_summary = "Model architecture mismatch: "
                 if missing_count > 0:
-                    error_summary += f"The checkpoint is missing layers present in your model. "
+                    error_summary += (
+                        f"The checkpoint is missing layers present in your model. "
+                    )
                 if unexpected_count > 0:
-                    error_summary += f"The checkpoint contains layers not present in your model. "
-                    
+                    error_summary += (
+                        f"The checkpoint contains layers not present in your model. "
+                    )
+
                 error_summary += "This typically means the model architecture used to create the checkpoint differs from your current model."
                 raise ConfigError(error_summary)
             else:

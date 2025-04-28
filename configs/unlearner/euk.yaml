@@ -2,7 +2,7 @@ name: euk
 evaluate: true
 cfg:
   k: 6  # Number of layers to freeze
-  reinit_method: zero  # Reinitialisation Method
+  reinit_method: zero  # Reinitialization Method
   optimizer: sgd
   lr: 0.001
   lr_decay_factor: 0.1  # Multiplicative learning rate decay factor. Leave empty if not using LR scheduling
