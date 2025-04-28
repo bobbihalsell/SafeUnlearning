@@ -31,15 +31,8 @@ SafeUnlearning supports model loading from Pytorch Hub, Torchvision, Pytorch Ima
 After logging in to WandB through your terminal, SafeUnlearning allows you to optionally save training results to the WandB platform, dramatically improving your training logging and visualization capabilities.
 
 
-
-
 ## Who this project is for
-This project is intended for two groups of users:
-* Machine unlearning researchers who need a flexible pipeline containing SOTA algorithms to accelerate their research on new attacks and unlearning algorithms.
-
-* Machine learning practitioners who need to perform machine unlearning jobs on custom models and datasets.
-
-
+This project is intended for machine unlearning researchers who need a flexible pipeline containing SOTA algorithms to accelerate their research on new attacks and unlearning algorithms.
 
 ## Project dependencies
 Before using this app, you will need to ensure you have the following prerequisites:
@@ -49,17 +42,11 @@ Before using this app, you will need to ensure you have the following prerequisi
 ## Instructions for using SafeUnlearning
 SafeUnlearning is structured as 4 mini-applications in 4 distinct folders: dataset splitting, model training, model unlearning, and reconstruction attacks/MIA on an unlearned model.
 
-Each of the mini-applications required by your machine unlearning job can be run by calling the corresponding `main.py` file and specifying all required and any optional defaults from the mini-app's Hydra configuration setup. Hydra's documentation can be found [here](https://hydra.cc/docs/intro/).
+Each of the mini-applications required by your machine unlearning job can be run by calling the corresponding `main.py` file and specifying all required and any optional defaults from the mini-app's Hydra configuration setup through command line arguments. Hydra's documentation can be found [here](https://hydra.cc/docs/intro/).
 
 Depending on your use-case, you are unlikely to need to use all of the mini-applications. For instance, if you are not interested in privacy risk and only need to perform unlearning on a pretrained model from Pytorch Hub, you only require the dataset splitting and unlearning mini-applications.
 
-Walkthrough demonstrations of SafeUnlearning applied to different machine unlearning jobs can be found HERE.
-
-### Example 1: Performing machine unlearning on pretrained MobileNetV2 on CIFAR10
-
-
-
-### Example 2: Evaluating ResNet18's privacy risk on a custom dataset 
+Example experiment runs built using the SafeUnlearning framework, including reconstruction and membership inference attacks on unlearned models, can be found in the `demos/` folder.
 
 ## Installation
 1. Cloning this repository
@@ -81,11 +68,10 @@ Walkthrough demonstrations of SafeUnlearning applied to different machine unlear
     Generate a WandB API key and login to your WandB account from your CLI, so that your experiment logs can be logged and viewed on the WandB platform. Check out WandB's setup tutorial [here](https://docs.wandb.ai/quickstart/).
 
 
-### Configure SafeUnlearning
-SafeUnlearning is run using the Hydra framework. Hydra generates a single configuration from separate YAML files corresponding to different aspects of the job (e.g. the dataset, the model, the reconstruction attack algorithm).
+## Configuration
+SafeUnlearning is run using the Hydra framework. Hydra generates a single configuration from separate YAML files corresponding to different aspects of the job (e.g. the dataset, the model, the reconstruction attack algorithm). The configuration setup files can be found as YAML files in the root level `configs/` folder. 
 
-You can override defaults and specify necessary commands from the CLI. Before trying to run a mini-app's `main.py`, we recommend you glance through their corresponding `src/<mini_app>/config` folder. The `config` folder should never be directly edited. Keys marked `???` are required arguments. Keys with an empty value are considered optional, and the corresponding key will not be used in the experiment if the value is left empty. For example, if `model_ckpt_path: ` is left empty, the app will not attempt to load existing model weights from the local drive. 
-
+You can override defaults and specify necessary commands from the CLI. Before trying to run a mini-app's `main.py`, we recommend you glance through the `configs/` folder. The `configs/` folder should never be directly edited. Keys marked `???` are required arguments. Keys with an empty value are considered optional, and the corresponding key will not be used in the experiment if the value is left empty. For example, if `model_ckpt_path: ` is left empty, the app will not attempt to load existing model weights from the local drive.
 
 Keys with a non-empty value have that non-empty value as a default. A default or optionally empty value can be overridden from the CLI with `path.to.key=<new_value>`.
 
@@ -93,12 +79,78 @@ WandB is an optional but powerful add-on. To enable WandB logging during your ex
 
 Note: WandB is only available for the model training, model unlearning and privacy attack mini-apps.
 
-### Run SafeUnlearning
+## Run SafeUnlearning
 Once you know your experiment parameters, you can then run the appropriate mini-app's `main.py` file to perform that sub-task of your overall unlearning job. 
 
-For instance, suppose your experiment involves forgetting 10 samples from class 0 of CIFAR10, and using 20% of the data as validation. You would run the following command to download the CIFAR10 binaries to the `./raw` folder and your image dataset's train, validation, test, forget and retain splits to the `./data` folder:
+### Example: Running the dataset app to create splits
+Suppose our experiment involves forgetting 10 samples from class 0 of CIFAR10, and using 20% of the data as validation.
+
+As a best practice, we should always check the `configs/` folder to see what configurations you need to specify for the dataset app. Below is a non-exhaustive outline of its structure:
+```
+configs/
+|- attacks/
+|- dataset/
+|- |- cifar5.yaml
+|- |- cifar10.yaml
+|- |- cifar100.yaml
+|- |- imagenet.yaml
+|- forget/
+|  |- class.yaml
+|  |- classnum.yaml
+|  |- filename.yaml
+|  |- random_n.yaml
+|- model/
+...
+attacks.yaml
+datasets.yaml
+unlearn.yaml
+...
+```
+Each mini-app's `main.py` points to a corresponding `<mini-app-alias>.yaml` file, which specifies required key inputs (e.g. dataset and forget for the datasets app). The corresponding YAML file for the dataset app is the `datasets.yaml` file:
+```
+defaults:
+  - dataset: ???
+  - forget: ???
+  - _self_
+
+experiment_name: ???
+seed: 42
+```
+This indicates we must specify an experiment name value, as well as a dataset YAML file and a forget YAML file. Since we are using CIFAR10, we can investigate the `dataset/cifar10.yaml` file:
+
+```
+name: cifar10
+num_classes: 10
+load_method: 
+binaries_download_dir: 
+init_path: 
+save_path: ??? 
+proportion: 1
+val_ratio: 0.2
+forget_ratio: 0.1
+background_ratio: 0.1
+cfg:
+  batch_sizes:
+    retain: 64
+    forget: 64
+    val: 64
+    train: 64
+    test: 1
+  num_workers: 4
+```
+Each mini-app only uses the arguments that it needs. As the dataset app is a dataset splitter, it will not use keys such as `cfg`, `background_ratio` and `forget_ratio`. We must specify `dataset.load_method=torchvision`, and `dataset.save_path`, as it is a mandatory argument referring to the directory to save the dataset splits to. Suppose we decide to save binaries to `./artifacts/`, the CIFAR ImageFolder images to `./raw` and the split symlinks to `./data`. 
+
+Now, reviewing the `forget/classnum.yaml` file corresponding to forgetting a number from a class:
+```
+method: classnum
+forget_idx: ??? # dict like {0: 100, 1: 100}
+```
+we see a mandatory key is `forget_idx`, where we specify the number of samples for the forget set from each class in a dictionary. For our experiment, we must pass in `forget.forget_idx="{0:10}"`.
+
+
+Then, we could run the following command to perform our desired splits.
 ```bash
-python src/datasets/main.py forget=classnum dataset=cifar10 dataset.load_method=torchvision dataset.binaries_download_dir=./artifacts forget.forget_idx="{0:10}" dataset.init_path=./raw dataset.save_path=./data experiment_name=test
+python src/datasets/main.py dataset=cifar10 dataset.load_method=torchvision dataset.binaries_download_dir=./artifacts dataset.init_path=./raw dataset.save_path=./data forget=classnum forget.forget_idx="{0:10}" experiment_name=test
 ```
 
 ## Contributing guidelines
