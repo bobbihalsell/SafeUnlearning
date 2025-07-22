@@ -5,6 +5,11 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 from torchvision import transforms
 from torchvision.transforms.functional import resize
+from skimage.metrics import structural_similarity as ssim
+import numpy as np
+from skimage import data, img_as_float
+import matplotlib.pyplot as plt
+import lpips
 
 
 def apply_resizing(img_batch, ref_batch, dataset_size):
@@ -131,3 +136,107 @@ def mse_image_space(img_batch, ref_batch, dataset_size):
         results.append((best_mse, best_idx))
 
     return results
+
+def ssim_image_space(img_batch, ref_batch, dataset_size):
+    """
+    For each image in img_batch, find the reference image in ref_batch with the highest SSIM.
+    Returns: list of (best_ssim, best_index) tuples, one per image in img_batch.
+    """
+    img_batch, ref_batch = apply_resizing(img_batch, ref_batch, dataset_size)
+
+    # detach and move to CPU, then convert to NumPy
+    img_batch = img_batch.detach().cpu().numpy().copy()
+    ref_batch = ref_batch.detach().cpu().numpy().copy()
+
+    results = []
+
+    for i, img in enumerate(img_batch):
+        best_ssim = float('-inf')
+        best_idx = -1
+        if img.ndim == 3 and img.shape[0] == 3:
+            img = np.transpose(img, (1, 2, 0))
+
+        for j, ref_img in enumerate(ref_batch):
+            if ref_img.ndim == 3 and ref_img.shape[0] == 3:
+                ref_img = np.transpose(ref_img, (1, 2, 0))
+            data_range = img.max() - img.min()
+            if data_range == 0:
+                data_range = 1.0
+
+            # If your images are multichannel, enable multichannel
+            multichannel = img.ndim == 3 and img.shape[2] == 3
+
+
+            ssim_val = ssim(img, ref_img, multichannel=multichannel, data_range=data_range, channel_axis=-1)
+            if ssim_val > best_ssim:
+                best_ssim = ssim_val
+                best_idx = j
+                plt.imsave(f'img_{i}_ref_{j}_ssim_{ssim_val:.4f}.png', ref_img, cmap='gray')
+        results.append((best_ssim, best_idx))
+
+    return results
+
+def lpips_image_space(img_batch, ref_batch, dataset_size):
+    loss_fn_alex = lpips.LPIPS(net='alex')
+
+    img_batch, ref_batch = apply_resizing(img_batch, ref_batch, dataset_size)
+
+    img_batch = img_batch.detach().cpu().float()
+    ref_batch = ref_batch.detach().cpu().float()
+
+    # LPIPS expects inputs in range [-1, 1]
+    img_batch = (img_batch * 2) - 1
+    ref_batch = (ref_batch * 2) - 1
+
+    results = []
+
+    for i, img in enumerate(img_batch):
+        best_lpips = float('inf')
+        best_idx = -1
+
+        for j, ref_img in enumerate(ref_batch):
+            
+            lpips_val = loss_fn_alex(img, ref_img).item()
+
+            if lpips_val < best_lpips:
+                best_lpips = lpips_val
+                best_idx = j
+                plt.imsave(f'img_{i}_ref_{j}_lpips_{lpips_val:.4f}.png', ref_img, cmap='gray')
+        results.append((best_lpips, best_idx))
+    
+    return results
+
+def test():
+    img = img_as_float(data.camera())
+
+    noise = np.ones_like(img) * 0.2 * (img.max() - img.min())
+    rng = np.random.default_rng()
+    noise[rng.random(size=noise.shape) > 0.5] *= -1
+
+    img_noise = img + noise
+    img_const = img + abs(noise)
+    img_flipped = np.fliplr(img).copy()
+
+    random_img = img_as_float(data.astronaut())
+    
+    # Save the images
+    plt.imsave('img_flipped.png', img_flipped, cmap='gray')
+    plt.imsave('img_noise.png', img_noise, cmap='gray')
+    plt.imsave('img_const.png', img_const, cmap='gray')
+    plt.imsave('random_img.png', random_img, cmap='gray')
+
+    img_batch = [torch.tensor(img_flipped), torch.tensor(img_noise), torch.tensor(img_const)]
+    # print(f"Image batch shapes: {[img.shape for img in img_batch]}")
+    ref_batch = [torch.tensor(img_noise), torch.tensor(img_const)]
+
+    dataset_size = (1,512, 512)  # Example size for the images
+
+    ssim_results = ssim_image_space(img_batch, ref_batch, dataset_size)
+    llpips_results = lpips_image_space(img_batch, ref_batch, dataset_size)
+    for i, (ssim_val, idx) in enumerate(ssim_results):
+        print(f"Image {i}: Best SSIM = {ssim_val:.4f}, Best Index = {idx}")
+    for i, (lpips_val, idx) in enumerate(llpips_results):
+        print(f"Image {i}: Best LPIPS = {lpips_val:.4f}, Best Index = {idx}")
+
+if __name__ == "__main__":
+    test()

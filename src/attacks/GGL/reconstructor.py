@@ -8,12 +8,13 @@ import torch.nn as nn
 import torch.optim as optim
 from pytorch_pretrained_biggan import BigGAN
 from torch.utils.data import DataLoader, TensorDataset
-from torchvision import transforms
+from torchvision import transforms, datasets
 
 from attacks.GGL.turbo import Turbo1
+from attacks.GGL.projection import privacy_attack_without_forget_data
+
 from unlearning.neggrad import NegGradPlus
 from unlearning.scrub import SCRUB
-
 
 class GGLReconstructor:
     """
@@ -102,6 +103,23 @@ class GGLReconstructor:
         generator = BigGAN.from_pretrained("biggan-deep-256")
         generator.eval()  # Set to evaluation mode
         self.generator = generator
+        # data_path = "/vol/bitbucket/vb524/imagenet_subset_val/Small-ImageNet-Validation-Dataset-1000-Classes/ILSVRC2012_img_val_subset"
+        bdata = datasets.ImageFolder(
+            data_path,
+            transform=transforms.Compose(
+                [
+                    transforms.Resize((224, 224)),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=[0.485, 0.456, 0.406],
+                        std=[0.229, 0.224, 0.225],
+                    ),
+                ]
+            ),
+        )
+        bdata_loader = DataLoader(bdata, batch_size=32, shuffle=False)
+        results = privacy_attack_without_forget_data(
+        self.original_model, self.target_model, bdata_loader, self.device, K=50)   # This projects the target_model
 
     def evaluate_loss(self, z, labels, loss_type=None, steps=None, **kwargs):
         """
@@ -166,7 +184,7 @@ class GGLReconstructor:
         # Compute difference between model from reconstruction and unlearned
         elif loss_type == "weighted":
             loss = self.compute_model_difference_weighted(recon, self.target_model)
-        elif loss_type == "l2":
+        elif loss_type == "l2": 
             loss = self.compute_model_difference_l2(recon, self.target_model)
         elif loss_type == "l1":
             loss = self.compute_model_difference_l1(recon, self.target_model)

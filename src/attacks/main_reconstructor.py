@@ -226,12 +226,14 @@ class ReconstructorApp(ReconstructorValidator):
         print(f"Reconstruction Losses: {losses}")
 
         # # Step 5: Save the reconstructed image
+        filename = f"{self.attack_name}_test.png"
         image_saver = self.save_results()
-        image_saver.save_png(reconstruction, normalize=False)
+        image_saver.save_png(reconstruction, normalize=False,
+                             filename=filename)
 
         # # Step 6: Calculate metrics
         ref_batch = load_from_directory(self.forget_root)
-        psnr_value, mse_value = calculate_metrics(
+        psnr_value, mse_value, ssim_value, lpips_value = calculate_metrics(
             reconstruction, ref_batch, self.image_size, self.verbose
         )
 
@@ -244,23 +246,35 @@ class ReconstructorApp(ReconstructorValidator):
             table_mse = wandb.Table(columns=["img_id", "mse", "best_ref_index"])
             for i, (mse, idx) in enumerate(mse_value):
                 table_mse.add_data(i, mse, idx)
+            
+            table_ssim = wandb.Table(columns=["img_id", "ssim", "best_ref_index"])
+            for i, (s, idx) in enumerate(ssim_value):
+                table_ssim.add_data(i, s, idx)
+            
+            table_lpips = wandb.Table(columns=["img_id", "lpips", "best_ref_index"])
+            for i, (lpips, idx) in enumerate(lpips_value):
+                table_lpips.add_data(i, lpips, idx)
 
             psnr_max = max([p for p, _ in psnr_value])
             mse_min = min([mse for mse, _ in mse_value])
+            max_ssim = max([s for s, _ in ssim_value])
+            min_lpips = min([lpips for lpips, _ in lpips_value])
 
-            wandb.log(
-                {
-                    "reconstruction_time": total_time,
-                    "losses": losses,
-                    "reconstruction": wandb.Image(reconstruction),
-                    "psnr_table": table_psnr,
-                    "mse_table": table_mse,
-                    "max_psnr": psnr_max,
-                    "min_mse": mse_min,
-                }
-            )
+            wandb.log({
+                'reconstruction_time': total_time,
+                'losses': losses,
+                'reconstruction': wandb.Image(reconstruction),
+                'psnr_table': table_psnr,
+                'mse_table': table_mse,
+                'max_psnr': psnr_max,
+                'min_mse': mse_min,
+                'max_ssim': max_ssim,
+                'ssim_table': table_ssim,
+                'min_lpips': min_lpips,
+                'lpips_table': table_lpips
+            })
             wandb.finish()
-
+        
 
 @hydra.main(version_base=None, config_path="../../configs", config_name="attacks")
 def main(cfg: DictConfig):

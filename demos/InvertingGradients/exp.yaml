@@ -1,4 +1,5 @@
 ## parameters we're interested in
+attack: inverting_gradients
 method: neggrad
 epochs: 1   # normal unlearning epoch for NegGrad/+, for scrub - forget away steps
 beta: 0  # for neggrad+
@@ -9,3 +10,4 @@ min_epochs: 0 # for scrub - retain aligning steps
 gamma: 0.0001 # for scrub in calculating loss, a small value is passed even when not using retain to not raise an error
 alpha: 0.0001 # for scrub in calculating loss
 retain_strength: 0.001   # for SGRU
+unlearned_label: 88

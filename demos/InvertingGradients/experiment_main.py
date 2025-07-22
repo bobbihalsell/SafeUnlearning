@@ -5,16 +5,15 @@ from dataclasses import dataclass
 
 import hydra
 
-from utils import get_forget_labels, get_retain_size
-
-LR = 0.01
+LR = 0.01   
 MOMENTUM = 0  # for unlearning
 SEED = 42
 MODEL_NAME = "resnet18"
 MODEL = "torchvision"
-DATASET = "cifar10"
-DATASET_SAVE_PATH = "./data"
-ORIGINAL_MODEL_SAVE_PATH = "./model"
+DATASET = "imagenet"
+
+DATASET_SAVE_PATH = "demos/GGL/imagenet_example_split"
+ORIGINAL_MODEL_SAVE_PATH = "demos/InvertingGradients/"
 
 
 @dataclass
@@ -29,6 +28,8 @@ class Config:
     gamma: float = 0.0001
     alpha: float = 0.0001
     retain_strength: float = 0.01
+    attack: str = "invertgrad"  # "invertgrad" or "ggl"
+    unlearned_label: int = 88  # The label to be unlearned, default is 88 for ImageNet
 
 
 # The @hydra.main decorator initializes the Hydra configuration system.
@@ -44,13 +45,13 @@ def run_exp(cfg: Config):
 
     retain_size = get_retain_size(f"{DATASET_SAVE_PATH}/retain")
     forget_labels = get_forget_labels(f"{DATASET_SAVE_PATH}/forget")
-    forget_size = len(forget_labels)
+    forget_size = 1
 
     # Set unique experiment name and model directory based on the method
     exp_params = get_exp_params(cfg, forget_size, retain_size)
     experiment_name = f"{cfg.method}_{exp_params}"
     model_dir = f"model/{experiment_name}"
-    model_save_path = "./demos/InvertingGradients/models/resnet18_42_original.pt"
+    model_save_path = "./demos/InvertingGradients/resnet18_42_original.pt"
     original_weights = f"{model_dir}/unlearn/{cfg.method}/{MODEL_NAME}_{SEED}_original.pt"
     unlearned_weights = f"{model_dir}/unlearn/{cfg.method}/{MODEL_NAME}_{SEED}_unlearned.pt"
 
@@ -65,7 +66,7 @@ def run_exp(cfg: Config):
         f"output_dir={model_dir}",
         f"dataset.save_path={DATASET_SAVE_PATH}",
         f"model.model_name={MODEL_NAME}",
-        f"model.original_model_ckpt_path={model_save_path}",
+        # f"model.original_model_ckpt_path={model_save_path}",
         "unlearner.cfg.lr_decay_factor=null",
     ]
 
@@ -108,9 +109,9 @@ def run_exp(cfg: Config):
 
     # Step 3: run reconstruction
     if forget_size == 1:  # if only one sample is forgotten, we can use pixelmean
-        num_runs = 3
-        scoring_choice = "pixelmean"
-        iterations = 7500
+        num_runs = 1
+        scoring_choice = "loss"
+        iterations = 2000
     else:
         num_runs = 1
         scoring_choice = "loss"
@@ -118,28 +119,57 @@ def run_exp(cfg: Config):
 
     reconstruction_experiment_name = f"{experiment_name}_{cfg.seed}"
     try:
-        subprocess.run(
-            [
-                "python",
-                "src/attacks/main_reconstructor.py",
-                "dataset=cifar10",
-                "model=torchvision",
-                "attack=invertgrad",
-                "model.model_name=resnet18",
-                f"dataset.save_path={DATASET_SAVE_PATH}",
-                f"verbose={cfg.verbose}",
-                f"seed={cfg.seed}",
-                f"model.original_model_ckpt_path={original_weights}",
-                f"model.unlearned_model_ckpt_path={unlearned_weights}",
-                f"attack.unlearned_labels={forget_labels}",
-                f"attack.cfg.num_runs={num_runs}",
-                f"attack.cfg.scoring_choice={scoring_choice}",
-                f"attack.cfg.recon_iterations={iterations}",
-                f"attack.cfg.init={cfg.init}",
-                f"experiment_name={reconstruction_experiment_name}",
-            ],
-            check=True,
+        if cfg.attack == "invertgrad":
+            subprocess.run(
+                [
+                    "python",
+                    "src/attacks/main_reconstructor.py",
+                    f"dataset={DATASET}",
+                    "model=torchvision",
+                    "attack=invertgrad",
+                    "model.model_name=resnet18",
+                    f"dataset.save_path={DATASET_SAVE_PATH}",
+                    f"verbose={cfg.verbose}",
+                    f"seed={cfg.seed}",
+                    f"model.original_model_ckpt_path={original_weights}",
+                    f"model.unlearned_model_ckpt_path={unlearned_weights}",
+                    f"attack.unlearned_labels=[88]",
+                    f"attack.cfg.num_runs={num_runs}",
+                    f"attack.cfg.scoring_choice={scoring_choice}",
+                    f"attack.cfg.recon_iterations={iterations}",
+                    f"attack.cfg.init={cfg.init}",
+                    f"experiment_name={reconstruction_experiment_name}",
+                    "+wandb=default",
+                    f"wandb.project_name=InvertGradExpImagenet",
+                ],
+                check=True,
+            )
+        else:
+                        subprocess.run(
+                [
+                    "python",
+                    "src/attacks/main_reconstructor.py",
+                    f"dataset={DATASET}",
+                    "model=torchvision",
+                    "attack=ggl",
+                    "model.model_name=resnet18",
+                    f"dataset.save_path={DATASET_SAVE_PATH}",
+                    f"verbose={cfg.verbose}",
+                    f"seed={cfg.seed}",
+                    f"model.original_model_ckpt_path={original_weights}",
+                    f"model.unlearned_model_ckpt_path={unlearned_weights}",
+                    f"attack.unlearned_labels={cfg.unlearned_label}",
+                    f"attack.lr=0.001",
+                    f"attack.cfg.budget=1000",
+                    f"attack.cfg.initial_lr=1",
+                    f"attack.cfg.batch_size=3",
+                    f"experiment_name={reconstruction_experiment_name}",
+                    "+wandb=default",
+                    f"wandb.project_name=InvertGradExpImagenet",
+                ],
+                check=True,
         )
+
     except subprocess.CalledProcessError as e:
         print(f"Error during main_reconstructor.py execution: {e}")
         sys.exit(1)
@@ -159,4 +189,5 @@ def get_exp_params(cfg, forget_size, retain_size):
 
 
 if __name__ == "__main__":
+    from exp_utils import get_forget_labels, get_retain_size
     run_exp()

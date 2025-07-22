@@ -11,7 +11,7 @@ import torch
 from PIL import Image
 from torchvision import transforms
 
-from attacks.metrics import mse_image_space, psnr
+from attacks.metrics import mse_image_space, psnr, ssim_image_space, lpips_image_space
 
 
 class SaveImage:
@@ -73,7 +73,8 @@ class SaveImage:
         Returns:
             None
         """
-
+        plt.clf()
+        plt.close()
         if not isinstance(images, torch.Tensor):
             raise TypeError("Images should be a tensor.")
 
@@ -200,6 +201,9 @@ def calculate_metrics(img_batch, ref_batch, dataset_size, verbose=True):
 
     psnr_value = psnr(img_batch, ref_batch, dataset_size, factor=1)
     mse_value = mse_image_space(img_batch, ref_batch, dataset_size)
+    ssim_value = ssim_image_space(img_batch, ref_batch, dataset_size)
+    lpips_value = lpips_image_space(img_batch, ref_batch, dataset_size)
+
 
     if verbose:
         print("\n*** Evaluation Metrics ***")
@@ -208,12 +212,19 @@ def calculate_metrics(img_batch, ref_batch, dataset_size, verbose=True):
             print(f"Recon image {i}: Best match is ref {idx} with PSNR {val:.6f}")
         for i, (mse, idx) in enumerate(mse_value):
             print(f"Recon image {i}: Best match is ref {idx} with MSE {mse:.6f}")
+        for i, (ssim, idx) in enumerate(ssim_value):
+            print(f"Recon image {i}: Best match is ref {idx} with SSIM {ssim:.6f}")
+        for i, (lpips, idx) in enumerate(lpips_value):
+            print(f"Recon image {i}: Best match is ref {idx} with LPIPS {lpips:.6f}")
 
-    return psnr_value, mse_value
+
+    return psnr_value, mse_value, ssim_value, lpips_value
 
 
 def load_from_directory(dir_path):
-    transform = transforms.ToTensor()
+    transform = transforms.Compose([
+        transforms.Resize((224, 224)),  # Resize to a common size
+        transforms.ToTensor()])  # Convert to tensor
     images = []
 
     # Recursively find all image files in dir_path
@@ -226,6 +237,7 @@ def load_from_directory(dir_path):
         img = Image.open(img_path).convert("RGB")
         tensor_img = transform(img)
         images.append(tensor_img)
+
 
     if not images:
         raise RuntimeError(f"No image files found in {dir_path} or its subdirectories.")
