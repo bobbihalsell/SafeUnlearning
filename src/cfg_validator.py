@@ -85,7 +85,21 @@ class InputValidator:
             if unlearner_name == "euk":
                 self._require(cfg, "reinit_method")
 
-        elif unlearner_name == "gradproj":
+        elif unlearner_name == "pgu":
+            required_gradproj_params = [
+                "retained_var",
+                "start_lr",
+                "end_lr",
+                "loss1_w",
+                "loss2_w",
+                "unlearn_steps",
+                "work_dir",
+                "exp_name"
+            ]
+            for param in required_gradproj_params:
+                self._require(cfg, param)
+
+        elif unlearner_name == "pgu":
             required_gradproj_params = [
                 "recalc_freq",
                 "num_components",

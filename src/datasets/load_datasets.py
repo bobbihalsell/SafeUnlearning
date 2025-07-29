@@ -161,6 +161,8 @@ def save_cifar_as_imagefolder(raw_train, raw_test, download_root, dataset_save_d
         dataset_save_dir (str): Directory to save the converted ImageFolder dataset.
     """
     if os.path.exists(dataset_save_dir):
+        ##############
+        return 
         print(f"Clearing existing dataset save directory: {dataset_save_dir}")
         shutil.rmtree(dataset_save_dir)
     to_pil = ToPILImage()
@@ -178,3 +180,4 @@ def save_cifar_as_imagefolder(raw_train, raw_test, download_root, dataset_save_d
             img.save(os.path.join(class_dir, f"{counter:05}.png"))
             counter += 1
     print(f"Saved {counter} images to {dataset_save_dir} in ImageFolder format.")
+

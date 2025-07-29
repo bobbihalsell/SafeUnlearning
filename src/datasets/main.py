@@ -12,8 +12,8 @@ from datasets.load_datasets import (
     create_symlinks,
     download_cifar_datasets,
     get_filenames_and_labels,
-    stratified_split_filenames,
-)
+    stratified_split_filenames
+    )
 from train.image_loading import RobustImageFolder
 from utils import ConfigError, set_seed
 
@@ -49,7 +49,6 @@ class DatasetInitializer(DatasetValidator):
                     download_root=self.binaries_download_dir,
                     save_dir=self.init_path,
                 )
-
         else:
             if self.dataset_load_method == "torchvision":
                 raise ConfigError(
@@ -114,6 +113,79 @@ class DatasetInitializer(DatasetValidator):
             raise ConfigError(
                 f"Unsupported forget_method, received {self.forget_method}."
             )
+##########################
+    def load_datasets2(self):
+        """
+        Download and save benchmark datasets with name support.
+        This will download dataset splits in the save directory.
+
+        Raises:
+          ConfigError: If an unsupported dataset or forget method is specified.
+        """
+        if "cifar" in self.dataset_name:
+            if self.dataset_load_method == "torchvision":
+                download_cifar_datasets(
+                    dataset_name=self.dataset_name,
+                    download_root=self.binaries_download_dir,
+                    save_dir=self.init_path,
+                )
+        else:
+            if self.dataset_load_method == "torchvision":
+                raise ConfigError(
+                    "Sorry, torchvision download is not enabled yet for "
+                    "non-CIFAR datasets."
+                )
+
+        # Filter a proportion of the train dataset filenames
+        filenames, labels = get_filenames_and_labels(self.init_path + "/train")
+        if os.path.exists(self.init_path + "/test"):
+            test_filenames, test_labels = get_filenames_and_labels(
+                self.init_path + "/test"
+            )
+
+        # Perform a train/val split from the remaining filenames
+        train_filenames, background_filenames = stratified_split_filenames(
+            filenames, labels, proportion=1 - self.bset_ratio
+        )
+        # Check if the splits path is filled from a previous run and clear it
+        self._reinitialize_splits_dir()
+
+        # Create train/val symlinks from self.save_path
+        create_symlinks(train_filenames, self.save_path + "/train")
+        create_symlinks(background_filenames, self.save_path + "/bset")
+        if os.path.exists(self.init_path + "/test"):
+            create_symlinks(test_filenames, self.save_path + "/val")
+
+        # Create symlinks for desired retain and forget set images
+        if self.forget_method == "random_n":
+            self.create_forget_retain_symlinks_by_random_n(
+                train_dir=self.save_path + "/train",
+                output_dir=self.save_path,
+                forget_size=self.forget_size,
+                retain_size=self.retain_size,
+            )
+        elif self.forget_method == "class":
+            self.create_forget_retain_symlinks_by_classes(
+                train_dir=self.save_path + "/train",
+                output_dir=self.save_path,
+                forget_classes=self.forget_idx,
+            )
+        elif self.forget_method == "classnum":
+            self.create_forget_retain_symlinks_by_class_number(
+                train_dir=self.save_path + "/train",
+                output_dir=self.save_path,
+                forget_classes=self.forget_idx,
+            )
+        elif self.forget_method == "filename":
+            self.create_forget_retain_symlinks_by_filename(
+                train_dir=self.save_path + "/train", output_dir=self.save_path
+            )
+        else:
+            raise ConfigError(
+                f"Unsupported forget_method, received {self.forget_method}."
+            )
+
+##########################
 
     def _reinitialize_splits_dir(self):
         """
@@ -409,7 +481,10 @@ def main(cfg: DictConfig):
             "Hint: python file.py key=value sets the appropriate value."
         )
     app = DatasetInitializer(cfg)
-    app.load_datasets()
+    if not app.bdata:
+        app.load_datasets()
+    else:
+        app.load_datasets2()
     app.del_parent_dir()
 
 

@@ -187,6 +187,8 @@ class BaseUnlearner:
         model.eval()
 
         for data_type, loader in data_dict.items():
+            if data_type == 'train':
+                continue
             start_eval_time = time.time()
             loader_loss, loader_acc = self._evaluate(model, loader)
 

@@ -16,6 +16,7 @@ from unlearning.kunlearn import KUnlearn
 from unlearning.neggrad import NegGrad, NegGradPlus
 from unlearning.scrub import SCRUB
 from unlearning.SGRU import SGRU
+from unlearning.PGU import PGUnlearner
 from unlearning.unlearn_utils import save_model
 from utils import initialize_dataloaders as init_dataloaders
 from utils import set_seed, setup_device
@@ -115,12 +116,16 @@ class UnlearnApp(UnlearningValidator):
                 self.wandb_enabled,
                 self.verbose,
             )
+        elif self.unlearner_name == "pgu":
+            unlearner = PGUnlearner(
+                self.device, self.evaluate, self.wandb_enabled, self.verbose
+            )
         else:
             raise ValueError(f"unlearner_name {self.unlearner_name} not supported.")
         self.unlearner = unlearner
         return unlearner
 
-    def initialize_dataloaders(self):
+    def initialize_dataloaders(self, train=False):
         """
         Initialize dataloaders from the dataset folder.
 
@@ -133,16 +138,21 @@ class UnlearnApp(UnlearningValidator):
         # Load datasets for each split, exclude train and test data
         if not os.path.exists(self.dataset_save_dir):
             raise ValueError("Data directory not found.")
+        tt_data = ["train", "test"] if not train else ["test"]
         splits = [
             d
             for d in os.listdir(self.dataset_save_dir)
             if os.path.isdir(os.path.join(self.dataset_save_dir, d))
-            and d not in ["train", "test"]
+            and d not in tt_data
             and not d.startswith(".")
         ]
         if "forget" not in splits:
             raise ValueError("Forget data required in dataset directory.")
-
+        print(splits)
+        #######
+        if 'bset' in splits:
+            splits.remove('bset')
+        #######
         dataloaders = init_dataloaders(
             splits=splits,
             batch_sizes=self.batch_sizes,
@@ -172,7 +182,8 @@ class UnlearnApp(UnlearningValidator):
         4. Saves the unlearned model and logs runtime.
         """
         # Step 1: Load retain/val/forget datalaoders
-        dataloaders = self.initialize_dataloaders()
+        train = True if self.unlearner_name == 'pgu' else False
+        dataloaders = self.initialize_dataloaders(train=train)
         # Step 2: Initialize the pretrained model
         original_model = self.load_model()
 
