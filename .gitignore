@@ -3,10 +3,13 @@ __pycache__/
 *.py[cod]
 *$py.class
 data/**
+data1/** */
 raw/**
+bin/**
 imagenet/**
 tiny-imagenet-200/**
 outputs/**
+cifar10/**
 
 # *.pt
 # *.pth
