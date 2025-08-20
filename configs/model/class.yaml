@@ -1,6 +1,7 @@
 load_method: class  
-class_path: ???
-class_name: ???
-original_model_ckpt_path:
+class_path: allcnnmodel.backbone.allcnn
+class_name: AllCNN
+original_model_ckpt_path: allcnnmodel/ckp.pth
 unlearned_model_ckpt_path:
 model_kwargs:
+

@@ -35,11 +35,11 @@ def debug_layer_names(subspace, target_dict, gradient_dict, dict_name="data", sh
     common_layers = subspace_layers & target_layers & gradient_layers
     
     if missing_in_target:
-        print(f"⚠️  Layers in subspace but missing in target: {sorted(list(missing_in_target)[:3])}{'...' if len(missing_in_target) > 3 else ''}")
+        print(f"Layers in subspace but missing in target: {sorted(list(missing_in_target)[:3])}{'...' if len(missing_in_target) > 3 else ''}")
     if missing_in_data:
-        print(f"⚠️  Layers in subspace but missing in {dict_name}: {sorted(list(missing_in_data)[:3])}{'...' if len(missing_in_data) > 3 else ''}")
+        print(f"Layers in subspace but missing in {dict_name}: {sorted(list(missing_in_data)[:3])}{'...' if len(missing_in_data) > 3 else ''}")
         
-    print(f"✅ Common layers across all ({len(common_layers)}): {sorted(list(common_layers)[:3])}{'...' if len(common_layers) > 3 else ''}")
+    print(f"Common layers across all ({len(common_layers)}): {sorted(list(common_layers)[:3])}{'...' if len(common_layers) > 3 else ''}")
     
     if show_details and len(common_layers) < len(subspace_layers):
         print(f"\n DETAILED LAYER COMPARISON:")
@@ -462,10 +462,6 @@ def test_projection(forgetdata, retaindata, original_model, unlearned_model,
         print(f"{layer:<25} {target_val:<12.6f} {forget_val:<12.6f} {retain_val:<12.6f} "
               f"{forget_diff:<12.6f} {retain_diff:<12.6f}")
     
-    # Theoretical validation
-    print(f"\n" + "="*60)
-    print("THEORETICAL PROPOSITION VALIDATION:")
-    print("="*60)
     
     proposition1_satisfied = forget_alignment > retain_alignment
     proposition2_satisfied = forget_diff_total < retain_diff_total

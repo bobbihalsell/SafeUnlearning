@@ -38,14 +38,7 @@ def main():
     """
     Main function with comprehensive standardized analysis using PGU-style functions.
     """
-    
-    print("STARTING COMPREHENSIVE UNLEARNING PRIVACY ANALYSIS (PGU STYLE)")
-    
-    # ==================================================================
-    # SETUP PHASE
-    # ==================================================================
-    
-    print("\n📚 SETUP PHASE")
+        
     print("-" * 40)
     
     device = setup_device()
@@ -88,16 +81,13 @@ def main():
     
     print("Setup completed successfully!")
     
-    # ==================================================================
-    # TESTING PHASE
-    # ==================================================================
     
     if TEST_LAYERS:
-        print("\n🔍 TESTING LAYER NAMES WITH PGU STYLE")
+        print("\nTESTING LAYER NAMES WITH PGU STYLE")
         print("-" * 50)
         
         try:
-            # Test layer name consistency using PGU-style functions
+            # Test layer name consistency 
             subspace, param_diff, gradients = test_layer_names(
                 forgetdata, forgetdata, original_model, unlearned_model, device, 
                 loss_fn=nn.CrossEntropyLoss(), variance_threshold=VARIANCE_THRESHOLD
@@ -120,7 +110,7 @@ def main():
         try:
             result = test_projection(
                 forgetdata, retaindata, original_model, unlearned_model, 
-                forgetdata, LEARNING_RATE, device, 
+                bdata, LEARNING_RATE, device, 
                 loss_fn=nn.CrossEntropyLoss(), variance_threshold=VARIANCE_THRESHOLD
             )
             

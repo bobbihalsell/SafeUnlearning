@@ -5,6 +5,7 @@ binaries_download_dir: # The directory to download the dataset binaries to
 init_path: # the directory path where the original train or train/test dataset images can be found
 save_path: ??? # the parent directory path for the train/val/test/forget/retain folders.
 proportion: 1
+bset_ratio: 0.4
 val_ratio: 0.2
 forget_ratio: 0.1
 background_ratio: 0.1
@@ -15,4 +16,6 @@ cfg:
     val: 64
     train: 64
     test: 1
+    bdata:  64
   num_workers: 4
+bdata: true
