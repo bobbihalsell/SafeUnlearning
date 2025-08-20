@@ -31,7 +31,8 @@ CACHE_DIR = './svd_cache'
 FORCE_RECOMPUTE = False
 
 TEST_LAYERS = False
-TEST_PROJECTION = True
+TEST_PROJECTION_WITH_BACKGROUND = True
+TEST_PROJECTION_WITH_FORGET = True # this should align
 
 
 def main():
@@ -113,8 +114,28 @@ def main():
             import traceback
             traceback.print_exc()
 
-    if TEST_PROJECTION:
-        print("\nTESTING PROJECTION")
+    if TEST_PROJECTION_WITH_BACKGROUND:
+        print("\nTESTING PROJECTION WITH BACKGROUND DATA")
+        print("-" * 50)
+        
+        try:
+            result = test_projection(
+                forgetdata, retaindata, original_model, unlearned_model, 
+                bdata, LEARNING_RATE, device, 
+                loss_fn=nn.CrossEntropyLoss(), variance_threshold=VARIANCE_THRESHOLD
+            )
+            
+            print("\nProjection testing completed successfully!")
+            
+        except Exception as e:
+            print(f"Projection testing failed: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    print("\nAnalysis completed!")
+
+    if TEST_PROJECTION_WITH_FORGET:
+        print("\nTESTING PROJECTION WITH FORGET DATA")
         print("-" * 50)
         
         try:
